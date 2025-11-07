@@ -13,36 +13,30 @@ let currentView = 'dashboard';
 let charts = {};
 
 // ============================================
+// CONFIGURAÇÃO DO SUPABASE (EMBUTIDA)
+// ============================================
+
+const SUPABASE_URL = 'https://gbvjdntklbggxycmfyhg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdidmpkbnRrbGJnZ3h5Y21meWhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1MzUyMzYsImV4cCI6MjA3ODExMTIzNn0.aNVzAIJFavtrBsYwkuXUfrbwBU2gO3xXuePIpTkNpdQ';
+
+// ============================================
 // INICIALIZAÇÃO
 // ============================================
 
 async function initApp() {
   try {
-    // ✅ CORREÇÃO: Usar as chaves corretas!
-    const supabaseUrl = localStorage.getItem('supabase_url');
-    const supabaseKey = localStorage.getItem('supabase_key');
-
-    console.log('Verificando Supabase...');
-    console.log('URL:', supabaseUrl ? '✅ Encontrada' : '❌ Não encontrada');
-    console.log('Key:', supabaseKey ? '✅ Encontrada' : '❌ Não encontrada');
-
-    // Se não tiver as credenciais, mostrar tela de configuração
-    if (!supabaseUrl || !supabaseKey) {
-      console.warn('Credenciais não encontradas. Mostrando modal de configuração.');
-      showConfigModal();
-      return;
-    }
-
-    // Inicializar Supabase
-    console.log('Inicializando Supabase...');
-    supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    console.log('🚀 Iniciando aplicação...');
+    
+    // Inicializar Supabase com credenciais embutidas
+    console.log('🔌 Conectando ao Supabase...');
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     console.log('✅ Supabase inicializado com sucesso!');
 
     // Verificar sessão
     const { data, error } = await supabase.auth.getSession();
     
     if (error) {
-      console.error('Erro ao verificar sessão:', error);
+      console.error('❌ Erro ao verificar sessão:', error);
       showScreen('loginScreen');
       return;
     }
@@ -53,7 +47,7 @@ async function initApp() {
       showScreen('mainApp');
       loadAllData();
     } else {
-      console.log('Nenhuma sessão ativa. Mostrando tela de login.');
+      console.log('ℹ️ Nenhuma sessão ativa. Mostrando tela de login.');
       showScreen('loginScreen');
     }
   } catch (error) {
@@ -65,7 +59,7 @@ async function initApp() {
 
 async function loadAllData() {
   try {
-    console.log('Carregando todos os dados...');
+    console.log('📥 Carregando todos os dados...');
     await Promise.all([
       loadAccounts(),
       loadCategories(),
@@ -81,86 +75,12 @@ async function loadAllData() {
 }
 
 // ============================================
-// MODAL DE CONFIGURAÇÃO DO SUPABASE
-// ============================================
-
-function showConfigModal() {
-  const html = `
-    <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
-      <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
-        <h2 style="margin-bottom: 20px; color: #1F2937;">⚙️ Configurar Supabase</h2>
-        
-        <p style="margin-bottom: 15px; color: #6B7280; font-size: 14px; line-height: 1.6;">
-          Você precisa configurar suas credenciais do Supabase para usar esta aplicação.
-        </p>
-        
-        <div style="margin-bottom: 15px;">
-          <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #1F2937; font-size: 14px;">URL do Supabase:</label>
-          <input type="text" id="configUrl" placeholder="https://xyzxyz.supabase.co" style="width: 100%; padding: 10px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 13px; box-sizing: border-box; font-family: monospace;">
-        </div>
-        
-        <div style="margin-bottom: 20px;">
-          <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #1F2937; font-size: 14px;">Chave Pública (anon):</label>
-          <textarea id="configKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="width: 100%; padding: 10px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 12px; box-sizing: border-box; font-family: monospace; min-height: 80px; resize: vertical;"></textarea>
-        </div>
-        
-        <div style="background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 6px; padding: 12px; margin-bottom: 20px; font-size: 13px; color: #92400E;">
-          <strong>📖 Como obter:</strong><br>
-          1. Acesse seu projeto no <a href="https://supabase.com" target="_blank" style="color: #92400E; text-decoration: underline;">Supabase</a><br>
-          2. Vá em <strong>Settings</strong> (⚙️) → <strong>API</strong><br>
-          3. Copie a <strong>Project URL</strong> e cole acima<br>
-          4. Copie a <strong>anon public key</strong> e cole acima
-        </div>
-        
-        <button onclick="saveSupabaseConfig()" style="width: 100%; padding: 12px; background: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 14px; transition: background 0.3s;">
-          ✅ Salvar Configuração
-        </button>
-        
-        <p style="margin-top: 15px; font-size: 12px; color: #9CA3AF;">
-          Suas credenciais serão salvas apenas no seu navegador local.
-        </p>
-      </div>
-    </div>
-  `;
-  
-  document.body.insertAdjacentHTML('beforeend', html);
-}
-
-function saveSupabaseConfig() {
-  const url = document.getElementById('configUrl')?.value?.trim();
-  const key = document.getElementById('configKey')?.value?.trim();
-
-  if (!url || !key) {
-    alert('❌ Preencha URL e Chave do Supabase');
-    return;
-  }
-
-  if (!url.includes('supabase.co')) {
-    alert('❌ URL inválida! Deve ser algo como: https://xyzxyz.supabase.co');
-    return;
-  }
-
-  console.log('Salvando configuração...');
-  localStorage.setItem('supabase_url', url);
-  localStorage.setItem('supabase_key', key);
-  console.log('✅ Configuração salva!');
-  
-  // Remover modal
-  const modal = document.querySelector('div[style*="position: fixed"]');
-  if (modal) modal.remove();
-  
-  // Reinicializar app
-  console.log('Reinicializando app...');
-  initApp();
-}
-
-// ============================================
 // AUTENTICAÇÃO
 // ============================================
 
 async function handleLogin() {
   if (!supabase) {
-    alert('❌ Supabase não está configurado. Recarregue a página.');
+    alert('❌ Supabase não está disponível');
     return;
   }
 
@@ -173,7 +93,7 @@ async function handleLogin() {
   }
 
   try {
-    console.log('Tentando login com:', email);
+    console.log('🔐 Tentando login com:', email);
     const { data, error } = await supabase.auth.signInWithPassword({ 
       email, 
       password 
@@ -193,7 +113,7 @@ async function handleLogin() {
 
 async function handleSignup() {
   if (!supabase) {
-    alert('❌ Supabase não está configurado. Recarregue a página.');
+    alert('❌ Supabase não está disponível');
     return;
   }
 
@@ -211,7 +131,7 @@ async function handleSignup() {
   }
 
   try {
-    console.log('Criando conta com:', email);
+    console.log('📝 Criando conta com:', email);
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password 
@@ -315,7 +235,7 @@ window.addEventListener('click', (e) => {
 
 async function loadCreditCards() {
   if (!supabase || !currentUser) {
-    console.warn('Não é possível carregar cartões: supabase ou usuário não disponível');
+    console.warn('⚠️ Não é possível carregar cartões: supabase ou usuário não disponível');
     return;
   }
   
@@ -444,7 +364,7 @@ function showAddCreditCardModal() {
 
 async function saveCreditCard() {
   if (!supabase || !currentUser) {
-    alert('❌ Erro: Supabase não está configurado');
+    alert('❌ Erro: Supabase não está disponível');
     return;
   }
 
@@ -1326,6 +1246,8 @@ function updateCharts() {
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('🚀 Iniciando aplicação...');
+  console.log('📦 Versão: 1.0.0');
+  console.log('✅ Supabase configurado internamente');
   
   // Fechar modais ao clicar no X
   document.querySelectorAll('.modal-close').forEach(btn => {
