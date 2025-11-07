@@ -18,37 +18,54 @@ let charts = {};
 
 async function initApp() {
   try {
-    const supabaseUrl = localStorage.getItem('https://gbvjdntklbggxycmfyhg.supabase.co');
-    const supabaseKey = localStorage.getItem('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdidmpkbnRrbGJnZ3h5Y21meWhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1MzUyMzYsImV4cCI6MjA3ODExMTIzNn0.aNVzAIJFavtrBsYwkuXUfrbwBU2gO3xXuePIpTkNpdQ');
+    // ✅ CORREÇÃO: Usar as chaves corretas!
+    const supabaseUrl = localStorage.getItem('supabase_url');
+    const supabaseKey = localStorage.getItem('supabase_key');
+
+    console.log('Verificando Supabase...');
+    console.log('URL:', supabaseUrl ? '✅ Encontrada' : '❌ Não encontrada');
+    console.log('Key:', supabaseKey ? '✅ Encontrada' : '❌ Não encontrada');
 
     // Se não tiver as credenciais, mostrar tela de configuração
     if (!supabaseUrl || !supabaseKey) {
+      console.warn('Credenciais não encontradas. Mostrando modal de configuração.');
       showConfigModal();
       return;
     }
 
     // Inicializar Supabase
+    console.log('Inicializando Supabase...');
     supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    console.log('✅ Supabase inicializado com sucesso!');
 
     // Verificar sessão
-    const { data } = await supabase.auth.getSession();
+    const { data, error } = await supabase.auth.getSession();
     
+    if (error) {
+      console.error('Erro ao verificar sessão:', error);
+      showScreen('loginScreen');
+      return;
+    }
+
     if (data?.session) {
       currentUser = data.session.user;
+      console.log('✅ Usuário logado:', currentUser.email);
       showScreen('mainApp');
       loadAllData();
     } else {
+      console.log('Nenhuma sessão ativa. Mostrando tela de login.');
       showScreen('loginScreen');
     }
   } catch (error) {
-    console.error('Erro na inicialização:', error);
-    alert('Erro ao conectar com Supabase. Verifique as credenciais.');
+    console.error('❌ Erro fatal na inicialização:', error);
+    alert('❌ Erro ao conectar com Supabase:\n' + error.message);
     showScreen('loginScreen');
   }
 }
 
 async function loadAllData() {
   try {
+    console.log('Carregando todos os dados...');
     await Promise.all([
       loadAccounts(),
       loadCategories(),
@@ -57,8 +74,9 @@ async function loadAllData() {
       loadCreditCards()
     ]);
     updateDashboard();
+    console.log('✅ Todos os dados carregados!');
   } catch (error) {
-    console.error('Erro ao carregar dados:', error);
+    console.error('❌ Erro ao carregar dados:', error);
   }
 }
 
@@ -69,30 +87,38 @@ async function loadAllData() {
 function showConfigModal() {
   const html = `
     <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
-      <div style="background: white; padding: 30px; border-radius: 12px; max-width: 400px; width: 90%;">
+      <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
         <h2 style="margin-bottom: 20px; color: #1F2937;">⚙️ Configurar Supabase</h2>
         
-        <p style="margin-bottom: 15px; color: #6B7280; font-size: 14px;">
-          Você precisa configurar suas credenciais do Supabase primeiro.
+        <p style="margin-bottom: 15px; color: #6B7280; font-size: 14px; line-height: 1.6;">
+          Você precisa configurar suas credenciais do Supabase para usar esta aplicação.
         </p>
         
         <div style="margin-bottom: 15px;">
-          <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #1F2937;">URL do Supabase:</label>
-          <input type="text" id="configUrl" placeholder="https://xyzxyz.supabase.co" style="width: 100%; padding: 10px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+          <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #1F2937; font-size: 14px;">URL do Supabase:</label>
+          <input type="text" id="configUrl" placeholder="https://xyzxyz.supabase.co" style="width: 100%; padding: 10px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 13px; box-sizing: border-box; font-family: monospace;">
         </div>
         
         <div style="margin-bottom: 20px;">
-          <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #1F2937;">Chave Pública (anon):</label>
-          <input type="text" id="configKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5..." style="width: 100%; padding: 10px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+          <label style="display: block; font-weight: 600; margin-bottom: 5px; color: #1F2937; font-size: 14px;">Chave Pública (anon):</label>
+          <textarea id="configKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="width: 100%; padding: 10px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 12px; box-sizing: border-box; font-family: monospace; min-height: 80px; resize: vertical;"></textarea>
         </div>
         
-        <p style="margin-bottom: 15px; color: #6B7280; font-size: 12px;">
-          🔗 <strong>Como obter:</strong> Vá em Project Settings → API no seu projeto Supabase e copie a URL do projeto e a chave anon.
-        </p>
+        <div style="background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 6px; padding: 12px; margin-bottom: 20px; font-size: 13px; color: #92400E;">
+          <strong>📖 Como obter:</strong><br>
+          1. Acesse seu projeto no <a href="https://supabase.com" target="_blank" style="color: #92400E; text-decoration: underline;">Supabase</a><br>
+          2. Vá em <strong>Settings</strong> (⚙️) → <strong>API</strong><br>
+          3. Copie a <strong>Project URL</strong> e cole acima<br>
+          4. Copie a <strong>anon public key</strong> e cole acima
+        </div>
         
-        <button onclick="saveSupabaseConfig()" style="width: 100%; padding: 12px; background: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 14px;">
-          Salvar Configuração
+        <button onclick="saveSupabaseConfig()" style="width: 100%; padding: 12px; background: #3B82F6; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 14px; transition: background 0.3s;">
+          ✅ Salvar Configuração
         </button>
+        
+        <p style="margin-top: 15px; font-size: 12px; color: #9CA3AF;">
+          Suas credenciais serão salvas apenas no seu navegador local.
+        </p>
       </div>
     </div>
   `;
@@ -101,22 +127,30 @@ function showConfigModal() {
 }
 
 function saveSupabaseConfig() {
-  const url = document.getElementById('configUrl').value.trim();
-  const key = document.getElementById('configKey').value.trim();
+  const url = document.getElementById('configUrl')?.value?.trim();
+  const key = document.getElementById('configKey')?.value?.trim();
 
   if (!url || !key) {
-    alert('Preencha URL e Chave do Supabase');
+    alert('❌ Preencha URL e Chave do Supabase');
     return;
   }
 
+  if (!url.includes('supabase.co')) {
+    alert('❌ URL inválida! Deve ser algo como: https://xyzxyz.supabase.co');
+    return;
+  }
+
+  console.log('Salvando configuração...');
   localStorage.setItem('supabase_url', url);
   localStorage.setItem('supabase_key', key);
+  console.log('✅ Configuração salva!');
   
   // Remover modal
   const modal = document.querySelector('div[style*="position: fixed"]');
   if (modal) modal.remove();
   
   // Reinicializar app
+  console.log('Reinicializando app...');
   initApp();
 }
 
@@ -126,19 +160,20 @@ function saveSupabaseConfig() {
 
 async function handleLogin() {
   if (!supabase) {
-    alert('Supabase não está configurado');
+    alert('❌ Supabase não está configurado. Recarregue a página.');
     return;
   }
 
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPassword').value;
+  const email = document.getElementById('loginEmail')?.value?.trim();
+  const password = document.getElementById('loginPassword')?.value;
 
   if (!email || !password) {
-    alert('Preencha email e senha');
+    alert('⚠️ Preencha email e senha');
     return;
   }
 
   try {
+    console.log('Tentando login com:', email);
     const { data, error } = await supabase.auth.signInWithPassword({ 
       email, 
       password 
@@ -147,28 +182,36 @@ async function handleLogin() {
     if (error) throw error;
 
     currentUser = data.user;
+    console.log('✅ Login bem-sucedido!');
     showScreen('mainApp');
     loadAllData();
   } catch (error) {
-    alert('Erro no login: ' + error.message);
+    console.error('❌ Erro no login:', error);
+    alert('❌ Erro no login:\n' + error.message);
   }
 }
 
 async function handleSignup() {
   if (!supabase) {
-    alert('Supabase não está configurado');
+    alert('❌ Supabase não está configurado. Recarregue a página.');
     return;
   }
 
-  const email = document.getElementById('signupEmail').value.trim();
-  const password = document.getElementById('signupPassword').value;
+  const email = document.getElementById('signupEmail')?.value?.trim();
+  const password = document.getElementById('signupPassword')?.value;
 
   if (!email || !password) {
-    alert('Preencha email e senha');
+    alert('⚠️ Preencha email e senha');
+    return;
+  }
+
+  if (password.length < 6) {
+    alert('⚠️ A senha deve ter pelo menos 6 caracteres');
     return;
   }
 
   try {
+    console.log('Criando conta com:', email);
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password 
@@ -176,10 +219,11 @@ async function handleSignup() {
 
     if (error) throw error;
     
-    alert('Conta criada! Verifique seu email para confirmar.');
+    alert('✅ Conta criada! Verifique seu email para confirmar.');
     showLogin();
   } catch (error) {
-    alert('Erro no cadastro: ' + error.message);
+    console.error('❌ Erro no cadastro:', error);
+    alert('❌ Erro no cadastro:\n' + error.message);
   }
 }
 
@@ -197,7 +241,10 @@ async function handleLogout() {
 
 function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(screenId).classList.add('active');
+  const screen = document.getElementById(screenId);
+  if (screen) {
+    screen.classList.add('active');
+  }
 }
 
 function showLogin() {
@@ -212,7 +259,8 @@ function showView(viewName) {
   currentView = viewName;
   
   document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
-  document.querySelector(`[data-view="${viewName}"]`).classList.add('active');
+  const navBtn = document.querySelector(`[data-view="${viewName}"]`);
+  if (navBtn) navBtn.classList.add('active');
 
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   
@@ -227,7 +275,8 @@ function showView(viewName) {
 
   const viewId = viewMap[viewName];
   if (viewId) {
-    document.getElementById(viewId).classList.add('active');
+    const view = document.getElementById(viewId);
+    if (view) view.classList.add('active');
   }
 
   if (viewName === 'dashboard') {
@@ -265,7 +314,10 @@ window.addEventListener('click', (e) => {
 // ============================================
 
 async function loadCreditCards() {
-  if (!supabase || !currentUser) return;
+  if (!supabase || !currentUser) {
+    console.warn('Não é possível carregar cartões: supabase ou usuário não disponível');
+    return;
+  }
   
   try {
     const { data, error } = await supabase
@@ -276,9 +328,10 @@ async function loadCreditCards() {
 
     if (error) throw error;
     creditCards = data || [];
+    console.log('✅ Cartões carregados:', creditCards.length);
     displayCreditCards();
   } catch (error) {
-    console.error('Erro ao carregar cartões:', error);
+    console.error('❌ Erro ao carregar cartões:', error);
   }
 }
 
@@ -391,7 +444,7 @@ function showAddCreditCardModal() {
 
 async function saveCreditCard() {
   if (!supabase || !currentUser) {
-    alert('Erro: Supabase não está configurado');
+    alert('❌ Erro: Supabase não está configurado');
     return;
   }
 
@@ -512,7 +565,7 @@ async function processCardPayment() {
   const fromAccountId = document.getElementById('payCardFromAccount').value;
 
   if (!amount || amount <= 0) {
-    alert('Insira um valor válido');
+    alert('❌ Insira um valor válido');
     return;
   }
 
@@ -545,7 +598,7 @@ async function processCardPayment() {
 
     await supabase
       .from('credit_cards')
-      .update({ balance: (card.balance || 0) - amount })
+      .update({ balance: Math.max(0, (card.balance || 0) - amount) })
       .eq('id', cardId);
 
     alert('✅ Pagamento registrado com sucesso!');
@@ -592,10 +645,11 @@ async function loadAccounts() {
 
     if (error) throw error;
     accounts = data || [];
+    console.log('✅ Contas carregadas:', accounts.length);
     updateAccountSelects();
     displayAccounts();
   } catch (error) {
-    console.error('Erro ao carregar contas:', error);
+    console.error('❌ Erro ao carregar contas:', error);
   }
 }
 
@@ -671,10 +725,11 @@ async function saveAccount() {
 
     if (error) throw error;
 
+    alert('✅ Conta criada com sucesso!');
     closeModal('accountModal');
     loadAccounts();
   } catch (error) {
-    alert('Erro ao salvar conta: ' + error.message);
+    alert('❌ Erro ao salvar conta: ' + error.message);
   }
 }
 
@@ -690,7 +745,7 @@ async function deleteAccount(accountId) {
     if (error) throw error;
     loadAccounts();
   } catch (error) {
-    alert('Erro ao deletar: ' + error.message);
+    alert('❌ Erro ao deletar: ' + error.message);
   }
 }
 
@@ -710,10 +765,11 @@ async function loadCategories() {
 
     if (error) throw error;
     categories = data || [];
+    console.log('✅ Categorias carregadas:', categories.length);
     updateCategorySelects();
     displayCategories();
   } catch (error) {
-    console.error('Erro ao carregar categorias:', error);
+    console.error('❌ Erro ao carregar categorias:', error);
   }
 }
 
@@ -740,7 +796,7 @@ function displayCategories() {
         <div class="category-color" style="background-color: ${cat.color}; width: 20px; height: 20px; border-radius: 4px;"></div>
         <div>
           <div style="font-weight: bold;">${cat.name}</div>
-          <div style="font-size: 12px; color: #666;">${cat.primary_allocation} → ${cat.secondary_allocation}</div>
+          <div style="font-size: 12px; color: #666;">${cat.primary_allocation || ''} → ${cat.secondary_allocation || ''}</div>
         </div>
       </div>
       <button class="btn btn--sm btn--outline" onclick="deleteCategory('${cat.id}')">Deletar</button>
@@ -754,7 +810,7 @@ function displayCategories() {
         <div class="category-color" style="background-color: ${cat.color}; width: 20px; height: 20px; border-radius: 4px;"></div>
         <div>
           <div style="font-weight: bold;">${cat.name}</div>
-          <div style="font-size: 12px; color: #666;">${cat.primary_allocation}</div>
+          <div style="font-size: 12px; color: #666;">${cat.primary_allocation || ''}</div>
         </div>
       </div>
       <button class="btn btn--sm btn--outline" onclick="deleteCategory('${cat.id}')">Deletar</button>
@@ -792,10 +848,11 @@ async function saveCategory() {
 
     if (error) throw error;
 
+    alert('✅ Categoria criada com sucesso!');
     closeModal('categoryModal');
     loadCategories();
   } catch (error) {
-    alert('Erro ao salvar categoria: ' + error.message);
+    alert('❌ Erro ao salvar categoria: ' + error.message);
   }
 }
 
@@ -811,7 +868,7 @@ async function deleteCategory(categoryId) {
     if (error) throw error;
     loadCategories();
   } catch (error) {
-    alert('Erro ao deletar: ' + error.message);
+    alert('❌ Erro ao deletar: ' + error.message);
   }
 }
 
@@ -831,9 +888,10 @@ async function loadTransactions() {
 
     if (error) throw error;
     transactions = data || [];
+    console.log('✅ Transações carregadas:', transactions.length);
     filterTransactions();
   } catch (error) {
-    console.error('Erro ao carregar transações:', error);
+    console.error('❌ Erro ao carregar transações:', error);
   }
 }
 
@@ -974,12 +1032,13 @@ async function saveTransaction() {
       }
     }
 
+    alert('✅ Transação registrada com sucesso!');
     closeModal('transactionModal');
     loadTransactions();
     loadAccounts();
     loadCreditCards();
   } catch (error) {
-    alert('Erro ao salvar transação: ' + error.message);
+    alert('❌ Erro ao salvar transação: ' + error.message);
   }
 }
 
@@ -999,9 +1058,10 @@ async function loadInvestments() {
 
     if (error) throw error;
     investments = data || [];
+    console.log('✅ Investimentos carregados:', investments.length);
     filterInvestments();
   } catch (error) {
-    console.error('Erro ao carregar investimentos:', error);
+    console.error('❌ Erro ao carregar investimentos:', error);
   }
 }
 
@@ -1112,10 +1172,11 @@ async function saveInvestment() {
 
     if (error) throw error;
 
+    alert('✅ Investimento criado com sucesso!');
     closeModal('investmentModal');
     loadInvestments();
   } catch (error) {
-    alert('Erro ao salvar investimento: ' + error.message);
+    alert('❌ Erro ao salvar investimento: ' + error.message);
   }
 }
 
@@ -1151,7 +1212,7 @@ async function deleteInvestment(investmentId) {
     loadInvestments();
     closeModal('investmentDetailModal');
   } catch (error) {
-    alert('Erro ao deletar: ' + error.message);
+    alert('❌ Erro ao deletar: ' + error.message);
   }
 }
 
@@ -1206,10 +1267,11 @@ async function saveInvestmentTransaction() {
       .update({ current_value: newValue })
       .eq('id', investmentId);
 
+    alert('✅ Transação registrada com sucesso!');
     closeModal('investmentTransactionModal');
     loadInvestments();
   } catch (error) {
-    alert('Erro ao salvar: ' + error.message);
+    alert('❌ Erro ao salvar: ' + error.message);
   }
 }
 
@@ -1263,6 +1325,8 @@ function updateCharts() {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 Iniciando aplicação...');
+  
   // Fechar modais ao clicar no X
   document.querySelectorAll('.modal-close').forEach(btn => {
     btn.addEventListener('click', (e) => {
