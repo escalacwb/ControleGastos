@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle Financeiro Familiar</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="loginScreen" class="screen active">
+    <div class="login-container">
+      <div class="login-header">
+        <h1>💰 Controle Financeiro</h1>
+        <p>Gerencie as finanças da sua família</p>
+      </div>
+      <div class="login-form">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="loginEmail" class="form-control" placeholder="seu@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Senha</label>
+          <input type="password" id="loginPassword" class="form-control" placeholder="••••••••">
+        </div>
+        <button onclick="handleLogin()" class="btn btn--primary btn--full-width">Entrar</button>
+        <button onclick="showSignup()" class="btn btn--secondary btn--full-width" style="margin-top: var(--space-8);">Criar Conta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Signup Screen -->
+  <div id="signupScreen" class="screen">
+    <div class="login-container">
+      <div class="login-header">
+        <h1>📝 Criar Conta</h1>
+        <p>Comece a gerenciar suas finanças</p>
+      </div>
+      <div class="login-form">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="signupEmail" class="form-control" placeholder="seu@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Senha</label>
+          <input type="password" id="signupPassword" class="form-control" placeholder="••••••••">
+        </div>
+        <button onclick="handleSignup()" class="btn btn--primary btn--full-width">Criar Conta</button>
+        <button onclick="showLogin()" class="btn btn--secondary btn--full-width" style="margin-top: var(--space-8);">Voltar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="mainApp" class="screen">
+    <!-- Header -->
+    <header class="app-header">
+      <h1>💰 Controle Financeiro</h1>
+      <button onclick="handleLogout()" class="btn btn--sm btn--outline">Sair</button>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="app-nav">
+      <button class="nav-item active" data-view="dashboard" onclick="showView('dashboard')">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Início</span>
+      </button>
+      <button class="nav-item" data-view="transactions" onclick="showView('transactions')">
+        <span class="nav-icon">💳</span>
+        <span class="nav-label">Transações</span>
+      </button>
+      <button class="nav-item" data-view="accounts" onclick="showView('accounts')">
+        <span class="nav-icon">🏦</span>
+        <span class="nav-label">Contas</span>
+      </button>
+      <button class="nav-item" data-view="categories" onclick="showView('categories')">
+        <span class="nav-icon">🏷️</span>
+        <span class="nav-label">Categorias</span>
+      </button>
+      <button class="nav-item" data-view="investments" onclick="showView('investments')">
+        <span class="nav-icon">📈</span>
+        <span class="nav-label">Investimentos</span>
+      </button>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="app-content">
+      <!-- Dashboard View -->
+      <div id="dashboardView" class="view active">
+        <div class="view-header">
+          <h2>Resumo Financeiro</h2>
+        </div>
+        
+        <div class="stats-grid">
+          <div class="stat-card" style="background: var(--color-bg-1);">
+            <div class="stat-label">Patrimônio Líquido</div>
+            <div class="stat-value" id="netWorthValue">R$ 0,00</div>
+          </div>
+          <div class="stat-card" style="background: var(--color-bg-3);">
+            <div class="stat-label">Saldo em Contas</div>
+            <div class="stat-value" id="totalAccountsValue">R$ 0,00</div>
+          </div>
+          <div class="stat-card" style="background: var(--color-bg-5);">
+            <div class="stat-label">Total Investido</div>
+            <div class="stat-value" id="totalInvestedValue">R$ 0,00</div>
+          </div>
+          <div class="stat-card" style="background: var(--color-bg-6);">
+            <div class="stat-label">Retorno Investimentos</div>
+            <div class="stat-value" id="investmentReturnsValue">R$ 0,00</div>
+          </div>
+        </div>
+
+        <div class="dashboard-section">
+          <h3>Receitas e Despesas - Este Mês</h3>
+          <div class="month-summary">
+            <div class="month-item income">
+              <span class="month-label">Receitas</span>
+              <span class="month-value" id="monthIncomeValue">R$ 0,00</span>
+            </div>
+            <div class="month-item expense">
+              <span class="month-label">Despesas</span>
+              <span class="month-value" id="monthExpenseValue">R$ 0,00</span>
+            </div>
+            <div class="month-item balance">
+              <span class="month-label">Saldo</span>
+              <span class="month-value" id="monthBalanceValue">R$ 0,00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-section">
+          <h3>Despesas por Categoria</h3>
+          <div class="chart-container">
+            <canvas id="categoryChart"></canvas>
+          </div>
+        </div>
+
+        <div class="dashboard-section">
+          <h3>Evolução Mensal</h3>
+          <div class="chart-container">
+            <canvas id="monthlyChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transactions View -->
+      <div id="transactionsView" class="view">
+        <div class="view-header">
+          <h2>Transações</h2>
+          <button onclick="showAddTransactionModal()" class="btn btn--primary btn--sm">+ Nova</button>
+        </div>
+
+        <div class="filters-section">
+          <select id="transactionTypeFilter" class="form-control" onchange="filterTransactions()">
+            <option value="all">Todos os Tipos</option>
+            <option value="income">Receitas</option>
+            <option value="expense">Despesas</option>
+            <option value="transfer">Transferências</option>
+          </select>
+          <select id="transactionAccountFilter" class="form-control" onchange="filterTransactions()">
+            <option value="all">Todas as Contas</option>
+          </select>
+          <select id="transactionCategoryFilter" class="form-control" onchange="filterTransactions()">
+            <option value="all">Todas as Categorias</option>
+          </select>
+        </div>
+
+        <div class="totals-section">
+          <div class="total-item">
+            <span>Total Receitas:</span>
+            <span class="total-value income" id="totalIncome">R$ 0,00</span>
+          </div>
+          <div class="total-item">
+            <span>Total Despesas:</span>
+            <span class="total-value expense" id="totalExpense">R$ 0,00</span>
+          </div>
+          <div class="total-item">
+            <span>Saldo:</span>
+            <span class="total-value" id="totalBalance">R$ 0,00</span>
+          </div>
+        </div>
+
+        <div id="transactionsList" class="transactions-list"></div>
+      </div>
+
+      <!-- Accounts View -->
+      <div id="accountsView" class="view">
+        <div class="view-header">
+          <h2>Contas</h2>
+          <button onclick="showAddAccountModal()" class="btn btn--primary btn--sm">+ Nova</button>
+        </div>
+        <div id="accountsList" class="accounts-list"></div>
+      </div>
+
+      <!-- Categories View -->
+      <div id="categoriesView" class="view">
+        <div class="view-header">
+          <h2>Categorias</h2>
+          <button onclick="showAddCategoryModal()" class="btn btn--primary btn--sm">+ Nova</button>
+        </div>
+        <div id="categoriesList" class="categories-list"></div>
+      </div>
+
+      <!-- Investments View -->
+      <div id="investmentsView" class="view">
+        <div class="view-header">
+          <h2>Investimentos</h2>
+          <button onclick="showAddInvestmentModal()" class="btn btn--primary btn--sm">+ Novo</button>
+        </div>
+
+        <div class="investments-summary">
+          <div class="inv-summary-card">
+            <div class="inv-summary-label">Total Investido</div>
+            <div class="inv-summary-value" id="invTotalInvested">R$ 0,00</div>
+          </div>
+          <div class="inv-summary-card">
+            <div class="inv-summary-label">Valor Atual</div>
+            <div class="inv-summary-value" id="invCurrentValue">R$ 0,00</div>
+          </div>
+          <div class="inv-summary-card">
+            <div class="inv-summary-label">Retorno</div>
+            <div class="inv-summary-value" id="invTotalReturn">R$ 0,00</div>
+            <div class="inv-summary-percent" id="invReturnPercent">0%</div>
+          </div>
+        </div>
+
+        <div class="investments-filter">
+          <select id="investmentTypeFilter" class="form-control" onchange="filterInvestments()">
+            <option value="all">Todos os Tipos</option>
+            <option value="stocks">📈 Ações</option>
+            <option value="fixed_income">💰 Renda Fixa</option>
+            <option value="funds">🏦 Fundos</option>
+            <option value="crypto">₿ Criptomoedas</option>
+            <option value="real_estate">🏠 Imóveis</option>
+            <option value="other">📦 Outros</option>
+          </select>
+        </div>
+
+        <div id="investmentsList" class="investments-list"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Transaction Modal -->
+  <div id="transactionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Nova Transação</h3>
+        <button onclick="closeModal('transactionModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select id="transactionType" class="form-control" onchange="updateTransactionForm()">
+            <option value="expense">Despesa</option>
+            <option value="income">Receita</option>
+            <option value="transfer">Transferência</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor</label>
+          <input type="number" id="transactionAmount" class="form-control" placeholder="0.00" step="0.01">
+        </div>
+        <div class="form-group" id="accountGroup">
+          <label class="form-label">Conta</label>
+          <select id="transactionAccount" class="form-control"></select>
+        </div>
+        <div class="form-group" id="categoryGroup">
+          <label class="form-label">Categoria</label>
+          <select id="transactionCategory" class="form-control"></select>
+        </div>
+        <div class="form-group" id="transferToGroup" style="display: none;">
+          <label class="form-label">Para a Conta</label>
+          <select id="transactionTransferTo" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data</label>
+          <input type="date" id="transactionDate" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descrição</label>
+          <input type="text" id="transactionDescription" class="form-control" placeholder="Descrição da transação">
+        </div>
+        <button onclick="saveTransaction()" class="btn btn--primary btn--full-width">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Account Modal -->
+  <div id="accountModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Nova Conta</h3>
+        <button onclick="closeModal('accountModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nome</label>
+          <input type="text" id="accountName" class="form-control" placeholder="Ex: Conta Corrente">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select id="accountType" class="form-control">
+            <option value="checking">Conta Corrente</option>
+            <option value="savings">Poupança</option>
+            <option value="credit_card">Cartão de Crédito</option>
+            <option value="cash">Dinheiro</option>
+            <option value="other">Outro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Saldo Inicial</label>
+          <input type="number" id="accountBalance" class="form-control" placeholder="0.00" step="0.01" value="0">
+        </div>
+        <button onclick="saveAccount()" class="btn btn--primary btn--full-width">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Category Modal -->
+  <div id="categoryModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Nova Categoria</h3>
+        <button onclick="closeModal('categoryModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nome</label>
+          <input type="text" id="categoryName" class="form-control" placeholder="Ex: Alimentação">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select id="categoryType" class="form-control">
+            <option value="expense">Despesa</option>
+            <option value="income">Receita</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Alocação Primária</label>
+          <input type="text" id="categoryPrimary" class="form-control" placeholder="Ex: Essencial">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Alocação Secundária</label>
+          <input type="text" id="categorySecondary" class="form-control" placeholder="Ex: Mercado">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cor</label>
+          <input type="color" id="categoryColor" class="form-control" value="#3B82F6">
+        </div>
+        <button onclick="saveCategory()" class="btn btn--primary btn--full-width">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Investment Modal -->
+  <div id="investmentModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Novo Investimento</h3>
+        <button onclick="closeModal('investmentModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nome</label>
+          <input type="text" id="investmentName" class="form-control" placeholder="Ex: Tesouro Selic 2027">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select id="investmentType" class="form-control">
+            <option value="stocks">📈 Ações</option>
+            <option value="fixed_income">💰 Renda Fixa</option>
+            <option value="funds">🏦 Fundos</option>
+            <option value="crypto">₿ Criptomoedas</option>
+            <option value="real_estate">🏠 Imóveis</option>
+            <option value="other">📦 Outros</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Instituição</label>
+          <input type="text" id="investmentInstitution" class="form-control" placeholder="Ex: Tesouro Direto">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor Inicial</label>
+          <input type="number" id="investmentInitialAmount" class="form-control" placeholder="0.00" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor Atual</label>
+          <input type="number" id="investmentCurrentValue" class="form-control" placeholder="0.00" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Compra</label>
+          <input type="date" id="investmentPurchaseDate" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Vencimento (opcional)</label>
+          <input type="date" id="investmentMaturityDate" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conta de Origem</label>
+          <select id="investmentAccount" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Observações</label>
+          <textarea id="investmentNotes" class="form-control" rows="3" placeholder="Observações sobre o investimento"></textarea>
+        </div>
+        <button onclick="saveInvestment()" class="btn btn--primary btn--full-width">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Investment Detail Modal -->
+  <div id="investmentDetailModal" class="modal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="invDetailName">Investimento</h3>
+        <button onclick="closeModal('investmentDetailModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="investment-detail-header">
+          <div class="detail-info">
+            <span class="detail-label">Tipo:</span>
+            <span id="invDetailType" class="detail-value"></span>
+          </div>
+          <div class="detail-info">
+            <span class="detail-label">Instituição:</span>
+            <span id="invDetailInstitution" class="detail-value"></span>
+          </div>
+        </div>
+
+        <div class="investment-detail-stats">
+          <div class="detail-stat">
+            <div class="detail-stat-label">Total Investido</div>
+            <div class="detail-stat-value" id="invDetailTotalInvested">R$ 0,00</div>
+          </div>
+          <div class="detail-stat">
+            <div class="detail-stat-label">Valor Atual</div>
+            <div class="detail-stat-value" id="invDetailCurrentValue">R$ 0,00</div>
+          </div>
+          <div class="detail-stat">
+            <div class="detail-stat-label">Retorno</div>
+            <div class="detail-stat-value" id="invDetailReturn">R$ 0,00</div>
+            <div class="detail-stat-percent" id="invDetailReturnPercent">0%</div>
+          </div>
+        </div>
+
+        <div class="investment-actions">
+          <button onclick="showAddInvestmentTransactionModal()" class="btn btn--primary btn--sm">+ Nova Transação</button>
+          <button onclick="deleteInvestment()" class="btn btn--outline btn--sm" style="color: var(--color-error); border-color: var(--color-error);">Excluir</button>
+        </div>
+
+        <h4 style="margin-top: var(--space-24); margin-bottom: var(--space-16);">Histórico de Transações</h4>
+        <div id="investmentTransactionsList" class="investment-transactions-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Investment Transaction Modal -->
+  <div id="investmentTransactionModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Nova Transação de Investimento</h3>
+        <button onclick="closeModal('investmentTransactionModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select id="invTransactionType" class="form-control">
+            <option value="contribution">💵 Aporte</option>
+            <option value="withdrawal">💸 Resgate</option>
+            <option value="yield">📊 Rendimento</option>
+            <option value="dividend">💰 Dividendo</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor</label>
+          <input type="number" id="invTransactionAmount" class="form-control" placeholder="0.00" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conta</label>
+          <select id="invTransactionAccount" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data</label>
+          <input type="date" id="invTransactionDate" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descrição</label>
+          <input type="text" id="invTransactionDescription" class="form-control" placeholder="Descrição da transação">
+        </div>
+        <button onclick="saveInvestmentTransaction()" class="btn btn--primary btn--full-width">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- App Script -->
+  <script src="app.js"></script>
+</body>
+</html>
