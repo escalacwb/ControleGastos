@@ -69,6 +69,10 @@
         <span class="nav-icon">💳</span>
         <span class="nav-label">Transações</span>
       </button>
+      <button class="nav-item" data-view="credit-cards" onclick="showView('credit-cards')">
+        <span class="nav-icon">💰</span>
+        <span class="nav-label">Cartões</span>
+      </button>
       <button class="nav-item" data-view="accounts" onclick="showView('accounts')">
         <span class="nav-icon">🏦</span>
         <span class="nav-label">Contas</span>
@@ -105,8 +109,8 @@
             <div class="stat-value" id="totalInvestedValue">R$ 0,00</div>
           </div>
           <div class="stat-card" style="background: var(--color-bg-6);">
-            <div class="stat-label">Retorno Investimentos</div>
-            <div class="stat-value" id="investmentReturnsValue">R$ 0,00</div>
+            <div class="stat-label">Cartões a Pagar</div>
+            <div class="stat-value" id="totalCardsDebtValue">R$ 0,00</div>
           </div>
         </div>
 
@@ -181,6 +185,16 @@
         </div>
 
         <div id="transactionsList" class="transactions-list"></div>
+      </div>
+
+      <!-- Credit Cards View -->
+      <div id="creditCardsView" class="view">
+        <div class="view-header">
+          <h2>Cartões de Crédito</h2>
+          <button onclick="showAddCreditCardModal()" class="btn btn--primary btn--sm">+ Novo Cartão</button>
+        </div>
+
+        <div id="creditCardsGrid" class="credit-cards-grid"></div>
       </div>
 
       <!-- Accounts View -->
@@ -262,7 +276,7 @@
           <input type="number" id="transactionAmount" class="form-control" placeholder="0.00" step="0.01">
         </div>
         <div class="form-group" id="accountGroup">
-          <label class="form-label">Conta</label>
+          <label class="form-label">Conta/Cartão</label>
           <select id="transactionAccount" class="form-control"></select>
         </div>
         <div class="form-group" id="categoryGroup">
@@ -303,7 +317,6 @@
           <select id="accountType" class="form-control">
             <option value="checking">Conta Corrente</option>
             <option value="savings">Poupança</option>
-            <option value="credit_card">Cartão de Crédito</option>
             <option value="cash">Dinheiro</option>
             <option value="other">Outro</option>
           </select>
@@ -313,6 +326,105 @@
           <input type="number" id="accountBalance" class="form-control" placeholder="0.00" step="0.01" value="0">
         </div>
         <button onclick="saveAccount()" class="btn btn--primary btn--full-width">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Credit Card Modal -->
+  <div id="creditCardModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Novo Cartão de Crédito</h3>
+        <button onclick="closeModal('creditCardModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Banco</label>
+          <input type="text" id="creditCardBank" class="form-control" placeholder="Ex: Itaú, Bradesco, Nubank">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Bandeira</label>
+          <select id="creditCardNetwork" class="form-control">
+            <option value="Visa">Visa</option>
+            <option value="Mastercard">Mastercard</option>
+            <option value="Elo">Elo</option>
+            <option value="Amex">American Express</option>
+            <option value="Diners">Diners</option>
+            <option value="Hipercard">Hipercard</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Últimos 4 Dígitos</label>
+          <input type="text" id="creditCardDigits" class="form-control" placeholder="1234" maxlength="4">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Titular</label>
+          <input type="text" id="creditCardHolder" class="form-control" placeholder="Seu nome completo">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Limite de Crédito (R$)</label>
+          <input type="number" id="creditCardLimit" class="form-control" placeholder="5000" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dia de Fechamento</label>
+          <input type="number" id="creditCardClosingDay" class="form-control" min="1" max="31" placeholder="15">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dia de Vencimento</label>
+          <input type="number" id="creditCardDueDay" class="form-control" min="1" max="31" placeholder="25">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conta Associada</label>
+          <select id="creditCardAccount" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notas (opcional)</label>
+          <textarea id="creditCardNotes" class="form-control" rows="3" placeholder="Ex: Cartão principal, usar para compras online"></textarea>
+        </div>
+        <button onclick="saveCreditCard()" class="btn btn--primary btn--full-width">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Credit Card Detail Modal -->
+  <div id="creditCardDetailModal" class="modal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="cardDetailTitle">Detalhes do Cartão</h3>
+        <button onclick="closeModal('creditCardDetailModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="cardDetailContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pay Credit Card Modal -->
+  <div id="payCardModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Pagar Fatura do Cartão</h3>
+        <button onclick="closeModal('payCardModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="payCardInfo" style="background: #f0f4ff; border-left: 4px solid #3B82F6; padding: 12px; border-radius: 4px; margin-bottom: 16px;"></div>
+        
+        <div class="form-group">
+          <label class="form-label">Valor a Pagar (R$)</label>
+          <input type="number" id="payCardAmount" class="form-control" placeholder="0.00" step="0.01">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Data do Pagamento</label>
+          <input type="date" id="payCardDate" class="form-control">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">De qual conta?</label>
+          <select id="payCardFromAccount" class="form-control"></select>
+        </div>
+        
+        <button onclick="processCardPayment()" class="btn btn--primary btn--full-width">Confirmar Pagamento</button>
       </div>
     </div>
   </div>
