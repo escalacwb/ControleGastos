@@ -17,8 +17,8 @@ let charts = {};
 // ============================================
 
 async function initApp() {
-  const supabaseUrl = localStorage.getItem('supabase_url');
-  const supabaseKey = localStorage.getItem('supabase_key');
+  const supabaseUrl = localStorage.getItem('https://gbvjdntklbggxycmfyhg.supabase.co');
+  const supabaseKey = localStorage.getItem('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdidmpkbnRrbGJnZ3h5Y21meWhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1MzUyMzYsImV4cCI6MjA3ODExMTIzNn0.aNVzAIJFavtrBsYwkuXUfrbwBU2gO3xXuePIpTkNpdQ');
 
   if (!supabaseUrl || !supabaseKey) {
     showSettingsModal();
