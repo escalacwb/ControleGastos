@@ -90,62 +90,168 @@
     <!-- Main Content -->
     <main class="app-content">
       <!-- Dashboard View -->
-      <div id="dashboardView" class="view active">
-        <div class="view-header">
-          <h2>Resumo Financeiro</h2>
-        </div>
-        
-        <div class="stats-grid">
-          <div class="stat-card" style="background: var(--color-bg-1);">
-            <div class="stat-label">Patrimônio Líquido</div>
-            <div class="stat-value" id="netWorthValue">R$ 0,00</div>
-          </div>
-          <div class="stat-card" style="background: var(--color-bg-3);">
-            <div class="stat-label">Saldo em Contas</div>
-            <div class="stat-value" id="totalAccountsValue">R$ 0,00</div>
-          </div>
-          <div class="stat-card" style="background: var(--color-bg-5);">
-            <div class="stat-label">Total Investido</div>
-            <div class="stat-value" id="totalInvestedValue">R$ 0,00</div>
-          </div>
-          <div class="stat-card" style="background: var(--color-bg-6);">
-            <div class="stat-label">Cartões a Pagar</div>
-            <div class="stat-value" id="totalCardsDebtValue">R$ 0,00</div>
-          </div>
-        </div>
+      <!-- ============================================
+     DASHBOARD MELHORADO - HTML
+     Substitua o conteúdo dentro de <div id="dashboardView" class="view active">
+     ============================================ -->
 
-        <div class="dashboard-section">
-          <h3>Receitas e Despesas - Este Mês</h3>
-          <div class="month-summary">
-            <div class="month-item income">
-              <span class="month-label">Receitas</span>
-              <span class="month-value" id="monthIncomeValue">R$ 0,00</span>
-            </div>
-            <div class="month-item expense">
-              <span class="month-label">Despesas</span>
-              <span class="month-value" id="monthExpenseValue">R$ 0,00</span>
-            </div>
-            <div class="month-item balance">
-              <span class="month-label">Saldo</span>
-              <span class="month-value" id="monthBalanceValue">R$ 0,00</span>
-            </div>
-          </div>
-        </div>
+<div id="dashboardView" class="view active">
+  <div class="view-header">
+    <h2>📊 Dashboard</h2>
+    <button class="btn btn--primary" onclick="recalculateAccountBalances()">🔄 Recalcular Saldos</button>
+  </div>
 
-        <div class="dashboard-section">
-          <h3>Despesas por Categoria</h3>
-          <div class="chart-container">
-            <canvas id="categoryChart"></canvas>
-          </div>
-        </div>
+  <!-- ============================================
+       1. RESUMO FINANCEIRO (4 Cards)
+       ============================================ -->
+  <div class="stats-grid">
+    <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+      <div class="stat-label">PATRIMÔNIO LÍQUIDO</div>
+      <div class="stat-value" id="netWorthValue">R$ 0,00</div>
+    </div>
 
-        <div class="dashboard-section">
-          <h3>Evolução Mensal</h3>
-          <div class="chart-container">
-            <canvas id="monthlyChart"></canvas>
-          </div>
+    <div class="stat-card" style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);">
+      <div class="stat-label">SALDO EM CONTAS</div>
+      <div class="stat-value" id="totalAccountsValue">R$ 0,00</div>
+    </div>
+
+    <div class="stat-card" style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); color: white;">
+      <div class="stat-label">TOTAL INVESTIDO</div>
+      <div class="stat-value" id="totalInvestedValue">R$ 0,00</div>
+    </div>
+
+    <div class="stat-card" style="background: linear-gradient(135deg, #ff7675 0%, #d63031 100%); color: white;">
+      <div class="stat-label">CARTÕES A PAGAR</div>
+      <div class="stat-value" id="totalCardsDebtValue">R$ 0,00</div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       2. RECEITAS E DESPESAS - ESTE MÊS
+       ============================================ -->
+  <div class="dashboard-section">
+    <h3>📅 Receitas e Despesas - Este Mês</h3>
+    <div class="stats-grid">
+      <div class="stat-card" style="background: var(--color-bg-2);">
+        <div class="stat-label">Receitas</div>
+        <div class="stat-value" id="monthIncomeValue" style="color: var(--color-secondary);">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-4);">
+        <div class="stat-label">Despesas</div>
+        <div class="stat-value" id="monthExpenseValue" style="color: var(--color-error);">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-1);">
+        <div class="stat-label">Saldo</div>
+        <div class="stat-value" id="monthBalanceValue" style="color: var(--color-primary);">R$ 0,00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       3. TOTAL DO ANO ATUAL
+       ============================================ -->
+  <div class="dashboard-section">
+    <h3>📊 Total do Ano (<span id="currentYearLabel">2025</span>)</h3>
+    <div class="stats-grid">
+      <div class="stat-card" style="background: var(--color-bg-2);">
+        <div class="stat-label">Receitas do Ano</div>
+        <div class="stat-value" id="yearIncomeValue" style="color: var(--color-secondary);">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-4);">
+        <div class="stat-label">Despesas do Ano</div>
+        <div class="stat-value" id="yearExpenseValue" style="color: var(--color-error);">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-1);">
+        <div class="stat-label">Saldo do Ano</div>
+        <div class="stat-value" id="yearBalanceValue" style="color: var(--color-primary);">R$ 0,00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       4. COMPARATIVO COM ANO ANTERIOR
+       ============================================ -->
+  <div class="dashboard-section">
+    <h3>📈 Comparativo com <span id="lastYearLabel">2024</span></h3>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="font-size: 12px; color: #666;">Receitas <span id="lastYearLabel2">2024</span></div>
+          <div style="font-size: 14px; font-weight: bold;" id="lastYearIncomeValue">R$ 0,00</div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 12px; color: #666;">Variação</div>
+          <div style="font-size: 16px; font-weight: bold; color: var(--color-secondary);" id="incomeVariation">0%</div>
         </div>
       </div>
+
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="font-size: 12px; color: #666;">Despesas <span id="lastYearLabel3">2024</span></div>
+          <div style="font-size: 14px; font-weight: bold;" id="lastYearExpenseValue">R$ 0,00</div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 12px; color: #666;">Variação</div>
+          <div style="font-size: 16px; font-weight: bold; color: var(--color-error);" id="expenseVariation">0%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       5. INSIGHTS E ANÁLISES
+       ============================================ -->
+  <div class="dashboard-section">
+    <h3>💡 Insights</h3>
+    <div class="stats-grid">
+      <div class="stat-card" style="background: var(--color-bg-5);">
+        <div class="stat-label">Categoria Mais Gasta (Mês)</div>
+        <div style="font-size: 18px; font-weight: bold; color: var(--color-primary);" id="topCategoryName">N/A</div>
+        <div style="font-size: 14px; color: #666; margin-top: 5px;" id="topCategoryValue">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-3);">
+        <div class="stat-label">Média de Gastos (6 meses)</div>
+        <div style="font-size: 20px; font-weight: bold; color: var(--color-warning);" id="avgMonthExpenseValue">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-6);">
+        <div class="stat-label">Total de Transações</div>
+        <div style="font-size: 20px; font-weight: bold; color: var(--color-info);" id="totalTransactionsCount">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       6. AÇÕES RÁPIDAS
+       ============================================ -->
+  <div class="dashboard-section">
+    <h3>⚡ Ações Rápidas</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+      <button class="btn btn--primary" onclick="showAddTransactionModal()">➕ Nova Transação</button>
+      <button class="btn btn--secondary" onclick="showView('transactions')">📋 Ver Transações</button>
+      <button class="btn btn--secondary" onclick="showView('accounts')">🏦 Minhas Contas</button>
+      <button class="btn btn--secondary" onclick="showView('credit-cards')">💳 Cartões</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Atualizar labels de ano automaticamente
+document.addEventListener('DOMContentLoaded', () => {
+  const currentYear = new Date().getFullYear();
+  const lastYear = currentYear - 1;
+  
+  document.getElementById('currentYearLabel').textContent = currentYear;
+  document.getElementById('lastYearLabel').textContent = lastYear;
+  document.getElementById('lastYearLabel2').textContent = lastYear;
+  document.getElementById('lastYearLabel3').textContent = lastYear;
+});
+</script>  
 
       <!-- Transactions View -->
       <div id="transactionsView" class="view">
