@@ -1497,14 +1497,20 @@ function updateCharts() {
 }
 
 
-function editTransaction(transactionId) {
+async function editTransaction(transactionId) {
   const transaction = transactions.find(t => t.id === transactionId);
   if (!transaction) return;
 
   console.log('✏️ Editando transação:', transaction);
 
+  // Converter data para formato correto (sem timezone)
+  let dateValue = transaction.date;
+  if (dateValue.includes('T')) {
+    dateValue = dateValue.split('T')[0];  // Pega só a data sem hora
+  }
+
   // Preencher form com dados da transação
-  document.getElementById('transactionDate').value = transaction.date;
+  document.getElementById('transactionDate').value = dateValue;
   document.getElementById('transactionAmount').value = transaction.amount;
   document.getElementById('transactionDescription').value = transaction.description;
   document.getElementById('transactionType').value = transaction.type;
@@ -1522,13 +1528,12 @@ function editTransaction(transactionId) {
     modalTitle.textContent = '🔄 Editar Transação';
   }
 
-  // Encontrar e modificar o botão salvar (buscar de forma mais robusta)
+  // Encontrar e modificar o botão salvar
   const modal = document.getElementById('transactionModal');
   const modalBody = modal.querySelector('.modal-body');
   
-  // Procurar por qualquer botão com "Salvar" no texto
   let saveBtns = Array.from(modalBody.querySelectorAll('button')).filter(btn => 
-    btn.textContent.includes('Salvar') || btn.onclick?.toString().includes('saveTransaction')
+    btn.textContent.includes('Salvar') || btn.textContent.includes('Atualizar')
   );
   
   if (saveBtns.length > 0) {
@@ -1539,17 +1544,12 @@ function editTransaction(transactionId) {
       updateTransaction(transactionId);
     };
     console.log('✅ Botão modificado para "Atualizar"');
-  } else {
-    console.warn('⚠️ Botão salvar não encontrado, tentando alternativa...');
   }
 
-  // Armazenar ID da transação sendo editada
   modal.dataset.editingTransactionId = transactionId;
-
-  // Abrir modal
   openModal('transactionModal');
-  console.log('✅ Modal aberto para editar');
 }
+
 
 function resetTransactionModal() {
   const modalTitle = document.querySelector('#transactionModal .modal-header h3');
@@ -1557,7 +1557,6 @@ function resetTransactionModal() {
     modalTitle.textContent = '➕ Nova Transação';
   }
 
-  // Resetar botão salvar
   let saveBtns = Array.from(document.querySelectorAll('#transactionModal button')).filter(btn => 
     btn.textContent.includes('Atualizar') || btn.textContent.includes('Salvar')
   );
@@ -1569,53 +1568,88 @@ function resetTransactionModal() {
     delete saveBtn.dataset.editingTransactionId;
   }
 
-  // Limpar dados do modal
   const modal = document.getElementById('transactionModal');
   delete modal.dataset.editingTransactionId;
 }
 
 async function updateTransaction(transactionId) {
-  if (!supabase || !currentUser) return;
+  if (!supabase || !currentUser) {
+    console.error('❌ Supabase não inicializado');
+    return;
+  }
 
   const transaction = transactions.find(t => t.id === transactionId);
-  if (!transaction) return;
+  if (!transaction) {
+    console.error('❌ Transação não encontrada');
+    return;
+  }
 
   try {
+    console.log('💾 Atualizando transação...');
+
+    // Obter dados do formulário
     const updateData = {
       type: document.getElementById('transactionType').value,
       amount: parseFloat(document.getElementById('transactionAmount').value),
       date: document.getElementById('transactionDate').value,
       description: document.getElementById('transactionDescription').value,
-      category_id: document.getElementById('transactionType').value === 'transfer' ? null : document.getElementById('transactionCategory').value,
+      category_id: document.getElementById('transactionType').value === 'transfer' 
+        ? null 
+        : (document.getElementById('transactionCategory').value || null),
     };
 
-    const diferenca = updateData.amount - transaction.amount;
+    console.log('📝 Dados a atualizar:', updateData);
 
+    // IMPORTANTE: Usar .eq() corretamente
     const { error } = await supabase
       .from('transactions')
       .update(updateData)
-      .eq('id', transactionId);
+      .eq('id', transactionId)
+      .eq('user_id', currentUser.id);
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Erro do Supabase:', error);
+      throw error;
+    }
 
+    console.log('✅ Transação atualizada no Supabase');
+
+    // Calcular diferença de valor
+    const diferenca = updateData.amount - transaction.amount;
+
+    // Ajustar saldo da conta se mudou o valor
     if (diferenca !== 0) {
       const account = accounts.find(a => a.id === transaction.account_id);
       if (account) {
         const novoSaldo = account.balance - diferenca;
-        await supabase
+        
+        const { error: accError } = await supabase
           .from('accounts')
           .update({ balance: novoSaldo })
-          .eq('id', transaction.account_id);
+          .eq('id', transaction.account_id)
+          .eq('user_id', currentUser.id);
+
+        if (accError) {
+          console.error('Erro ao atualizar conta:', accError);
+        } else {
+          console.log(`✅ Saldo atualizado: R$ ${novoSaldo.toFixed(2)}`);
+        }
       }
 
+      // Ajustar cartão se for despesa
       if (updateData.type === 'expense') {
         const card = creditCards.find(c => c.account_id === transaction.account_id);
         if (card) {
           const novoSaldoCard = (card.balance || 0) + diferenca;
-          await supabase
+          
+          const { error: cardError } = await supabase
             .from('credit_cards')
             .update({ balance: novoSaldoCard })
             .eq('id', card.id);
+
+          if (cardError) {
+            console.error('Erro ao atualizar cartão:', cardError);
+          }
         }
       }
     }
@@ -1623,25 +1657,22 @@ async function updateTransaction(transactionId) {
     alert('✅ Transação atualizada com sucesso!');
     closeModal('transactionModal');
     
-    const modal = document.getElementById('transactionModal');
-    const modalBody = modal.querySelector('.modal-body');
-    const saveBtn = modalBody.querySelector('[onclick]');
-    if (saveBtn) {
-      saveBtn.textContent = '💾 Salvar Transação';
-      saveBtn.onclick = () => saveTransaction();
-    }
-    delete modal.dataset.editingTransactionId;
+    // Resetar modal
+    resetTransactionModal();
 
-    loadTransactions();
-    loadAccounts();
-    loadCreditCards();
+    // Recarregar dados
+    console.log('🔄 Recarregando dados...');
+    await loadTransactions();
+    await loadAccounts();
+    await loadCreditCards();
+    updateDashboard();
+    
+    console.log('✅ Dados recarregados');
   } catch (error) {
     console.error('❌ Erro ao atualizar:', error);
     alert('❌ Erro ao atualizar transação: ' + error.message);
   }
 }
-
-
 
 async function deleteTransaction(transactionId) {
   const transaction = transactions.find(t => t.id === transactionId);
@@ -1763,4 +1794,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Iniciar app
   initApp();
+
+  // Iniciar auto-reload
+let autoReloadInterval = null;
+
+function startAutoReload(intervalSeconds = 30) {
+  if (autoReloadInterval) clearInterval(autoReloadInterval);
+  
+  autoReloadInterval = setInterval(async () => {
+    console.log('🔄 Auto-recarregando dados...');
+    try {
+      await loadAllData();
+      console.log('✅ Dados recarregados automaticamente');
+    } catch (error) {
+      console.error('❌ Erro no auto-reload:', error);
+    }
+  }, intervalSeconds * 1000);
+  
+  console.log(`✅ Auto-reload iniciado (a cada ${intervalSeconds}s)`);
+}
+
+function stopAutoReload() {
+  if (autoReloadInterval) {
+    clearInterval(autoReloadInterval);
+    autoReloadInterval = null;
+    console.log('⏹️ Auto-reload parado');
+  }
+}
+  
 });
