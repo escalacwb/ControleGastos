@@ -60,6 +60,7 @@ async function initApp() {
 async function loadAllData() {
   try {
     console.log('📥 Carregando todos os dados...');
+    
     await Promise.all([
       loadAccounts(),
       loadCategories(),
@@ -67,7 +68,12 @@ async function loadAllData() {
       loadInvestments(),
       loadCreditCards()
     ]);
+
+    // Recalcular saldos após carregar transações
+    await recalculateAccountBalances();
+
     updateDashboard();
+    
     console.log('✅ Todos os dados carregados!');
   } catch (error) {
     console.error('❌ Erro ao carregar dados:', error);
@@ -815,6 +821,67 @@ async function loadTransactions() {
   }
 }
 
+async function recalculateAccountBalances() {
+  if (!supabase || !currentUser) return;
+
+  console.log('🔄 Recalculando saldos das contas...');
+
+  for (const account of accounts) {
+    // Buscar todas as transações da conta
+    const { data: trans, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('account_id', account.id);
+
+    if (error) {
+      console.error(`Erro ao buscar transações da conta ${account.name}:`, error);
+      continue;
+    }
+
+    // Calcular saldo baseado nas transações
+    let balance = 0;
+    
+    trans.forEach(t => {
+      if (t.type === 'income') {
+        balance += t.amount;
+      } else if (t.type === 'expense') {
+        balance -= t.amount;
+      } else if (t.type === 'transfer') {
+        // Se é origem da transferência, deduz
+        balance -= t.amount;
+      }
+    });
+
+    // Somar transferências recebidas (onde esta conta é destino)
+    const { data: receivedTransfers } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('transfer_to_account_id', account.id)
+      .eq('type', 'transfer');
+
+    receivedTransfers?.forEach(t => {
+      balance += t.amount;
+    });
+
+    // Atualizar no Supabase
+    const { error: updateError } = await supabase
+      .from('accounts')
+      .update({ balance: balance })
+      .eq('id', account.id);
+
+    if (updateError) {
+      console.error(`Erro ao atualizar saldo da conta ${account.name}:`, updateError);
+    } else {
+      console.log(`✅ Conta ${account.name}: R$ ${balance.toFixed(2)}`);
+    }
+  }
+
+  // Recarregar contas
+  await loadAccounts();
+  console.log('✅ Saldos recalculados!');
+}
+
+
 function updateTransactionForm() {
   const type = document.getElementById('transactionType').value;
   document.getElementById('categoryGroup').style.display = type === 'transfer' ? 'none' : 'block';
@@ -1207,6 +1274,141 @@ async function saveInvestmentTransaction() {
 // ============================================
 // DASHBOARD
 // ============================================
+
+function updateDashboard() {
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const lastYear = currentYear - 1;
+
+  // ============================================
+  // 1. DADOS DO MÊS ATUAL
+  // ============================================
+  
+  const monthTransactions = transactions.filter(t => {
+    const date = new Date(t.date);
+    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+  });
+
+  const monthIncome = monthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const monthExpense = monthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const monthBalance = monthIncome - monthExpense;
+
+  // ============================================
+  // 2. DADOS DO ANO ATUAL
+  // ============================================
+  
+  const yearTransactions = transactions.filter(t => {
+    const date = new Date(t.date);
+    return date.getFullYear() === currentYear;
+  });
+
+  const yearIncome = yearTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const yearExpense = yearTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const yearBalance = yearIncome - yearExpense;
+
+  // ============================================
+  // 3. DADOS DO ANO ANTERIOR (COMPARATIVO)
+  // ============================================
+  
+  const lastYearTransactions = transactions.filter(t => {
+    const date = new Date(t.date);
+    return date.getFullYear() === lastYear;
+  });
+
+  const lastYearIncome = lastYearTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const lastYearExpense = lastYearTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const lastYearBalance = lastYearIncome - lastYearExpense;
+
+  // Cálculo de variação percentual
+  const incomeVariation = lastYearIncome > 0 ? ((yearIncome - lastYearIncome) / lastYearIncome * 100).toFixed(1) : 0;
+  const expenseVariation = lastYearExpense > 0 ? ((yearExpense - lastYearExpense) / lastYearExpense * 100).toFixed(1) : 0;
+
+  // ============================================
+  // 4. PATRIMÔNIO E SALDOS
+  // ============================================
+  
+  const totalAccounts = accounts.reduce((sum, a) => sum + parseFloat(a.balance || 0), 0);
+  const totalInvested = investments.reduce((sum, i) => sum + (i.currentvalue || 0), 0);
+  const totalCardsDebt = creditCards.reduce((sum, c) => sum + (c.balance || 0), 0);
+  const netWorth = totalAccounts + totalInvested - totalCardsDebt;
+
+  // ============================================
+  // 5. CATEGORIA MAIS GASTA (MÊS ATUAL)
+  // ============================================
+  
+  const categoryExpenses = {};
+  monthTransactions.filter(t => t.type === 'expense' && t.category_id).forEach(t => {
+    const cat = categories.find(c => c.id === t.category_id);
+    const catName = cat ? cat.name : 'Outros';
+    categoryExpenses[catName] = (categoryExpenses[catName] || 0) + t.amount;
+  });
+
+  const topCategory = Object.entries(categoryExpenses).sort((a, b) => b[1] - a[1])[0];
+  const topCategoryName = topCategory ? topCategory[0] : 'N/A';
+  const topCategoryValue = topCategory ? topCategory[1] : 0;
+
+  // ============================================
+  // 6. MÉDIA DE GASTOS (ÚLTIMOS 6 MESES)
+  // ============================================
+  
+  const last6Months = [];
+  for (let i = 0; i < 6; i++) {
+    const date = new Date();
+    date.setMonth(date.getMonth() - i);
+    
+    const monthTrans = transactions.filter(t => {
+      const tDate = new Date(t.date);
+      return tDate.getMonth() === date.getMonth() && tDate.getFullYear() === date.getFullYear();
+    });
+    
+    const expense = monthTrans.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    last6Months.push(expense);
+  }
+
+  const avgMonthExpense = last6Months.reduce((sum, val) => sum + val, 0) / 6;
+
+  // ============================================
+  // 7. ATUALIZAR INTERFACE
+  // ============================================
+
+  // Mês Atual
+  updateElement('monthIncomeValue', `R$ ${monthIncome.toFixed(2)}`);
+  updateElement('monthExpenseValue', `R$ ${monthExpense.toFixed(2)}`);
+  updateElement('monthBalanceValue', `R$ ${monthBalance.toFixed(2)}`);
+
+  // Ano Atual
+  updateElement('yearIncomeValue', `R$ ${yearIncome.toFixed(2)}`);
+  updateElement('yearExpenseValue', `R$ ${yearExpense.toFixed(2)}`);
+  updateElement('yearBalanceValue', `R$ ${yearBalance.toFixed(2)}`);
+
+  // Comparativo com ano anterior
+  updateElement('lastYearIncomeValue', `R$ ${lastYearIncome.toFixed(2)}`);
+  updateElement('lastYearExpenseValue', `R$ ${lastYearExpense.toFixed(2)}`);
+  updateElement('incomeVariation', `${incomeVariation > 0 ? '+' : ''}${incomeVariation}%`);
+  updateElement('expenseVariation', `${expenseVariation > 0 ? '+' : ''}${expenseVariation}%`);
+
+  // Patrimônio
+  updateElement('totalAccountsValue', `R$ ${totalAccounts.toFixed(2)}`);
+  updateElement('totalInvestedValue', `R$ ${totalInvested.toFixed(2)}`);
+  updateElement('totalCardsDebtValue', `R$ ${totalCardsDebt.toFixed(2)}`);
+  updateElement('netWorthValue', `R$ ${netWorth.toFixed(2)}`);
+
+  // Insights
+  updateElement('topCategoryName', topCategoryName);
+  updateElement('topCategoryValue', `R$ ${topCategoryValue.toFixed(2)}`);
+  updateElement('avgMonthExpenseValue', `R$ ${avgMonthExpense.toFixed(2)}`);
+
+  console.log('✅ Dashboard atualizado!');
+  console.log(`📊 Mês: R$ ${monthBalance.toFixed(2)} | Ano: R$ ${yearBalance.toFixed(2)}`);
+}
+
+// Função auxiliar para atualizar elementos
+function updateElement(id, value) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.textContent = value;
+  }
+}
 
 async function updateTransaction(transactionId) {
   if (!supabase || !currentUser) {
