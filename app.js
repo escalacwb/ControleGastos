@@ -1208,41 +1208,86 @@ async function saveInvestmentTransaction() {
 // DASHBOARD
 // ============================================
 
-function updateDashboard() {
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
+async function updateTransaction(transactionId) {
+  if (!supabase || !currentUser) {
+    console.error('❌ Supabase não inicializado');
+    return;
+  }
 
-  const monthTransactions = transactions.filter(t => {
-    const date = new Date(t.date);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-  });
+  const transaction = transactions.find(t => t.id === transactionId);
+  if (!transaction) {
+    console.error('❌ Transação não encontrada');
+    return;
+  }
 
-  const income = monthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const expense = monthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-  const balance = income - expense;
+  try {
+    console.log('💾 Salvando alterações...');
 
-  const totalAccounts = accounts.reduce((sum, a) => sum + parseFloat(a.balance), 0);
-  const totalInvested = investments.reduce((sum, i) => sum + i.current_value, 0);
-  const totalCardsDebt = creditCards.reduce((sum, c) => sum + (c.balance || 0), 0);
-  const netWorth = totalAccounts + totalInvested - totalCardsDebt;
+    const updateData = {
+      type: document.getElementById('transactionType').value,
+      amount: parseFloat(document.getElementById('transactionAmount').value),
+      date: document.getElementById('transactionDate').value,
+      description: document.getElementById('transactionDescription').value,
+      category_id: document.getElementById('transactionType').value === 'transfer' ? null : document.getElementById('transactionCategory').value,
+    };
 
-  const monthIncEl = document.getElementById('monthIncomeValue');
-  const monthExpEl = document.getElementById('monthExpenseValue');
-  const monthBalEl = document.getElementById('monthBalanceValue');
-  const totalAccEl = document.getElementById('totalAccountsValue');
-  const totalInvEl = document.getElementById('totalInvestedValue');
-  const totalCardEl = document.getElementById('totalCardsDebtValue');
-  const netWorthEl = document.getElementById('netWorthValue');
+    // Calcular diferença de saldo (se mudou o valor)
+    const diferenca = updateData.amount - transaction.amount;
+    console.log(`📊 Diferença de valor: R$ ${diferenca}`);
 
-  if (monthIncEl) monthIncEl.textContent = `R$ ${income.toFixed(2)}`;
-  if (monthExpEl) monthExpEl.textContent = `R$ ${expense.toFixed(2)}`;
-  if (monthBalEl) monthBalEl.textContent = `R$ ${balance.toFixed(2)}`;
-  if (totalAccEl) totalAccEl.textContent = `R$ ${totalAccounts.toFixed(2)}`;
-  if (totalInvEl) totalInvEl.textContent = `R$ ${totalInvested.toFixed(2)}`;
-  if (totalCardEl) totalCardEl.textContent = `R$ ${totalCardsDebt.toFixed(2)}`;
-  if (netWorthEl) netWorthEl.textContent = `R$ ${netWorth.toFixed(2)}`;
+    // Atualizar no Supabase
+    const { error } = await supabase
+      .from('transactions')
+      .update(updateData)
+      .eq('id', transactionId);
 
-  updateCharts();
+    if (error) throw error;
+    console.log('✅ Transação atualizada no Supabase');
+
+    // Ajustar saldo da conta se o valor mudou
+    if (diferenca !== 0) {
+      const account = accounts.find(a => a.id === transaction.account_id);
+      if (account) {
+        const novoSaldo = account.balance - diferenca;
+        await supabase
+          .from('accounts')
+          .update({ balance: novoSaldo })
+          .eq('id', transaction.account_id);
+        console.log(`✅ Saldo da conta ajustado: ${account.name}`);
+      }
+
+      // Ajustar cartão de crédito se for despesa
+      if (updateData.type === 'expense') {
+        const card = creditCards.find(c => c.account_id === transaction.account_id);
+        if (card) {
+          const novoSaldoCard = (card.balance || 0) + diferenca;
+          await supabase
+            .from('credit_cards')
+            .update({ balance: novoSaldoCard })
+            .eq('id', card.id);
+          console.log(`✅ Saldo do cartão ajustado`);
+        }
+      }
+    }
+
+    alert('✅ Transação atualizada com sucesso!');
+    closeModal('transactionModal');
+    
+    // Resetar modal para novo lançamento
+    resetTransactionModal();
+
+    // Recarregar dados
+    await Promise.all([
+      loadTransactions(),
+      loadAccounts(),
+      loadCreditCards()
+    ]);
+    
+    console.log('✅ Dados recarregados');
+  } catch (error) {
+    console.error('❌ Erro ao atualizar:', error);
+    alert('❌ Erro ao atualizar transação: ' + error.message);
+  }
 }
 
 function updateCharts() {
@@ -1250,11 +1295,11 @@ function updateCharts() {
 }
 
 
-async function editTransaction(transactionId) {
+function editTransaction(transactionId) {
   const transaction = transactions.find(t => t.id === transactionId);
   if (!transaction) return;
 
-  console.log('Editando transação:', transaction);
+  console.log('✏️ Editando transação:', transaction);
 
   // Preencher form com dados da transação
   document.getElementById('transactionDate').value = transaction.date;
@@ -1269,22 +1314,63 @@ async function editTransaction(transactionId) {
   
   updateTransactionForm();
 
-  // Mudar botão de "Salvar" para "Atualizar"
+  // Mudar título do modal
+  const modalTitle = document.querySelector('#transactionModal .modal-header h3');
+  if (modalTitle) {
+    modalTitle.textContent = '🔄 Editar Transação';
+  }
+
+  // Encontrar e modificar o botão salvar (buscar de forma mais robusta)
   const modal = document.getElementById('transactionModal');
   const modalBody = modal.querySelector('.modal-body');
-  const saveBtn = modalBody.querySelector('[onclick="saveTransaction()"]');
   
-  if (saveBtn) {
+  // Procurar por qualquer botão com "Salvar" no texto
+  let saveBtns = Array.from(modalBody.querySelectorAll('button')).filter(btn => 
+    btn.textContent.includes('Salvar') || btn.onclick?.toString().includes('saveTransaction')
+  );
+  
+  if (saveBtns.length > 0) {
+    const saveBtn = saveBtns[0];
     saveBtn.textContent = '🔄 Atualizar Transação';
-    saveBtn.onclick = () => updateTransaction(transactionId);
-    modal.dataset.editingTransactionId = transactionId;
+    saveBtn.dataset.editingTransactionId = transactionId;
+    saveBtn.onclick = () => {
+      updateTransaction(transactionId);
+    };
+    console.log('✅ Botão modificado para "Atualizar"');
+  } else {
+    console.warn('⚠️ Botão salvar não encontrado, tentando alternativa...');
   }
+
+  // Armazenar ID da transação sendo editada
+  modal.dataset.editingTransactionId = transactionId;
 
   // Abrir modal
   openModal('transactionModal');
+  console.log('✅ Modal aberto para editar');
 }
 
+function resetTransactionModal() {
+  const modalTitle = document.querySelector('#transactionModal .modal-header h3');
+  if (modalTitle) {
+    modalTitle.textContent = '➕ Nova Transação';
+  }
 
+  // Resetar botão salvar
+  let saveBtns = Array.from(document.querySelectorAll('#transactionModal button')).filter(btn => 
+    btn.textContent.includes('Atualizar') || btn.textContent.includes('Salvar')
+  );
+  
+  if (saveBtns.length > 0) {
+    const saveBtn = saveBtns[0];
+    saveBtn.textContent = '💾 Salvar Transação';
+    saveBtn.onclick = () => saveTransaction();
+    delete saveBtn.dataset.editingTransactionId;
+  }
+
+  // Limpar dados do modal
+  const modal = document.getElementById('transactionModal');
+  delete modal.dataset.editingTransactionId;
+}
 
 async function updateTransaction(transactionId) {
   if (!supabase || !currentUser) return;
@@ -1357,17 +1443,29 @@ async function updateTransaction(transactionId) {
 
 async function deleteTransaction(transactionId) {
   const transaction = transactions.find(t => t.id === transactionId);
-  if (!transaction) return;
+  if (!transaction) {
+    console.error('❌ Transação não encontrada');
+    return;
+  }
 
+  // Confirmação
   const confirmDelete = confirm(
-    `Tem certeza que deseja deletar essa transação?\n\n` +
+    `⚠️ Deletar transação?\n\n` +
     `${transaction.description}\n` +
-    `R$ ${transaction.amount.toFixed(2)} em ${new Date(transaction.date).toLocaleDateString('pt-BR')}`
+    `R$ ${transaction.amount.toFixed(2)}\n` +
+    `${new Date(transaction.date).toLocaleDateString('pt-BR')}\n\n` +
+    `Esta ação não pode ser desfeita!`
   );
 
-  if (!confirmDelete) return;
+  if (!confirmDelete) {
+    console.log('❌ Exclusão cancelada pelo usuário');
+    return;
+  }
 
   try {
+    console.log('🗑️ Deletando transação...');
+
+    // Reverter o saldo da conta
     const account = accounts.find(a => a.id === transaction.account_id);
     if (account) {
       let novoSaldo = account.balance;
@@ -1381,6 +1479,9 @@ async function deleteTransaction(transactionId) {
         .update({ balance: novoSaldo })
         .eq('id', transaction.account_id);
 
+      console.log(`✅ Saldo revertido: ${account.name}`);
+
+      // Se foi transferência, atualizar conta de destino
       if (transaction.type === 'transfer' && transaction.transfer_to_account_id) {
         const targetAccount = accounts.find(a => a.id === transaction.transfer_to_account_id);
         if (targetAccount) {
@@ -1392,6 +1493,7 @@ async function deleteTransaction(transactionId) {
       }
     }
 
+    // Reverter saldo do cartão se for despesa
     if (transaction.type === 'expense') {
       const card = creditCards.find(c => c.account_id === transaction.account_id);
       if (card) {
@@ -1399,18 +1501,22 @@ async function deleteTransaction(transactionId) {
           .from('credit_cards')
           .update({ balance: Math.max(0, (card.balance || 0) - transaction.amount) })
           .eq('id', card.id);
+        console.log('✅ Saldo do cartão revertido');
       }
     }
 
+    // Deletar transação
     const { error } = await supabase
       .from('transactions')
       .delete()
       .eq('id', transactionId);
 
     if (error) throw error;
+    console.log('✅ Transação deletada do Supabase');
 
     alert('✅ Transação deletada com sucesso!');
     
+    // Animar remoção
     const element = document.getElementById(`trans-${transactionId}`);
     if (element) {
       element.style.transition = 'opacity 0.3s ease';
@@ -1421,9 +1527,11 @@ async function deleteTransaction(transactionId) {
         loadCreditCards();
       }, 300);
     } else {
-      loadTransactions();
-      loadAccounts();
-      loadCreditCards();
+      await Promise.all([
+        loadTransactions(),
+        loadAccounts(),
+        loadCreditCards()
+      ]);
     }
   } catch (error) {
     console.error('❌ Erro ao deletar:', error);
