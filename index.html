@@ -54,10 +54,120 @@
   <!-- Main App -->
   <div id="mainApp" class="screen">
     <!-- Header -->
-    <header class="app-header">
-      <h1>💰 Controle Financeiro</h1>
-      <button onclick="handleLogout()" class="btn btn--sm btn--outline">Sair</button>
-    </header>
+    <div class="app-header">
+  <h1>💰 Controle Financeiro</h1>
+  
+  <div style="display: flex; gap: 12px; align-items: center;">
+    <!-- Botão de Recarregar Manual -->
+    <button 
+      class="btn btn--primary" 
+      onclick="reloadNow()" 
+      title="Clique para recarregar os dados do banco de dados"
+      id="reloadBtn"
+      style="display: flex; align-items: center; gap: 8px;">
+      🔄 Atualizar Dados
+    </button>
+
+    <!-- Indicador de Auto-reload -->
+    <div id="autoReloadIndicator" style="
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #666;
+      padding: 6px 12px;
+      background: #f0f0f0;
+      border-radius: 4px;
+    ">
+      <span id="reloadStatus" style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite;"></span>
+      <span id="reloadText">Auto-reload: ON</span>
+    </div>
+
+    <!-- Botão de Logout -->
+    <button class="btn btn--secondary" onclick="handleLogout()">
+      🚪 Sair
+    </button>
+  </div>
+</div>
+
+<!-- CSS para animação de pulse -->
+<style>
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  #reloadStatus {
+    animation: pulse 2s infinite;
+  }
+
+  #reloadBtn:hover {
+    transform: scale(1.05);
+  }
+
+  #reloadBtn:active {
+    transform: scale(0.98);
+  }
+</style>
+
+<!-- SCRIPT: Função para recarregar manualmente -->
+<script>
+async function reloadNow() {
+  console.log('🔄 Recarregando dados manualmente...');
+  const btn = document.getElementById('reloadBtn');
+  const originalText = btn.textContent;
+  
+  btn.disabled = true;
+  btn.textContent = '⏳ Atualizando...';
+  
+  try {
+    // Recarregar tudo
+    await Promise.all([
+      loadAccounts(),
+      loadCategories(),
+      loadTransactions(),
+      loadInvestments(),
+      loadCreditCards()
+    ]);
+    
+    // Recalcular saldos
+    await recalculateAccountBalances();
+    
+    // Atualizar dashboard
+    updateDashboard();
+    
+    alert('✅ Todos os dados foram atualizados!');
+    console.log('✅ Recarregamento completo');
+  } catch (error) {
+    console.error('❌ Erro ao recarregar:', error);
+    alert('❌ Erro ao atualizar dados: ' + error.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+// Mostrar/ocultar status do auto-reload
+function updateReloadIndicator(enabled) {
+  const indicator = document.getElementById('reloadIndicator');
+  const status = document.getElementById('reloadStatus');
+  const text = document.getElementById('reloadText');
+  
+  if (indicator) {
+    if (enabled) {
+      status.style.background = '#10b981';
+      text.textContent = 'Auto-reload: ON ✅';
+    } else {
+      status.style.background = '#ef4444';
+      text.textContent = 'Auto-reload: OFF ❌';
+    }
+  }
+}
+</script>
 
     <!-- Navigation -->
     <nav class="app-nav">
