@@ -855,7 +855,7 @@ function displayTransactions(transList) {
     let typeColor = trans.type === 'expense' ? '#ef4444' : trans.type === 'income' ? '#10b981' : '#06b6d4';
 
     return `
-      <div class="transaction-item">
+      <div class="transaction-item" id="trans-${trans.id}">
         <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
           <div style="width: 8px; height: 8px; border-radius: 50%; background-color: ${typeColor};"></div>
           <div style="flex: 1;">
@@ -863,17 +863,26 @@ function displayTransactions(transList) {
             <div style="font-size: 12px; color: #666;">${new Date(trans.date).toLocaleDateString('pt-BR')} • ${account?.name || 'Conta'} • ${category?.name || 'Outra'}</div>
           </div>
         </div>
-        <div style="text-align: right;">
-          <div style="font-weight: bold; color: ${typeColor};">
-            ${trans.type === 'expense' ? '-' : trans.type === 'income' ? '+' : ''} R$ ${trans.amount.toFixed(2)}
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="text-align: right;">
+            <div style="font-weight: bold; color: ${typeColor};">
+              ${trans.type === 'expense' ? '-' : trans.type === 'income' ? '+' : ''} R$ ${trans.amount.toFixed(2)}
+            </div>
+            <div style="font-size: 12px; color: #999;">${typeLabel}</div>
           </div>
-          <div style="font-size: 12px; color: #999;">${typeLabel}</div>
+          <div style="display: flex; gap: 6px; margin-left: 12px;">
+            <button class="btn-transaction" onclick="editTransaction('${trans.id}')" title="Editar">
+              ✏️
+            </button>
+            <button class="btn-transaction btn-danger" onclick="deleteTransaction('${trans.id}')" title="Deletar">
+              🗑️
+            </button>
+          </div>
         </div>
       </div>
     `;
   }).join('');
 }
-
 function updateTransactionTotals(transactionsList) {
   const income = transactionsList.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
   const expense = transactionsList.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
@@ -1239,6 +1248,189 @@ function updateDashboard() {
 function updateCharts() {
   // Implementar gráficos com Chart.js se necessário
 }
+
+
+async function editTransaction(transactionId) {
+  const transaction = transactions.find(t => t.id === transactionId);
+  if (!transaction) return;
+
+  console.log('Editando transação:', transaction);
+
+  // Preencher form com dados da transação
+  document.getElementById('transactionDate').value = transaction.date;
+  document.getElementById('transactionAmount').value = transaction.amount;
+  document.getElementById('transactionDescription').value = transaction.description;
+  document.getElementById('transactionType').value = transaction.type;
+  document.getElementById('transactionAccount').value = transaction.account_id;
+  
+  if (transaction.category_id) {
+    document.getElementById('transactionCategory').value = transaction.category_id;
+  }
+  
+  updateTransactionForm();
+
+  // Mudar botão de "Salvar" para "Atualizar"
+  const modal = document.getElementById('transactionModal');
+  const modalBody = modal.querySelector('.modal-body');
+  const saveBtn = modalBody.querySelector('[onclick="saveTransaction()"]');
+  
+  if (saveBtn) {
+    saveBtn.textContent = '🔄 Atualizar Transação';
+    saveBtn.onclick = () => updateTransaction(transactionId);
+    modal.dataset.editingTransactionId = transactionId;
+  }
+
+  // Abrir modal
+  openModal('transactionModal');
+}
+
+
+
+async function updateTransaction(transactionId) {
+  if (!supabase || !currentUser) return;
+
+  const transaction = transactions.find(t => t.id === transactionId);
+  if (!transaction) return;
+
+  try {
+    const updateData = {
+      type: document.getElementById('transactionType').value,
+      amount: parseFloat(document.getElementById('transactionAmount').value),
+      date: document.getElementById('transactionDate').value,
+      description: document.getElementById('transactionDescription').value,
+      category_id: document.getElementById('transactionType').value === 'transfer' ? null : document.getElementById('transactionCategory').value,
+    };
+
+    const diferenca = updateData.amount - transaction.amount;
+
+    const { error } = await supabase
+      .from('transactions')
+      .update(updateData)
+      .eq('id', transactionId);
+
+    if (error) throw error;
+
+    if (diferenca !== 0) {
+      const account = accounts.find(a => a.id === transaction.account_id);
+      if (account) {
+        const novoSaldo = account.balance - diferenca;
+        await supabase
+          .from('accounts')
+          .update({ balance: novoSaldo })
+          .eq('id', transaction.account_id);
+      }
+
+      if (updateData.type === 'expense') {
+        const card = creditCards.find(c => c.account_id === transaction.account_id);
+        if (card) {
+          const novoSaldoCard = (card.balance || 0) + diferenca;
+          await supabase
+            .from('credit_cards')
+            .update({ balance: novoSaldoCard })
+            .eq('id', card.id);
+        }
+      }
+    }
+
+    alert('✅ Transação atualizada com sucesso!');
+    closeModal('transactionModal');
+    
+    const modal = document.getElementById('transactionModal');
+    const modalBody = modal.querySelector('.modal-body');
+    const saveBtn = modalBody.querySelector('[onclick]');
+    if (saveBtn) {
+      saveBtn.textContent = '💾 Salvar Transação';
+      saveBtn.onclick = () => saveTransaction();
+    }
+    delete modal.dataset.editingTransactionId;
+
+    loadTransactions();
+    loadAccounts();
+    loadCreditCards();
+  } catch (error) {
+    console.error('❌ Erro ao atualizar:', error);
+    alert('❌ Erro ao atualizar transação: ' + error.message);
+  }
+}
+
+
+
+async function deleteTransaction(transactionId) {
+  const transaction = transactions.find(t => t.id === transactionId);
+  if (!transaction) return;
+
+  const confirmDelete = confirm(
+    `Tem certeza que deseja deletar essa transação?\n\n` +
+    `${transaction.description}\n` +
+    `R$ ${transaction.amount.toFixed(2)} em ${new Date(transaction.date).toLocaleDateString('pt-BR')}`
+  );
+
+  if (!confirmDelete) return;
+
+  try {
+    const account = accounts.find(a => a.id === transaction.account_id);
+    if (account) {
+      let novoSaldo = account.balance;
+      
+      if (transaction.type === 'expense') novoSaldo += transaction.amount;
+      if (transaction.type === 'income') novoSaldo -= transaction.amount;
+      if (transaction.type === 'transfer') novoSaldo += transaction.amount;
+
+      await supabase
+        .from('accounts')
+        .update({ balance: novoSaldo })
+        .eq('id', transaction.account_id);
+
+      if (transaction.type === 'transfer' && transaction.transfer_to_account_id) {
+        const targetAccount = accounts.find(a => a.id === transaction.transfer_to_account_id);
+        if (targetAccount) {
+          await supabase
+            .from('accounts')
+            .update({ balance: targetAccount.balance - transaction.amount })
+            .eq('id', transaction.transfer_to_account_id);
+        }
+      }
+    }
+
+    if (transaction.type === 'expense') {
+      const card = creditCards.find(c => c.account_id === transaction.account_id);
+      if (card) {
+        await supabase
+          .from('credit_cards')
+          .update({ balance: Math.max(0, (card.balance || 0) - transaction.amount) })
+          .eq('id', card.id);
+      }
+    }
+
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', transactionId);
+
+    if (error) throw error;
+
+    alert('✅ Transação deletada com sucesso!');
+    
+    const element = document.getElementById(`trans-${transactionId}`);
+    if (element) {
+      element.style.transition = 'opacity 0.3s ease';
+      element.style.opacity = '0';
+      setTimeout(() => {
+        loadTransactions();
+        loadAccounts();
+        loadCreditCards();
+      }, 300);
+    } else {
+      loadTransactions();
+      loadAccounts();
+      loadCreditCards();
+    }
+  } catch (error) {
+    console.error('❌ Erro ao deletar:', error);
+    alert('❌ Erro ao deletar transação: ' + error.message);
+  }
+}
+
 
 // ============================================
 // INICIALIZAR APP QUANDO PÁGINA CARREGAR
