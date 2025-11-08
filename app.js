@@ -885,9 +885,19 @@ async function recalculateAccountBalances() {
 
 function updateTransactionForm() {
   const type = document.getElementById('transactionType').value;
-  document.getElementById('categoryGroup').style.display = type === 'transfer' ? 'none' : 'block';
-  document.getElementById('transferToGroup').style.display = type === 'transfer' ? 'block' : 'none';
-  updateCategorySelects();
+  const categoryField = document.getElementById('transactionCategoryField');
+  const transferField = document.getElementById('transactionTransferField');
+  
+  // Mostrar/ocultar campos baseado no tipo
+  if (categoryField) {
+    categoryField.style.display = type === 'transfer' ? 'none' : 'block';
+  }
+  
+  if (transferField) {
+    transferField.style.display = type === 'transfer' ? 'block' : 'none';
+  }
+  
+  console.log(`📋 Formulário atualizado para tipo: ${type}`);
 }
 
 function filterTransactions() {
@@ -1500,28 +1510,134 @@ function updateCharts() {
 
 async function editTransaction(transactionId) {
   const transaction = transactions.find(t => t.id === transactionId);
-  if (!transaction) return;
+  if (!transaction) {
+    console.error('❌ Transação não encontrada');
+    return;
+  }
 
   console.log('✏️ Editando transação:', transaction);
+
+  // ⚠️ ATIVAR FLAG DE EDIÇÃO
+  isEditingTransaction = true;
 
   // Converter data para formato correto (sem timezone)
   let dateValue = transaction.date;
   if (dateValue.includes('T')) {
-    dateValue = dateValue.split('T')[0];  // Pega só a data sem hora
+    dateValue = dateValue.split('T')[0];
   }
 
-  // Preencher form com dados da transação
-  document.getElementById('transactionDate').value = dateValue;
-  document.getElementById('transactionAmount').value = transaction.amount;
-  document.getElementById('transactionDescription').value = transaction.description;
-  document.getElementById('transactionType').value = transaction.type;
-  document.getElementById('transactionAccount').value = transaction.account_id;
-  
-  if (transaction.category_id) {
-    document.getElementById('transactionCategory').value = transaction.category_id;
-  }
-  
-  updateTransactionForm();
+  // ============================================
+  // PREENCHER TODOS OS CAMPOS COM DELAY
+  // Para garantir que selects estão carregados
+  // ============================================
+
+  setTimeout(() => {
+    console.log('📝 Preenchendo formulário...');
+
+    // Data
+    const dateInput = document.getElementById('transactionDate');
+    if (dateInput) {
+      dateInput.value = dateValue;
+      console.log(`✅ Data: ${dateValue}`);
+    }
+
+    // Tipo (Income/Expense/Transfer)
+    const typeInput = document.getElementById('transactionType');
+    if (typeInput) {
+      typeInput.value = transaction.type || 'expense';
+      console.log(`✅ Tipo: ${transaction.type}`);
+      
+      // IMPORTANTE: Chamar updateTransactionForm para mostrar campos corretos
+      updateTransactionForm();
+    }
+
+    // Valor
+    const amountInput = document.getElementById('transactionAmount');
+    if (amountInput) {
+      amountInput.value = transaction.amount;
+      console.log(`✅ Valor: ${transaction.amount}`);
+    }
+
+    // Descrição
+    const descriptionInput = document.getElementById('transactionDescription');
+    if (descriptionInput) {
+      descriptionInput.value = transaction.description;
+      console.log(`✅ Descrição: ${transaction.description}`);
+    }
+
+    // ============================================
+    // CONTA - CORRIGIDA
+    // ============================================
+    const accountSelect = document.getElementById('transactionAccount');
+    if (accountSelect && transaction.account_id) {
+      console.log(`🏦 Tentando selecionar conta: ${transaction.account_id}`);
+      
+      // Método 1: Valor direto
+      accountSelect.value = transaction.account_id;
+      
+      // Método 2: Se não funcionar, procurar pelo option
+      if (!accountSelect.value || accountSelect.value === '') {
+        const option = accountSelect.querySelector(`option[value="${transaction.account_id}"]`);
+        if (option) {
+          accountSelect.value = transaction.account_id;
+          console.log(`✅ Conta selecionada via option`);
+        } else {
+          console.warn(`⚠️ Option não encontrada para conta: ${transaction.account_id}`);
+          console.log('Opções disponíveis:', Array.from(accountSelect.options).map(o => ({ value: o.value, text: o.text })));
+        }
+      } else {
+        console.log(`✅ Conta selecionada: ${accountSelect.value}`);
+      }
+      
+      // Disparar evento para atualizar UI
+      accountSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // ============================================
+    // CATEGORIA - CORRIGIDA
+    // ============================================
+    const categorySelect = document.getElementById('transactionCategory');
+    if (categorySelect && transaction.category_id) {
+      console.log(`📂 Tentando selecionar categoria: ${transaction.category_id}`);
+      
+      // Método 1: Valor direto
+      categorySelect.value = transaction.category_id;
+      
+      // Método 2: Se não funcionar, procurar pelo option
+      if (!categorySelect.value || categorySelect.value === '') {
+        const option = categorySelect.querySelector(`option[value="${transaction.category_id}"]`);
+        if (option) {
+          categorySelect.value = transaction.category_id;
+          console.log(`✅ Categoria selecionada via option`);
+        } else {
+          console.warn(`⚠️ Option não encontrada para categoria: ${transaction.category_id}`);
+        }
+      } else {
+        console.log(`✅ Categoria selecionada: ${categorySelect.value}`);
+      }
+      
+      // Disparar evento
+      categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // Cartão de crédito (se existir)
+    const creditCardSelect = document.getElementById('transactionCreditCard');
+    if (creditCardSelect && transaction.credit_card_id) {
+      console.log(`💳 Tentando selecionar cartão: ${transaction.credit_card_id}`);
+      creditCardSelect.value = transaction.credit_card_id;
+      creditCardSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // Conta destino (transferência)
+    const transferToSelect = document.getElementById('transactionTransferTo');
+    if (transferToSelect && transaction.transfer_to_account_id) {
+      console.log(`📤 Tentando selecionar conta destino: ${transaction.transfer_to_account_id}`);
+      transferToSelect.value = transaction.transfer_to_account_id;
+      transferToSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    console.log('✅ Formulário preenchido completamente');
+  }, 100);  // Delay de 100ms para garantir que os selects estão prontos
 
   // Mudar título do modal
   const modalTitle = document.querySelector('#transactionModal .modal-header h3');
@@ -1549,6 +1665,7 @@ async function editTransaction(transactionId) {
 
   modal.dataset.editingTransactionId = transactionId;
   openModal('transactionModal');
+  console.log('✅ Modal aberto para edição');
 }
 
 
@@ -1594,6 +1711,8 @@ async function updateTransaction(transactionId) {
       amount: parseFloat(document.getElementById('transactionAmount').value),
       date: document.getElementById('transactionDate').value,
       description: document.getElementById('transactionDescription').value,
+      // ⚠️ IMPORTANTE: Incluir account_id na atualização
+      account_id: document.getElementById('transactionAccount').value,
       category_id: document.getElementById('transactionType').value === 'transfer' 
         ? null 
         : (document.getElementById('transactionCategory').value || null),
@@ -1601,7 +1720,7 @@ async function updateTransaction(transactionId) {
 
     console.log('📝 Dados a atualizar:', updateData);
 
-    // IMPORTANTE: Usar .eq() corretamente
+    // Atualizar transação
     const { error } = await supabase
       .from('transactions')
       .update(updateData)
@@ -1615,51 +1734,118 @@ async function updateTransaction(transactionId) {
 
     console.log('✅ Transação atualizada no Supabase');
 
-    // Calcular diferença de valor
-    const diferenca = updateData.amount - transaction.amount;
+    // ============================================
+    // RECALCULAR SALDOS SE CONTA MUDOU
+    // ============================================
 
-    // Ajustar saldo da conta se mudou o valor
-    if (diferenca !== 0) {
-      const account = accounts.find(a => a.id === transaction.account_id);
-      if (account) {
-        const novoSaldo = account.balance - diferenca;
+    const novaContaId = updateData.account_id;
+    const diferenca = updateData.amount - transaction.amount;
+    const contaMudou = transaction.account_id !== novaContaId;
+
+    console.log(`📊 Diferença: R$ ${diferenca.toFixed(2)}, Conta mudou: ${contaMudou}`);
+
+    // Se conta mudou, reverter saldo da conta antiga
+    if (contaMudou) {
+      console.log('🔄 Conta foi alterada, revertendo saldo da conta antiga...');
+      
+      const contaAntiga = accounts.find(a => a.id === transaction.account_id);
+      if (contaAntiga) {
+        let novoSaldoAntiga = contaAntiga.balance;
         
-        const { error: accError } = await supabase
+        // Reverter transação antiga
+        if (transaction.type === 'expense') novoSaldoAntiga += transaction.amount;
+        if (transaction.type === 'income') novoSaldoAntiga -= transaction.amount;
+
+        const { error: accError1 } = await supabase
           .from('accounts')
-          .update({ balance: novoSaldo })
+          .update({ balance: novoSaldoAntiga })
           .eq('id', transaction.account_id)
           .eq('user_id', currentUser.id);
 
-        if (accError) {
-          console.error('Erro ao atualizar conta:', accError);
+        if (accError1) {
+          console.error('Erro ao atualizar conta antiga:', accError1);
         } else {
-          console.log(`✅ Saldo atualizado: R$ ${novoSaldo.toFixed(2)}`);
+          console.log(`✅ Conta antiga revertida: R$ ${novoSaldoAntiga.toFixed(2)}`);
         }
       }
 
-      // Ajustar cartão se for despesa
-      if (updateData.type === 'expense') {
-        const card = creditCards.find(c => c.account_id === transaction.account_id);
-        if (card) {
-          const novoSaldoCard = (card.balance || 0) + diferenca;
-          
-          const { error: cardError } = await supabase
-            .from('credit_cards')
-            .update({ balance: novoSaldoCard })
-            .eq('id', card.id);
+      // Aplicar nova transação na conta nova
+      const contaNova = accounts.find(a => a.id === novaContaId);
+      if (contaNova) {
+        let novoSaldoNova = contaNova.balance;
+        
+        if (updateData.type === 'expense') novoSaldoNova -= updateData.amount;
+        if (updateData.type === 'income') novoSaldoNova += updateData.amount;
 
-          if (cardError) {
-            console.error('Erro ao atualizar cartão:', cardError);
+        const { error: accError2 } = await supabase
+          .from('accounts')
+          .update({ balance: novoSaldoNova })
+          .eq('id', novaContaId)
+          .eq('user_id', currentUser.id);
+
+        if (accError2) {
+          console.error('Erro ao atualizar conta nova:', accError2);
+        } else {
+          console.log(`✅ Conta nova atualizada: R$ ${novoSaldoNova.toFixed(2)}`);
+        }
+      }
+    } else {
+      // Se conta não mudou, apenas ajustar pela diferença
+      if (diferenca !== 0) {
+        const account = accounts.find(a => a.id === transaction.account_id);
+        if (account) {
+          const novoSaldo = account.balance - diferenca;
+          
+          const { error: accError } = await supabase
+            .from('accounts')
+            .update({ balance: novoSaldo })
+            .eq('id', transaction.account_id)
+            .eq('user_id', currentUser.id);
+
+          if (accError) {
+            console.error('Erro ao atualizar conta:', accError);
+          } else {
+            console.log(`✅ Saldo ajustado: R$ ${novoSaldo.toFixed(2)}`);
           }
         }
+      }
+    }
+
+    // Ajustar cartão de crédito se for despesa
+    if (updateData.type === 'expense') {
+      const card = creditCards.find(c => c.account_id === novaContaId);
+      if (card) {
+        let novoSaldoCard = (card.balance || 0);
+        
+        // Se mudou de conta, remover da conta anterior
+        if (contaMudou) {
+          const cardAntiga = creditCards.find(c => c.account_id === transaction.account_id);
+          if (cardAntiga) {
+            novoSaldoCard = (cardAntiga.balance || 0) - transaction.amount;
+            await supabase
+              .from('credit_cards')
+              .update({ balance: novoSaldoCard })
+              .eq('id', cardAntiga.id);
+          }
+        }
+        
+        // Adicionar à nova conta
+        novoSaldoCard = (card.balance || 0) + updateData.amount;
+        await supabase
+          .from('credit_cards')
+          .update({ balance: novoSaldoCard })
+          .eq('id', card.id);
       }
     }
 
     alert('✅ Transação atualizada com sucesso!');
     closeModal('transactionModal');
     
-    // Resetar modal
     resetTransactionModal();
+
+    // Desativar flag
+    isEditingTransaction = false;
+    console.log('✅ Modo edição desativado');
 
     // Recarregar dados
     console.log('🔄 Recarregando dados...');
@@ -1672,6 +1858,7 @@ async function updateTransaction(transactionId) {
   } catch (error) {
     console.error('❌ Erro ao atualizar:', error);
     alert('❌ Erro ao atualizar transação: ' + error.message);
+    isEditingTransaction = false;
   }
 }
 
