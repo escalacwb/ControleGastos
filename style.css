@@ -115,15 +115,13 @@ body {
   gap: var(--space-16);
 }
 
-/* Main App - CORRIGIDO */
+/* Main App */
 #mainApp {
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
+  flex-direction: row;
 }
 
 /* ============================================
-   APP HEADER - CORRIGIDO
+   APP HEADER
    ============================================ */
 
 .app-header {
@@ -134,18 +132,15 @@ body {
   background: white;
   border-bottom: 1px solid var(--color-border);
   box-shadow: var(--shadow-sm);
-  flex-shrink: 0;
-  width: 100%;
 }
 
 .app-header h1 {
   font-size: 24px;
   color: var(--color-primary);
-  margin: 0;
 }
 
 /* ============================================
-   APP NAVIGATION - CORRIGIDO
+   APP NAVIGATION
    ============================================ */
 
 .app-nav {
@@ -156,8 +151,6 @@ body {
   border-bottom: 1px solid var(--color-border);
   overflow-x: auto;
   flex-wrap: wrap;
-  flex-shrink: 0;
-  width: 100%;
 }
 
 .nav-item {
@@ -191,11 +184,17 @@ body {
 }
 
 .nav-label {
-  display: inline;
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .nav-label {
+    display: inline;
+  }
 }
 
 /* ============================================
-   APP CONTENT - CORRIGIDO
+   APP CONTENT
    ============================================ */
 
 .app-content {
@@ -203,7 +202,6 @@ body {
   overflow-y: auto;
   padding: var(--space-24);
   background: #F9FAFB;
-  width: 100%;
 }
 
 .view {
@@ -1106,13 +1104,13 @@ textarea.form-control {
 
 @media (max-width: 768px) {
   .app-header {
-    flex-direction: row;
+    flex-direction: column;
     gap: var(--space-12);
+    text-align: center;
   }
 
   .app-nav {
-    justify-content: flex-start;
-    overflow-x: auto;
+    justify-content: center;
   }
 
   .app-content {
@@ -1252,4 +1250,76 @@ textarea.form-control {
 
 .h-full {
   height: 100%;
+}
+
+/* Botões de Transação */
+
+.btn-transaction {
+  background: #3B82F6;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.btn-transaction:hover {
+  background: #1e40af;
+  transform: scale(1.08);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn-transaction:active {
+  transform: scale(0.98);
+}
+
+.btn-transaction.btn-danger {
+  background: #ef4444;
+}
+
+.btn-transaction.btn-danger:hover {
+  background: #dc2626;
+}
+
+.transaction-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.transaction-item:hover {
+  background: #f9fafb;
+  padding-left: 8px;
+  padding-right: 8px;
+  margin-left: -8px;
+  margin-right: -8px;
+  border-radius: 6px;
+}
+
+.transaction-item:last-child {
+  border-bottom: none;
+}
+
+@media (max-width: 640px) {
+  .transaction-item {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btn-transaction {
+    min-width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
 }
