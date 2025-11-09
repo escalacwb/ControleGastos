@@ -51,7 +51,9 @@ async function initApp() {
       console.log('✅ Usuário logado:', currentUser.email);
       showScreen('mainApp');
       loadAllData();
+      if (typeof startAutoReload === 'function') {
       startAutoReload(30);
+      }
     } else {
       console.log('ℹ️ Nenhuma sessão ativa. Mostrando tela de login.');
       showScreen('loginScreen');
