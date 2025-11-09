@@ -1,609 +1,630 @@
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>💰 Controle Financeiro</title>
+  <title>Controle Financeiro Familiar</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="mainApp" class="app">
-    <!-- SCREEN: LOGIN -->
-    <div id="loginScreen" class="screen active">
-      <div class="auth-container">
-        <div class="auth-box">
-          <h1>💰 Controle Financeiro</h1>
-          <p>Gerencie suas finanças com facilidade</p>
-          
-          <div class="form-group">
-            <input type="email" id="loginEmail" placeholder="Email" class="input">
-          </div>
-          
-          <div class="form-group">
-            <input type="password" id="loginPassword" placeholder="Senha" class="input">
-          </div>
-          
-          <button class="btn btn--primary btn--block" onclick="handleLogin()">Entrar</button>
-          
-          <p class="auth-toggle">
-            Não tem conta? <a href="#" onclick="showSignup(); return false;">Cadastre-se</a>
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- SCREEN: SIGNUP -->
-    <div id="signupScreen" class="screen">
-      <div class="auth-container">
-        <div class="auth-box">
-          <h1>💰 Controle Financeiro</h1>
-          <p>Crie sua conta</p>
-          
-          <div class="form-group">
-            <input type="email" id="signupEmail" placeholder="Email" class="input">
-          </div>
-          
-          <div class="form-group">
-            <input type="password" id="signupPassword" placeholder="Senha (mín. 6 caracteres)" class="input">
-          </div>
-          
-          <button class="btn btn--primary btn--block" onclick="handleSignup()">Cadastrar</button>
-          
-          <p class="auth-toggle">
-            Já tem conta? <a href="#" onclick="showLogin(); return false;">Entrar</a>
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- SCREEN: MAIN APP -->
-    <div id="mainScreen" class="screen">
-      <!-- HEADER -->
-      <header class="app-header">
+  <!-- Login Screen -->
+  <div id="loginScreen" class="screen active">
+    <div class="login-container">
+      <div class="login-header">
         <h1>💰 Controle Financeiro</h1>
-        <div style="display: flex; gap: 12px; align-items: center;">
-          <button class="btn btn--primary" onclick="reloadNow()" title="Atualizar dados">🔄 Atualizar</button>
-          <button class="btn btn--secondary" onclick="handleLogout()">🚪 Sair</button>
+        <p>Gerencie as finanças da sua família</p>
+      </div>
+      <div class="login-form">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="loginEmail" class="form-control" placeholder="seu@email.com">
         </div>
-      </header>
-
-      <!-- NAVIGATION -->
-      <nav class="app-nav">
-        <button class="nav-item active" data-view="dashboard" onclick="showView('dashboard')">📊 Dashboard</button>
-        <button class="nav-item" data-view="transactions" onclick="showView('transactions')">💳 Transações</button>
-        <button class="nav-item" data-view="accounts" onclick="showView('accounts')">🏦 Contas</button>
-        <button class="nav-item" data-view="credit-cards" onclick="showView('credit-cards')">💰 Cartões</button>
-        <button class="nav-item" data-view="categories" onclick="showView('categories')">📂 Categorias</button>
-        <button class="nav-item" data-view="investments" onclick="showView('investments')">📈 Investimentos</button>
-      </nav>
-
-      <!-- VIEWS -->
-      <main class="app-main">
-        <!-- DASHBOARD VIEW -->
-        <div id="dashboardView" class="view active">
-          <div class="view-header">
-            <h2>📊 Dashboard</h2>
-          </div>
-
-          <!-- Cards de Patrimônio -->
-          <div class="dashboard-grid">
-            <div class="dashboard-card">
-              <div class="card-label">Patrimônio Líquido</div>
-              <div class="card-value" id="netWorthValue">R$ 0,00</div>
-            </div>
-            <div class="dashboard-card">
-              <div class="card-label">Saldo em Contas</div>
-              <div class="card-value" id="totalAccountsValue">R$ 0,00</div>
-            </div>
-            <div class="dashboard-card">
-              <div class="card-label">Total Investido</div>
-              <div class="card-value" id="totalInvestedValue">R$ 0,00</div>
-            </div>
-            <div class="dashboard-card">
-              <div class="card-label">Cartões a Pagar</div>
-              <div class="card-value" id="totalCardsDebtValue">R$ 0,00</div>
-            </div>
-          </div>
-
-          <!-- Receitas e Despesas do Mês -->
-          <div class="section">
-            <h3>📅 Receitas e Despesas - Este Mês</h3>
-            <div class="dashboard-grid">
-              <div class="dashboard-card success">
-                <div class="card-label">Receitas</div>
-                <div class="card-value" id="monthIncomeValue">R$ 0,00</div>
-              </div>
-              <div class="dashboard-card danger">
-                <div class="card-label">Despesas</div>
-                <div class="card-value" id="monthExpenseValue">R$ 0,00</div>
-              </div>
-              <div class="dashboard-card">
-                <div class="card-label">Saldo</div>
-                <div class="card-value" id="monthBalanceValue">R$ 0,00</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Total do Ano -->
-          <div class="section">
-            <h3>📊 Total do Ano (2025)</h3>
-            <div class="dashboard-grid">
-              <div class="dashboard-card success">
-                <div class="card-label">Receitas</div>
-                <div class="card-value" id="yearIncomeValue">R$ 0,00</div>
-              </div>
-              <div class="dashboard-card danger">
-                <div class="card-label">Despesas</div>
-                <div class="card-value" id="yearExpenseValue">R$ 0,00</div>
-              </div>
-              <div class="dashboard-card">
-                <div class="card-label">Saldo</div>
-                <div class="card-value" id="yearBalanceValue">R$ 0,00</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Comparativo com 2024 -->
-          <div class="section">
-            <h3>📈 Comparativo com 2024</h3>
-            <div class="dashboard-grid">
-              <div class="dashboard-card">
-                <div class="card-label">Receitas 2024</div>
-                <div class="card-value" id="lastYearIncomeValue">R$ 0,00</div>
-              </div>
-              <div class="dashboard-card">
-                <div class="card-label">Variação Receitas</div>
-                <div class="card-value" id="incomeVariation">0%</div>
-              </div>
-              <div class="dashboard-card">
-                <div class="card-label">Despesas 2024</div>
-                <div class="card-value" id="lastYearExpenseValue">R$ 0,00</div>
-              </div>
-              <div class="dashboard-card">
-                <div class="card-label">Variação Despesas</div>
-                <div class="card-value" id="expenseVariation">0%</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Insights -->
-          <div class="section">
-            <h3>💡 Insights</h3>
-            <div class="dashboard-grid">
-              <div class="dashboard-card">
-                <div class="card-label">Categoria Mais Gasta</div>
-                <div class="card-value" id="topCategoryName">-</div>
-                <div class="card-secondary" id="topCategoryValue">R$ 0,00</div>
-              </div>
-              <div class="dashboard-card">
-                <div class="card-label">Média de Gastos (6M)</div>
-                <div class="card-value" id="avgMonthExpenseValue">R$ 0,00</div>
-              </div>
-            </div>
-          </div>
+        <div class="form-group">
+          <label class="form-label">Senha</label>
+          <input type="password" id="loginPassword" class="form-control" placeholder="••••••••">
         </div>
-
-        <!-- TRANSACTIONS VIEW -->
-        <div id="transactionsView" class="view">
-          <div class="view-header">
-            <h2>💳 Transações</h2>
-            <button class="btn btn--primary" onclick="showAddTransactionModal()">➕ Nova Transação</button>
-          </div>
-
-          <!-- FILTROS (Mantém formato antigo funcional) -->
-          <div class="filters-section">
-            <div class="filters-header">
-              <h3>🔍 Filtros</h3>
-              <button class="btn btn--secondary" onclick="filterTransactions(); clearDateFilter();" style="font-size: 12px; padding: 6px 12px;">
-                ↺ Limpar
-              </button>
-            </div>
-
-            <!-- Linha 1: Tipo, Conta, Categoria -->
-            <div class="filters-row">
-              <div>
-                <label>📋 Tipo</label>
-                <select id="transactionTypeFilter" onchange="filterTransactions()">
-                  <option value="all">Todos os Tipos</option>
-                  <option value="income">📥 Receitas</option>
-                  <option value="expense">📤 Despesas</option>
-                  <option value="transfer">⇄ Transferências</option>
-                </select>
-              </div>
-
-              <div>
-                <label>🏦 Conta</label>
-                <select id="transactionAccountFilter" onchange="filterTransactions()">
-                  <option value="all">Todas as Contas</option>
-                </select>
-              </div>
-
-              <div>
-                <label>📂 Categoria</label>
-                <select id="transactionCategoryFilter" onchange="filterTransactions()">
-                  <option value="all">Todas as Categorias</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Linha 2: Atalhos de Data -->
-            <div class="filters-row" style="padding-top: 12px; border-top: 1px solid #eee;">
-              <button class="btn btn--small" onclick="filterThisMonth()" style="padding: 6px 12px; font-size: 12px;">
-                📅 Este mês
-              </button>
-              <button class="btn btn--small" onclick="filterLastMonth()" style="padding: 6px 12px; font-size: 12px;">
-                📅 Mês passado
-              </button>
-              <button class="btn btn--small" onclick="filterThisYear()" style="padding: 6px 12px; font-size: 12px;">
-                📅 Este ano
-              </button>
-              <button class="btn btn--small" onclick="filterLast30Days()" style="padding: 6px 12px; font-size: 12px;">
-                📅 Últimos 30 dias
-              </button>
-              <button class="btn btn--small" onclick="filterLast7Days()" style="padding: 6px 12px; font-size: 12px;">
-                📅 Últimos 7 dias
-              </button>
-            </div>
-          </div>
-
-          <!-- Totalizadores -->
-          <div class="totals-row">
-            <div class="total-card">
-              <span>Receitas</span>
-              <strong id="totalIncome">R$ 0,00</strong>
-            </div>
-            <div class="total-card danger">
-              <span>Despesas</span>
-              <strong id="totalExpense">R$ 0,00</strong>
-            </div>
-            <div class="total-card">
-              <span>Saldo</span>
-              <strong id="totalBalance">R$ 0,00</strong>
-            </div>
-          </div>
-
-          <!-- Lista de Transações -->
-          <div id="transactionsList" class="transactions-list">
-          </div>
-        </div>
-
-        <!-- ACCOUNTS VIEW -->
-        <div id="accountsView" class="view">
-          <div class="view-header">
-            <h2>🏦 Contas</h2>
-            <button class="btn btn--primary" onclick="showAddAccountModal()">➕ Nova Conta</button>
-          </div>
-          <div id="accountsList" class="accounts-grid">
-          </div>
-        </div>
-
-        <!-- CREDIT CARDS VIEW -->
-        <div id="creditCardsView" class="view">
-          <div class="view-header">
-            <h2>💰 Cartões de Crédito</h2>
-            <button class="btn btn--primary" onclick="showAddCreditCardModal()">➕ Novo Cartão</button>
-          </div>
-          <div id="creditCardsGrid" class="credit-cards-grid">
-          </div>
-        </div>
-
-        <!-- CATEGORIES VIEW -->
-        <div id="categoriesView" class="view">
-          <div class="view-header">
-            <h2>📂 Categorias</h2>
-            <button class="btn btn--primary" onclick="showAddCategoryModal()">➕ Nova Categoria</button>
-          </div>
-          <div id="categoriesList" class="categories-list">
-          </div>
-        </div>
-
-        <!-- INVESTMENTS VIEW -->
-        <div id="investmentsView" class="view">
-          <div class="view-header">
-            <h2>📈 Investimentos</h2>
-            <button class="btn btn--primary" onclick="showAddInvestmentModal()">➕ Novo Investimento</button>
-          </div>
-
-          <div class="investments-summary">
-            <div class="summary-card">
-              <div>Total Investido</div>
-              <div class="summary-value" id="invTotalInvested">R$ 0,00</div>
-            </div>
-            <div class="summary-card">
-              <div>Valor Atual</div>
-              <div class="summary-value" id="invCurrentValue">R$ 0,00</div>
-            </div>
-            <div class="summary-card">
-              <div>Total Retorno</div>
-              <div class="summary-value" id="invTotalReturn">R$ 0,00</div>
-            </div>
-            <div class="summary-card">
-              <div>Retorno %</div>
-              <div class="summary-value" id="invReturnPercent">0%</div>
-            </div>
-          </div>
-
-          <div>
-            <label>Filtrar por Tipo:</label>
-            <select id="investmentTypeFilter" onchange="filterInvestments()">
-              <option value="all">Todos</option>
-              <option value="stocks">Ações</option>
-              <option value="bonds">Títulos</option>
-              <option value="funds">Fundos</option>
-              <option value="crypto">Criptomoedas</option>
-              <option value="real_estate">Imóveis</option>
-              <option value="other">Outros</option>
-            </select>
-          </div>
-
-          <div id="investmentsList" class="investments-grid">
-          </div>
-        </div>
-      </main>
+        <button onclick="handleLogin()" class="btn btn--primary btn--full-width">Entrar</button>
+        <button onclick="showSignup()" class="btn btn--secondary btn--full-width" style="margin-top: var(--space-8);">Criar Conta</button>
+      </div>
     </div>
   </div>
 
-  <!-- MODALS -->
-  <!-- Transaction Modal -->
+  <!-- Signup Screen -->
+  <div id="signupScreen" class="screen">
+    <div class="login-container">
+      <div class="login-header">
+        <h1>📝 Criar Conta</h1>
+        <p>Comece a gerenciar suas finanças</p>
+      </div>
+      <div class="login-form">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="signupEmail" class="form-control" placeholder="seu@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Senha</label>
+          <input type="password" id="signupPassword" class="form-control" placeholder="••••••••">
+        </div>
+        <button onclick="handleSignup()" class="btn btn--primary btn--full-width">Criar Conta</button>
+        <button onclick="showLogin()" class="btn btn--secondary btn--full-width" style="margin-top: var(--space-8);">Voltar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="mainApp" class="screen">
+    <!-- Header -->
+    <div class="app-header">
+  <h1>💰 Controle Financeiro</h1>
+  
+  <div style="display: flex; gap: 12px; align-items: center;">
+    <!-- Botão de Recarregar Manual -->
+    <button 
+      class="btn btn--primary" 
+      onclick="reloadNow()" 
+      title="Clique para recarregar os dados do banco de dados"
+      id="reloadBtn"
+      style="display: flex; align-items: center; gap: 8px;">
+      🔄 Atualizar Dados
+    </button>
+
+    <!-- Indicador de Auto-reload -->
+    <div id="autoReloadIndicator" style="
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #666;
+      padding: 6px 12px;
+      background: #f0f0f0;
+      border-radius: 4px;
+    ">
+      <span id="reloadStatus" style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite;"></span>
+      <span id="reloadText">Auto-reload: ON</span>
+    </div>
+
+    <!-- Botão de Logout -->
+    <button class="btn btn--secondary" onclick="handleLogout()">
+      🚪 Sair
+    </button>
+  </div>
+</div>
+
+<!-- CSS para animação de pulse -->
+<style>
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  #reloadStatus {
+    animation: pulse 2s infinite;
+  }
+
+  #reloadBtn:hover {
+    transform: scale(1.05);
+  }
+
+  #reloadBtn:active {
+    transform: scale(0.98);
+  }
+</style>
+
+<!-- SCRIPT: Função para recarregar manualmente -->
+<script>
+async function reloadNow() {
+  console.log('🔄 Recarregando dados manualmente...');
+  const btn = document.getElementById('reloadBtn');
+  const originalText = btn.textContent;
+  
+  btn.disabled = true;
+  btn.textContent = '⏳ Atualizando...';
+  
+  try {
+    // Recarregar tudo
+    await Promise.all([
+      loadAccounts(),
+      loadCategories(),
+      loadTransactions(),
+      loadInvestments(),
+      loadCreditCards()
+    ]);
+    
+    // Recalcular saldos
+    await recalculateAccountBalances();
+    
+    // Atualizar dashboard
+    updateDashboard();
+    
+    alert('✅ Todos os dados foram atualizados!');
+    console.log('✅ Recarregamento completo');
+  } catch (error) {
+    console.error('❌ Erro ao recarregar:', error);
+    alert('❌ Erro ao atualizar dados: ' + error.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+// Mostrar/ocultar status do auto-reload
+function updateReloadIndicator(enabled) {
+  const indicator = document.getElementById('reloadIndicator');
+  const status = document.getElementById('reloadStatus');
+  const text = document.getElementById('reloadText');
+  
+  if (indicator) {
+    if (enabled) {
+      status.style.background = '#10b981';
+      text.textContent = 'Auto-reload: ON ✅';
+    } else {
+      status.style.background = '#ef4444';
+      text.textContent = 'Auto-reload: OFF ❌';
+    }
+  }
+}
+</script>
+
+    <!-- Navigation -->
+    <nav class="app-nav">
+      <button class="nav-item active" data-view="dashboard" onclick="showView('dashboard')">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Início</span>
+      </button>
+      <button class="nav-item" data-view="transactions" onclick="showView('transactions')">
+        <span class="nav-icon">💳</span>
+        <span class="nav-label">Transações</span>
+      </button>
+      <button class="nav-item" data-view="credit-cards" onclick="showView('credit-cards')">
+        <span class="nav-icon">💰</span>
+        <span class="nav-label">Cartões</span>
+      </button>
+      <button class="nav-item" data-view="accounts" onclick="showView('accounts')">
+        <span class="nav-icon">🏦</span>
+        <span class="nav-label">Contas</span>
+      </button>
+      <button class="nav-item" data-view="categories" onclick="showView('categories')">
+        <span class="nav-icon">🏷️</span>
+        <span class="nav-label">Categorias</span>
+      </button>
+      <button class="nav-item" data-view="investments" onclick="showView('investments')">
+        <span class="nav-icon">📈</span>
+        <span class="nav-label">Investimentos</span>
+      </button>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="app-content">
+      <!-- Dashboard View -->
+      <!-- ============================================
+     DASHBOARD MELHORADO - HTML
+     Substitua o conteúdo dentro de <div id="dashboardView" class="view active">
+     ============================================ -->
+
+<div id="dashboardView" class="view active">
+  <div class="view-header">
+    <h2>📊 Dashboard</h2>
+    <button class="btn btn--primary" onclick="recalculateAccountBalances()">🔄 Recalcular Saldos</button>
+  </div>
+
+  <!-- ============================================
+       1. RESUMO FINANCEIRO (4 Cards)
+       ============================================ -->
+  <div class="stats-grid">
+    <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+      <div class="stat-label">PATRIMÔNIO LÍQUIDO</div>
+      <div class="stat-value" id="netWorthValue">R$ 0,00</div>
+    </div>
+
+    <div class="stat-card" style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);">
+      <div class="stat-label">SALDO EM CONTAS</div>
+      <div class="stat-value" id="totalAccountsValue">R$ 0,00</div>
+    </div>
+
+    <div class="stat-card" style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); color: white;">
+      <div class="stat-label">TOTAL INVESTIDO</div>
+      <div class="stat-value" id="totalInvestedValue">R$ 0,00</div>
+    </div>
+
+    <div class="stat-card" style="background: linear-gradient(135deg, #ff7675 0%, #d63031 100%); color: white;">
+      <div class="stat-label">CARTÕES A PAGAR</div>
+      <div class="stat-value" id="totalCardsDebtValue">R$ 0,00</div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       2. RECEITAS E DESPESAS - ESTE MÊS
+       ============================================ -->
+  <div class="dashboard-section">
+    <h3>📅 Receitas e Despesas - Este Mês</h3>
+    <div class="stats-grid">
+      <div class="stat-card" style="background: var(--color-bg-2);">
+        <div class="stat-label">Receitas</div>
+        <div class="stat-value" id="monthIncomeValue" style="color: var(--color-secondary);">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-4);">
+        <div class="stat-label">Despesas</div>
+        <div class="stat-value" id="monthExpenseValue" style="color: var(--color-error);">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-1);">
+        <div class="stat-label">Saldo</div>
+        <div class="stat-value" id="monthBalanceValue" style="color: var(--color-primary);">R$ 0,00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       3. TOTAL DO ANO ATUAL
+       ============================================ -->
+  <div class="dashboard-section">
+    <h3>📊 Total do Ano (<span id="currentYearLabel">2025</span>)</h3>
+    <div class="stats-grid">
+      <div class="stat-card" style="background: var(--color-bg-2);">
+        <div class="stat-label">Receitas do Ano</div>
+        <div class="stat-value" id="yearIncomeValue" style="color: var(--color-secondary);">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-4);">
+        <div class="stat-label">Despesas do Ano</div>
+        <div class="stat-value" id="yearExpenseValue" style="color: var(--color-error);">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-1);">
+        <div class="stat-label">Saldo do Ano</div>
+        <div class="stat-value" id="yearBalanceValue" style="color: var(--color-primary);">R$ 0,00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       4. COMPARATIVO COM ANO ANTERIOR
+       ============================================ -->
+  <div class="dashboard-section">
+    <h3>📈 Comparativo com <span id="lastYearLabel">2024</span></h3>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="font-size: 12px; color: #666;">Receitas <span id="lastYearLabel2">2024</span></div>
+          <div style="font-size: 14px; font-weight: bold;" id="lastYearIncomeValue">R$ 0,00</div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 12px; color: #666;">Variação</div>
+          <div style="font-size: 16px; font-weight: bold; color: var(--color-secondary);" id="incomeVariation">0%</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="font-size: 12px; color: #666;">Despesas <span id="lastYearLabel3">2024</span></div>
+          <div style="font-size: 14px; font-weight: bold;" id="lastYearExpenseValue">R$ 0,00</div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 12px; color: #666;">Variação</div>
+          <div style="font-size: 16px; font-weight: bold; color: var(--color-error);" id="expenseVariation">0%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       5. INSIGHTS E ANÁLISES
+       ============================================ -->
+  <div class="dashboard-section">
+    <h3>💡 Insights</h3>
+    <div class="stats-grid">
+      <div class="stat-card" style="background: var(--color-bg-5);">
+        <div class="stat-label">Categoria Mais Gasta (Mês)</div>
+        <div style="font-size: 18px; font-weight: bold; color: var(--color-primary);" id="topCategoryName">N/A</div>
+        <div style="font-size: 14px; color: #666; margin-top: 5px;" id="topCategoryValue">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-3);">
+        <div class="stat-label">Média de Gastos (6 meses)</div>
+        <div style="font-size: 20px; font-weight: bold; color: var(--color-warning);" id="avgMonthExpenseValue">R$ 0,00</div>
+      </div>
+
+      <div class="stat-card" style="background: var(--color-bg-6);">
+        <div class="stat-label">Total de Transações</div>
+        <div style="font-size: 20px; font-weight: bold; color: var(--color-info);" id="totalTransactionsCount">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       6. AÇÕES RÁPIDAS
+       ============================================ -->
+  <div class="dashboard-section">
+    <h3>⚡ Ações Rápidas</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+      <button class="btn btn--primary" onclick="showAddTransactionModal()">➕ Nova Transação</button>
+      <button class="btn btn--secondary" onclick="showView('transactions')">📋 Ver Transações</button>
+      <button class="btn btn--secondary" onclick="showView('accounts')">🏦 Minhas Contas</button>
+      <button class="btn btn--secondary" onclick="showView('credit-cards')">💳 Cartões</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Atualizar labels de ano automaticamente
+document.addEventListener('DOMContentLoaded', () => {
+  const currentYear = new Date().getFullYear();
+  const lastYear = currentYear - 1;
+  
+  document.getElementById('currentYearLabel').textContent = currentYear;
+  document.getElementById('lastYearLabel').textContent = lastYear;
+  document.getElementById('lastYearLabel2').textContent = lastYear;
+  document.getElementById('lastYearLabel3').textContent = lastYear;
+});
+</script>  
+
+      <!-- Transactions View -->
+      <div id="transactionsView" class="view">
+        <div class="view-header">
+          <!-- ============================================
+     FILTROS - HTML
+     Adicione na página de transações
+     ============================================ -->
+
+        <div class="filters-section" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+          <select id="transactionTypeFilter" class="form-control" onchange="filterTransactions()" style="flex: 1; min-width: 150px;">
+            <option value="all">Todos os Tipos</option>
+            <option value="income">Receitas</option>
+            <option value="expense">Despesas</option>
+            <option value="transfer">Transferências</option>
+          </select>
+          <select id="transactionAccountFilter" class="form-control" onchange="filterTransactions()" style="flex: 1; min-width: 150px;">
+            <option value="all">Todas as Contas</option>
+          </select>
+          <select id="transactionCategoryFilter" class="form-control" onchange="filterTransactions()" style="flex: 1; min-width: 150px;">
+            <option value="all">Todas as Categorias</option>
+          </select>
+        </div>
+
+        <!-- Botões de Atalho de Data -->
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;">
+          <button class="btn btn--small" onclick="filterThisMonth()" style="padding: 6px 12px; font-size: 12px;">
+            📅 Este mês
+          </button>
+          <button class="btn btn--small" onclick="filterThisYear()" style="padding: 6px 12px; font-size: 12px;">
+            📅 Este ano
+          </button>
+          <button class="btn btn--small" onclick="filterLastMonth()" style="padding: 6px 12px; font-size: 12px;">
+            📅 Mês passado
+          </button>
+          <button class="btn btn--secondary" onclick="clearAllFilters()" style="padding: 6px 12px; font-size: 12px;">
+            ↺ Limpar Filtros
+          </button>
+        </div>
+
+        <div class="totals-section">
+          <div class="total-item">
+            <span>Total Receitas:</span>
+            <span class="total-value income" id="totalIncome">R$ 0,00</span>
+          </div>
+          <div class="total-item">
+            <span>Total Despesas:</span>
+            <span class="total-value expense" id="totalExpense">R$ 0,00</span>
+          </div>
+          <div class="total-item">
+            <span>Saldo:</span>
+            <span class="total-value" id="totalBalance">R$ 0,00</span>
+          </div>
+        </div>
+
+        <div id="transactionsList" class="transactions-list"></div>
+      </div>
+
+      <!-- Credit Cards View -->
+      <div id="creditCardsView" class="view">
+        <div class="view-header">
+          <h2>Cartões de Crédito</h2>
+          <button onclick="showAddCreditCardModal()" class="btn btn--primary btn--sm">+ Novo Cartão</button>
+        </div>
+
+        <div id="creditCardsGrid" class="credit-cards-grid"></div>
+      </div>
+
+      <!-- Accounts View -->
+      <div id="accountsView" class="view">
+        <div class="view-header">
+          <h2>Contas</h2>
+          <button onclick="showAddAccountModal()" class="btn btn--primary btn--sm">+ Nova</button>
+        </div>
+        <div id="accountsList" class="accounts-list"></div>
+      </div>
+
+      <!-- Categories View -->
+      <div id="categoriesView" class="view">
+        <div class="view-header">
+          <h2>Categorias</h2>
+          <button onclick="showAddCategoryModal()" class="btn btn--primary btn--sm">+ Nova</button>
+        </div>
+        <div id="categoriesList" class="categories-list"></div>
+      </div>
+
+      <!-- Investments View -->
+      <div id="investmentsView" class="view">
+        <div class="view-header">
+          <h2>Investimentos</h2>
+          <button onclick="showAddInvestmentModal()" class="btn btn--primary btn--sm">+ Novo</button>
+        </div>
+
+        <div class="investments-summary">
+          <div class="inv-summary-card">
+            <div class="inv-summary-label">Total Investido</div>
+            <div class="inv-summary-value" id="invTotalInvested">R$ 0,00</div>
+          </div>
+          <div class="inv-summary-card">
+            <div class="inv-summary-label">Valor Atual</div>
+            <div class="inv-summary-value" id="invCurrentValue">R$ 0,00</div>
+          </div>
+          <div class="inv-summary-card">
+            <div class="inv-summary-label">Retorno</div>
+            <div class="inv-summary-value" id="invTotalReturn">R$ 0,00</div>
+            <div class="inv-summary-percent" id="invReturnPercent">0%</div>
+          </div>
+        </div>
+
+        <div class="investments-filter">
+          <select id="investmentTypeFilter" class="form-control" onchange="filterInvestments()">
+            <option value="all">Todos os Tipos</option>
+            <option value="stocks">📈 Ações</option>
+            <option value="fixed_income">💰 Renda Fixa</option>
+            <option value="funds">🏦 Fundos</option>
+            <option value="crypto">₿ Criptomoedas</option>
+            <option value="real_estate">🏠 Imóveis</option>
+            <option value="other">📦 Outros</option>
+          </select>
+        </div>
+
+        <div id="investmentsList" class="investments-list"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Transaction Modal -->
   <div id="transactionModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>➕ Nova Transação</h3>
-        <button class="modal-close">&times;</button>
+        <h3>Nova Transação</h3>
+        <button onclick="closeModal('transactionModal')" class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>Data</label>
-          <input type="date" id="transactionDate" class="input">
-        </div>
-
-        <div class="form-group">
-          <label>Tipo</label>
-          <select id="transactionType" onchange="updateTransactionForm()" class="input">
+          <label class="form-label">Tipo</label>
+          <select id="transactionType" class="form-control" onchange="updateTransactionForm()">
             <option value="expense">Despesa</option>
             <option value="income">Receita</option>
             <option value="transfer">Transferência</option>
           </select>
         </div>
-
         <div class="form-group">
-          <label>Valor</label>
-          <input type="number" id="transactionAmount" placeholder="0.00" step="0.01" class="input">
+          <label class="form-label">Valor</label>
+          <input type="number" id="transactionAmount" class="form-control" placeholder="0.00" step="0.01">
         </div>
-
+        <div class="form-group" id="accountGroup">
+          <label class="form-label">Conta/Cartão</label>
+          <select id="transactionAccount" class="form-control"></select>
+        </div>
+        <div class="form-group" id="categoryGroup">
+          <label class="form-label">Categoria</label>
+          <select id="transactionCategory" class="form-control"></select>
+        </div>
+        <div class="form-group" id="transferToGroup" style="display: none;">
+          <label class="form-label">Para a Conta</label>
+          <select id="transactionTransferTo" class="form-control"></select>
+        </div>
         <div class="form-group">
-          <label>Descrição</label>
-          <input type="text" id="transactionDescription" class="input">
+          <label class="form-label">Data</label>
+          <input type="date" id="transactionDate" class="form-control">
         </div>
-
         <div class="form-group">
-          <label>Conta</label>
-          <select id="transactionAccount" class="input">
-          </select>
+          <label class="form-label">Descrição</label>
+          <input type="text" id="transactionDescription" class="form-control" placeholder="Descrição da transação">
         </div>
-
-        <div id="transactionCategoryField" class="form-group">
-          <label>Categoria</label>
-          <select id="transactionCategory" class="input">
-          </select>
-        </div>
-
-        <div id="transactionTransferField" class="form-group" style="display: none;">
-          <label>Transferir para</label>
-          <select id="transactionTransferTo" class="input">
-          </select>
-        </div>
-
-        <button class="btn btn--primary btn--block" onclick="saveTransaction()">💾 Salvar Transação</button>
+        <button onclick="saveTransaction()" class="btn btn--primary btn--full-width">Salvar</button>
       </div>
     </div>
   </div>
 
-  <!-- Account Modal -->
+  <!-- Add Account Modal -->
   <div id="accountModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>➕ Nova Conta</h3>
-        <button class="modal-close">&times;</button>
+        <h3>Nova Conta</h3>
+        <button onclick="closeModal('accountModal')" class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>Nome</label>
-          <input type="text" id="accountName" class="input">
+          <label class="form-label">Nome</label>
+          <input type="text" id="accountName" class="form-control" placeholder="Ex: Conta Corrente">
         </div>
         <div class="form-group">
-          <label>Tipo</label>
-          <select id="accountType" class="input">
-            <option value="checking">Corrente</option>
+          <label class="form-label">Tipo</label>
+          <select id="accountType" class="form-control">
+            <option value="checking">Conta Corrente</option>
             <option value="savings">Poupança</option>
             <option value="cash">Dinheiro</option>
-            <option value="other">Outra</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Saldo Inicial</label>
-          <input type="number" id="accountBalance" placeholder="0.00" step="0.01" class="input">
-        </div>
-        <button class="btn btn--primary btn--block" onclick="saveAccount()">💾 Salvar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Credit Card Modal -->
-  <div id="creditCardModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>💳 Novo Cartão</h3>
-        <button class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>Banco</label>
-          <input type="text" id="creditCardBank" class="input">
-        </div>
-        <div class="form-group">
-          <label>Bandeira</label>
-          <select id="creditCardNetwork" class="input">
-            <option>Visa</option>
-            <option>Mastercard</option>
-            <option>Elo</option>
-            <option>Amex</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Últimos 4 Dígitos</label>
-          <input type="text" id="creditCardDigits" placeholder="0000" class="input">
-        </div>
-        <div class="form-group">
-          <label>Titular</label>
-          <input type="text" id="creditCardHolder" class="input">
-        </div>
-        <div class="form-group">
-          <label>Limite</label>
-          <input type="number" id="creditCardLimit" placeholder="0.00" step="0.01" class="input">
-        </div>
-        <div class="form-group">
-          <label>Dia do Vencimento</label>
-          <input type="number" id="creditCardClosingDay" min="1" max="31" value="15">
-        </div>
-        <div class="form-group">
-          <label>Dia de Vencimento do Pagamento</label>
-          <input type="number" id="creditCardDueDay" min="1" max="31" value="25">
-        </div>
-        <div class="form-group">
-          <label>Conta Associada</label>
-          <select id="creditCardAccount" class="input">
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Observações</label>
-          <textarea id="creditCardNotes" class="input" rows="3"></textarea>
-        </div>
-        <button class="btn btn--primary btn--block" onclick="saveCreditCard()">💾 Salvar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Category Modal -->
-  <div id="categoryModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>📂 Nova Categoria</h3>
-        <button class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>Nome</label>
-          <input type="text" id="categoryName" class="input">
-        </div>
-        <div class="form-group">
-          <label>Tipo</label>
-          <select id="categoryType" class="input">
-            <option value="expense">Despesa</option>
-            <option value="income">Receita</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Alocação Primária %</label>
-          <input type="number" id="categoryPrimary" min="0" max="100">
-        </div>
-        <div class="form-group">
-          <label>Alocação Secundária %</label>
-          <input type="number" id="categorySecondary" min="0" max="100">
-        </div>
-        <div class="form-group">
-          <label>Cor</label>
-          <input type="color" id="categoryColor" value="#3B82F6">
-        </div>
-        <button class="btn btn--primary btn--block" onclick="saveCategory()">💾 Salvar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Investment Modal -->
-  <div id="investmentModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>📈 Novo Investimento</h3>
-        <button class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label>Nome</label>
-          <input type="text" id="investmentName" class="input">
-        </div>
-        <div class="form-group">
-          <label>Tipo</label>
-          <select id="investmentType" class="input">
-            <option value="stocks">Ações</option>
-            <option value="bonds">Títulos</option>
-            <option value="funds">Fundos</option>
-            <option value="crypto">Criptomoedas</option>
-            <option value="real_estate">Imóveis</option>
             <option value="other">Outro</option>
           </select>
         </div>
         <div class="form-group">
-          <label>Instituição</label>
-          <input type="text" id="investmentInstitution" class="input">
+          <label class="form-label">Saldo Inicial</label>
+          <input type="number" id="accountBalance" class="form-control" placeholder="0.00" step="0.01" value="0">
         </div>
-        <div class="form-group">
-          <label>Data de Compra</label>
-          <input type="date" id="investmentPurchaseDate" class="input">
-        </div>
-        <div class="form-group">
-          <label>Valor Inicial</label>
-          <input type="number" id="investmentInitialAmount" placeholder="0.00" step="0.01" class="input">
-        </div>
-        <div class="form-group">
-          <label>Valor Atual</label>
-          <input type="number" id="investmentCurrentValue" placeholder="0.00" step="0.01" class="input">
-        </div>
-        <div class="form-group">
-          <label>Data de Vencimento</label>
-          <input type="date" id="investmentMaturityDate" class="input">
-        </div>
-        <div class="form-group">
-          <label>Notas</label>
-          <textarea id="investmentNotes" class="input" rows="3"></textarea>
-        </div>
-        <button class="btn btn--primary btn--block" onclick="saveInvestment()">💾 Salvar</button>
+        <button onclick="saveAccount()" class="btn btn--primary btn--full-width">Salvar</button>
       </div>
     </div>
   </div>
 
-  <!-- Payment Card Modal -->
-  <div id="payCardModal" class="modal">
+  <!-- Add Credit Card Modal -->
+  <div id="creditCardModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>💳 Pagar Cartão</h3>
-        <button class="modal-close">&times;</button>
+        <h3>Novo Cartão de Crédito</h3>
+        <button onclick="closeModal('creditCardModal')" class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
-        <div id="payCardInfo"></div>
         <div class="form-group">
-          <label>Valor</label>
-          <input type="number" id="payCardAmount" placeholder="0.00" step="0.01" class="input">
+          <label class="form-label">Banco</label>
+          <input type="text" id="creditCardBank" class="form-control" placeholder="Ex: Itaú, Bradesco, Nubank">
         </div>
         <div class="form-group">
-          <label>Data</label>
-          <input type="date" id="payCardDate" class="input">
-        </div>
-        <div class="form-group">
-          <label>De qual conta?</label>
-          <select id="payCardFromAccount" class="input">
+          <label class="form-label">Bandeira</label>
+          <select id="creditCardNetwork" class="form-control">
+            <option value="Visa">Visa</option>
+            <option value="Mastercard">Mastercard</option>
+            <option value="Elo">Elo</option>
+            <option value="Amex">American Express</option>
+            <option value="Diners">Diners</option>
+            <option value="Hipercard">Hipercard</option>
           </select>
         </div>
-        <button class="btn btn--primary btn--block" onclick="processCardPayment()">💳 Confirmar Pagamento</button>
+        <div class="form-group">
+          <label class="form-label">Últimos 4 Dígitos</label>
+          <input type="text" id="creditCardDigits" class="form-control" placeholder="1234" maxlength="4">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Titular</label>
+          <input type="text" id="creditCardHolder" class="form-control" placeholder="Seu nome completo">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Limite de Crédito (R$)</label>
+          <input type="number" id="creditCardLimit" class="form-control" placeholder="5000" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dia de Fechamento</label>
+          <input type="number" id="creditCardClosingDay" class="form-control" min="1" max="31" placeholder="15">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dia de Vencimento</label>
+          <input type="number" id="creditCardDueDay" class="form-control" min="1" max="31" placeholder="25">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conta Associada</label>
+          <select id="creditCardAccount" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notas (opcional)</label>
+          <textarea id="creditCardNotes" class="form-control" rows="3" placeholder="Ex: Cartão principal, usar para compras online"></textarea>
+        </div>
+        <button onclick="saveCreditCard()" class="btn btn--primary btn--full-width">Salvar</button>
       </div>
     </div>
   </div>
 
-  <!-- Card Detail Modal -->
+  <!-- Credit Card Detail Modal -->
   <div id="creditCardDetailModal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content modal-large">
       <div class="modal-header">
         <h3 id="cardDetailTitle">Detalhes do Cartão</h3>
-        <button class="modal-close">&times;</button>
+        <button onclick="closeModal('creditCardDetailModal')" class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
         <div id="cardDetailContent"></div>
@@ -611,68 +632,217 @@
     </div>
   </div>
 
-  <!-- Investment Detail Modal -->
-  <div id="investmentDetailModal" class="modal">
+  <!-- Pay Credit Card Modal -->
+  <div id="payCardModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>📈 Detalhes do Investimento</h3>
-        <button class="modal-close">&times;</button>
+        <h3>Pagar Fatura do Cartão</h3>
+        <button onclick="closeModal('payCardModal')" class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
-        <p><strong>Nome:</strong> <span id="invDetailName"></span></p>
-        <p><strong>Tipo:</strong> <span id="invDetailType"></span></p>
-        <p><strong>Instituição:</strong> <span id="invDetailInstitution"></span></p>
-        <p><strong>Total Investido:</strong> <span id="invDetailTotalInvested"></span></p>
-        <p><strong>Valor Atual:</strong> <span id="invDetailCurrentValue"></span></p>
-        <p><strong>Retorno:</strong> <span id="invDetailReturn"></span> (<span id="invDetailReturnPercent"></span>%)</p>
+        <div id="payCardInfo" style="background: #f0f4ff; border-left: 4px solid #3B82F6; padding: 12px; border-radius: 4px; margin-bottom: 16px;"></div>
         
-        <hr>
+        <div class="form-group">
+          <label class="form-label">Valor a Pagar (R$)</label>
+          <input type="number" id="payCardAmount" class="form-control" placeholder="0.00" step="0.01">
+        </div>
         
-        <button class="btn btn--secondary btn--block" onclick="showAddInvestmentTransactionModal()">➕ Adicionar Transação</button>
+        <div class="form-group">
+          <label class="form-label">Data do Pagamento</label>
+          <input type="date" id="payCardDate" class="form-control">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">De qual conta?</label>
+          <select id="payCardFromAccount" class="form-control"></select>
+        </div>
+        
+        <button onclick="processCardPayment()" class="btn btn--primary btn--full-width">Confirmar Pagamento</button>
       </div>
     </div>
   </div>
 
-  <!-- Investment Transaction Modal -->
+  <!-- Add Category Modal -->
+  <div id="categoryModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Nova Categoria</h3>
+        <button onclick="closeModal('categoryModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nome</label>
+          <input type="text" id="categoryName" class="form-control" placeholder="Ex: Alimentação">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select id="categoryType" class="form-control">
+            <option value="expense">Despesa</option>
+            <option value="income">Receita</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Alocação Primária</label>
+          <input type="text" id="categoryPrimary" class="form-control" placeholder="Ex: Essencial">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Alocação Secundária</label>
+          <input type="text" id="categorySecondary" class="form-control" placeholder="Ex: Mercado">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cor</label>
+          <input type="color" id="categoryColor" class="form-control" value="#3B82F6">
+        </div>
+        <button onclick="saveCategory()" class="btn btn--primary btn--full-width">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Investment Modal -->
+  <div id="investmentModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Novo Investimento</h3>
+        <button onclick="closeModal('investmentModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Nome</label>
+          <input type="text" id="investmentName" class="form-control" placeholder="Ex: Tesouro Selic 2027">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select id="investmentType" class="form-control">
+            <option value="stocks">📈 Ações</option>
+            <option value="fixed_income">💰 Renda Fixa</option>
+            <option value="funds">🏦 Fundos</option>
+            <option value="crypto">₿ Criptomoedas</option>
+            <option value="real_estate">🏠 Imóveis</option>
+            <option value="other">📦 Outros</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Instituição</label>
+          <input type="text" id="investmentInstitution" class="form-control" placeholder="Ex: Tesouro Direto">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor Inicial</label>
+          <input type="number" id="investmentInitialAmount" class="form-control" placeholder="0.00" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor Atual</label>
+          <input type="number" id="investmentCurrentValue" class="form-control" placeholder="0.00" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Compra</label>
+          <input type="date" id="investmentPurchaseDate" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Vencimento (opcional)</label>
+          <input type="date" id="investmentMaturityDate" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conta de Origem</label>
+          <select id="investmentAccount" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Observações</label>
+          <textarea id="investmentNotes" class="form-control" rows="3" placeholder="Observações sobre o investimento"></textarea>
+        </div>
+        <button onclick="saveInvestment()" class="btn btn--primary btn--full-width">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Investment Detail Modal -->
+  <div id="investmentDetailModal" class="modal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3 id="invDetailName">Investimento</h3>
+        <button onclick="closeModal('investmentDetailModal')" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="investment-detail-header">
+          <div class="detail-info">
+            <span class="detail-label">Tipo:</span>
+            <span id="invDetailType" class="detail-value"></span>
+          </div>
+          <div class="detail-info">
+            <span class="detail-label">Instituição:</span>
+            <span id="invDetailInstitution" class="detail-value"></span>
+          </div>
+        </div>
+
+        <div class="investment-detail-stats">
+          <div class="detail-stat">
+            <div class="detail-stat-label">Total Investido</div>
+            <div class="detail-stat-value" id="invDetailTotalInvested">R$ 0,00</div>
+          </div>
+          <div class="detail-stat">
+            <div class="detail-stat-label">Valor Atual</div>
+            <div class="detail-stat-value" id="invDetailCurrentValue">R$ 0,00</div>
+          </div>
+          <div class="detail-stat">
+            <div class="detail-stat-label">Retorno</div>
+            <div class="detail-stat-value" id="invDetailReturn">R$ 0,00</div>
+            <div class="detail-stat-percent" id="invDetailReturnPercent">0%</div>
+          </div>
+        </div>
+
+        <div class="investment-actions">
+          <button onclick="showAddInvestmentTransactionModal()" class="btn btn--primary btn--sm">+ Nova Transação</button>
+          <button onclick="deleteInvestment()" class="btn btn--outline btn--sm" style="color: var(--color-error); border-color: var(--color-error);">Excluir</button>
+        </div>
+
+        <h4 style="margin-top: var(--space-24); margin-bottom: var(--space-16);">Histórico de Transações</h4>
+        <div id="investmentTransactionsList" class="investment-transactions-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Investment Transaction Modal -->
   <div id="investmentTransactionModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>➕ Transação de Investimento</h3>
-        <button class="modal-close">&times;</button>
+        <h3>Nova Transação de Investimento</h3>
+        <button onclick="closeModal('investmentTransactionModal')" class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>Tipo</label>
-          <select id="invTransactionType" class="input">
-            <option value="contribution">Aporte</option>
-            <option value="withdrawal">Resgate</option>
-            <option value="yield">Rendimento</option>
-            <option value="dividend">Dividendo</option>
+          <label class="form-label">Tipo</label>
+          <select id="invTransactionType" class="form-control">
+            <option value="contribution">💵 Aporte</option>
+            <option value="withdrawal">💸 Resgate</option>
+            <option value="yield">📊 Rendimento</option>
+            <option value="dividend">💰 Dividendo</option>
           </select>
         </div>
         <div class="form-group">
-          <label>Valor</label>
-          <input type="number" id="invTransactionAmount" placeholder="0.00" step="0.01" class="input">
+          <label class="form-label">Valor</label>
+          <input type="number" id="invTransactionAmount" class="form-control" placeholder="0.00" step="0.01">
         </div>
         <div class="form-group">
-          <label>Data</label>
-          <input type="date" id="invTransactionDate" class="input">
+          <label class="form-label">Conta</label>
+          <select id="invTransactionAccount" class="form-control"></select>
         </div>
         <div class="form-group">
-          <label>Descrição</label>
-          <input type="text" id="invTransactionDescription" class="input">
+          <label class="form-label">Data</label>
+          <input type="date" id="invTransactionDate" class="form-control">
         </div>
         <div class="form-group">
-          <label>Conta</label>
-          <select id="invTransactionAccount" class="input">
-          </select>
+          <label class="form-label">Descrição</label>
+          <input type="text" id="invTransactionDescription" class="form-control" placeholder="Descrição da transação">
         </div>
-        <button class="btn btn--primary btn--block" onclick="saveInvestmentTransaction()">💾 Salvar</button>
+        <button onclick="saveInvestmentTransaction()" class="btn btn--primary btn--full-width">Salvar</button>
       </div>
     </div>
   </div>
 
+  <!-- Supabase CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- App Script -->
   <script src="app.js"></script>
 </body>
 </html>
