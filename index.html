@@ -371,35 +371,24 @@ document.addEventListener('DOMContentLoaded', () => {
      Adicione na página de transações
      ============================================ -->
 
-        <div class="filters-section" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
-          <select id="transactionTypeFilter" class="form-control" onchange="filterTransactions()" style="flex: 1; min-width: 150px;">
+        <div class="filters-section">
+          <select id="transactionTypeFilter" class="form-control" onchange="filterTransactions()">
             <option value="all">Todos os Tipos</option>
             <option value="income">Receitas</option>
             <option value="expense">Despesas</option>
             <option value="transfer">Transferências</option>
           </select>
-          <select id="transactionAccountFilter" class="form-control" onchange="filterTransactions()" style="flex: 1; min-width: 150px;">
+          <select id="transactionAccountFilter" class="form-control" onchange="filterTransactions()">
             <option value="all">Todas as Contas</option>
           </select>
-          <select id="transactionCategoryFilter" class="form-control" onchange="filterTransactions()" style="flex: 1; min-width: 150px;">
+          <select id="transactionCategoryFilter" class="form-control" onchange="filterTransactions()">
             <option value="all">Todas as Categorias</option>
           </select>
-        </div>
 
-        <!-- Botões de Atalho de Data -->
-        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;">
-          <button class="btn btn--small" onclick="filterThisMonth()" style="padding: 6px 12px; font-size: 12px;">
-            📅 Este mês
-          </button>
-          <button class="btn btn--small" onclick="filterThisYear()" style="padding: 6px 12px; font-size: 12px;">
-            📅 Este ano
-          </button>
-          <button class="btn btn--small" onclick="filterLastMonth()" style="padding: 6px 12px; font-size: 12px;">
-            📅 Mês passado
-          </button>
-          <button class="btn btn--secondary" onclick="clearAllFilters()" style="padding: 6px 12px; font-size: 12px;">
-            ↺ Limpar Filtros
-          </button>
+          <!-- Botões de Atalho -->
+          <button class="btn btn--small" onclick="filterThisMonth()" style="padding: 6px 12px; font-size: 12px;">Este mês</button>
+          <button class="btn btn--small" onclick="filterThisYear()" style="padding: 6px 12px; font-size: 12px;">Este ano</button>
+          <button class="btn btn--small" onclick="filterLastMonth()" style="padding: 6px 12px; font-size: 12px;">Mês passado</button>
         </div>
 
         <div class="totals-section">
