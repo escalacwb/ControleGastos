@@ -911,7 +911,7 @@ function updateTransactionForm() {
 function filterTransactions() {
   const typeFilter = document.getElementById('transactionTypeFilter')?.value || 'all';
   const accountFilter = document.getElementById('transactionAccountFilter')?.value || 'all';
-  const categoryFilter = document.getElementById('transactionCategoryFilter')?.value || 'all';
+  const categoryFilter = document.getElementById('filterCategory')?.value || 'all';
 
   let filtered = transactions;
 
