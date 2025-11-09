@@ -79,7 +79,8 @@ async function loadAllData() {
     await recalculateAccountBalances();
 
     updateDashboard();
-    
+    initializeFilters();  // Preencher selects com dados
+    applyFilters();       // Aplicar filtros padrão
     console.log('✅ Todos os dados carregados!');
   } catch (error) {
     console.error('❌ Erro ao carregar dados:', error);
