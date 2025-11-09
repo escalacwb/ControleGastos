@@ -709,21 +709,11 @@ async function loadCategories() {
 }
 
 function updateCategorySelects() {
-  // Atualizar select do formulário de nova transação (filtra por tipo)
   const select = document.getElementById('transactionCategory');
   if (select) {
     const type = document.getElementById('transactionType').value;
     const filtered = categories.filter(c => c.type === type);
     select.innerHTML = filtered.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-  }
-
-  // Atualizar select do filtro (mostra todas as categorias)
-  const filterSelect = document.getElementById('transactionCategoryFilter');
-  if (filterSelect) {
-    const currentValue = filterSelect.value;
-    filterSelect.innerHTML = '<option value="all">Todas as Categorias</option>' +
-      categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-    filterSelect.value = currentValue;
   }
 }
 
@@ -919,13 +909,24 @@ function updateTransactionForm() {
 }
 
 function filterTransactions() {
-  // Atualizar variáveis globais com os valores dos selects
-  filterType = document.getElementById('transactionTypeFilter')?.value || 'all';
-  filterAccount = document.getElementById('transactionAccountFilter')?.value || 'all';
-  filterCategory = document.getElementById('transactionCategoryFilter')?.value || 'all';
+  const typeFilter = document.getElementById('transactionTypeFilter')?.value || 'all';
+  const accountFilter = document.getElementById('transactionAccountFilter')?.value || 'all';
+  const categoryFilter = document.getElementById('transactionCategoryFilter')?.value || 'all';
 
-  // Aplicar filtros usando a função centralizada
-  applyFilters();
+  let filtered = transactions;
+
+  if (typeFilter !== 'all') {
+    filtered = filtered.filter(t => t.type === typeFilter);
+  }
+  if (accountFilter !== 'all') {
+    filtered = filtered.filter(t => t.account_id === accountFilter);
+  }
+  if (categoryFilter !== 'all') {
+    filtered = filtered.filter(t => t.category_id === categoryFilter);
+  }
+
+  displayTransactions(filtered);
+  updateTransactionTotals(filtered);
 }
 
 function displayTransactions(transList) {
