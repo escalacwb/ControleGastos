@@ -17,6 +17,7 @@ let filterAccount = 'all';   // 'all' ou ID da conta
 let filterDateStart = null;  // Data inicial (YYYY-MM-DD)
 let filterDateEnd = null;    // Data final (YYYY-MM-DD)
 
+
 // ============================================
 // CONFIGURAÇÃO DO SUPABASE (EMBUTIDA)
 // ============================================
@@ -67,8 +68,7 @@ async function initApp() {
 
 async function loadAllData() {
   try {
-    console.log('📥 Carregando todos os dados...');
-    
+    console.log('Carregando todos os dados...');
     await Promise.all([
       loadAccounts(),
       loadCategories(),
@@ -76,13 +76,13 @@ async function loadAllData() {
       loadInvestments(),
       loadCreditCards()
     ]);
-
-    // Recalcular saldos após carregar transações
+    
     await recalculateAccountBalances();
-
     updateDashboard();
-    initializeFilters();  // Preencher selects com dados
-    applyFilters();       // Aplicar filtros padrão
+    initializeFilters();
+    
+    // NÃO CHAME applyFilters aqui!
+    
     console.log('✅ Todos os dados carregados!');
   } catch (error) {
     console.error('❌ Erro ao carregar dados:', error);
@@ -891,6 +891,7 @@ async function recalculateAccountBalances() {
 }
 
 
+
 function updateTransactionForm() {
   const type = document.getElementById('transactionType').value;
   const categoryField = document.getElementById('transactionCategoryField');
@@ -912,21 +913,51 @@ function filterTransactions() {
   const typeFilter = document.getElementById('transactionTypeFilter')?.value || 'all';
   const accountFilter = document.getElementById('transactionAccountFilter')?.value || 'all';
   const categoryFilter = document.getElementById('filterCategory')?.value || 'all';
-
-  let filtered = transactions;
-
+  
+  let filtered = [...transactions];
+  
+  // Filtro por tipo
   if (typeFilter !== 'all') {
     filtered = filtered.filter(t => t.type === typeFilter);
   }
+  
+  // Filtro por conta
   if (accountFilter !== 'all') {
-    filtered = filtered.filter(t => t.account_id === accountFilter);
+    filtered = filtered.filter(t => t.accountid === accountFilter);
   }
+  
+  // Filtro por categoria
   if (categoryFilter !== 'all') {
-    filtered = filtered.filter(t => t.category_id === categoryFilter);
+    filtered = filtered.filter(t => t.categoryid === categoryFilter);
   }
-
+  
+  // Filtro por data inicial
+  if (filterDateStart) {
+    filtered = filtered.filter(t => {
+      const transDate = new Date(t.date);
+      const startDate = new Date(filterDateStart);
+      return transDate >= startDate;
+    });
+  }
+  
+  // Filtro por data final
+  if (filterDateEnd) {
+    filtered = filtered.filter(t => {
+      const transDate = new Date(t.date);
+      const endDate = new Date(filterDateEnd);
+      endDate.setHours(23, 59, 59, 999);
+      return transDate <= endDate;
+    });
+  }
+  
+  // Ordenar por data decrescente
+  filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+  
+  // Exibir
   displayTransactions(filtered);
   updateTransactionTotals(filtered);
+  
+  console.log(`✅ Filtrados: ${filtered.length} transações`);
 }
 
 function displayTransactions(transList) {
@@ -1973,7 +2004,7 @@ async function deleteTransaction(transactionId) {
 // INICIALIZAR APP QUANDO PÁGINA CARREGAR
 // ============================================
 
-document.addEventListener('DOMContentLoaded', () => {
+
   console.log('🚀 Iniciando aplicação...');
   console.log('📦 Versão: 1.0.0');
   console.log('✅ Supabase configurado internamente');
@@ -2019,35 +2050,31 @@ function stopAutoReload() {
 }
 
 function applyFilters() {
-  console.log('🔍 Aplicando filtros...');
-  console.log({
-    category: filterCategory,
-    type: filterType,
-    account: filterAccount,
-    dateStart: filterDateStart,
-    dateEnd: filterDateEnd
+  console.log('🔍 Aplicando filtros...', {
+    tipo: filterType,
+    conta: filterAccount,
+    categoria: filterCategory,
+    dataInicio: filterDateStart,
+    dataFim: filterDateEnd
   });
-
-  let filtered = transactions;
-
+  
+  let filtered = [...transactions];
+  
   // Filtro por tipo
   if (filterType !== 'all') {
     filtered = filtered.filter(t => t.type === filterType);
-    console.log(`✅ Filtrado por tipo: ${filterType} (${filtered.length} transações)`);
   }
-
+  
   // Filtro por conta
   if (filterAccount !== 'all') {
-    filtered = filtered.filter(t => t.account_id === filterAccount);
-    console.log(`✅ Filtrado por conta: ${filterAccount} (${filtered.length} transações)`);
+    filtered = filtered.filter(t => t.accountid === filterAccount);
   }
-
+  
   // Filtro por categoria
   if (filterCategory !== 'all') {
-    filtered = filtered.filter(t => t.category_id === filterCategory);
-    console.log(`✅ Filtrado por categoria: ${filterCategory} (${filtered.length} transações)`);
+    filtered = filtered.filter(t => t.categoryid === filterCategory);
   }
-
+  
   // Filtro por data inicial
   if (filterDateStart) {
     filtered = filtered.filter(t => {
@@ -2055,30 +2082,31 @@ function applyFilters() {
       const startDate = new Date(filterDateStart);
       return transDate >= startDate;
     });
-    console.log(`✅ Filtrado data inicial: ${filterDateStart} (${filtered.length} transações)`);
   }
-
+  
   // Filtro por data final
   if (filterDateEnd) {
     filtered = filtered.filter(t => {
       const transDate = new Date(t.date);
       const endDate = new Date(filterDateEnd);
-      endDate.setHours(23, 59, 59, 999); // Incluir todo o dia final
+      endDate.setHours(23, 59, 59, 999);
       return transDate <= endDate;
     });
-    console.log(`✅ Filtrado data final: ${filterDateEnd} (${filtered.length} transações)`);
   }
-
-  // Ordenar por data (mais recente primeiro)
+  
+  // Ordenar por data decrescente
   filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  // Exibir transações filtradas
-  displayTransactions(filtered);
-
-  // Atualizar totais
-  updateFilteredTotals(filtered);
-
+  
+  // Exibir resultados
   console.log(`✅ Filtros aplicados! Total: ${filtered.length} transações`);
+  
+  if (typeof displayTransactions === 'function') {
+    displayTransactions(filtered);
+  }
+  
+  if (typeof updateTransactionTotals === 'function') {
+    updateTransactionTotals(filtered);
+  }
 }
 
 // ============================================
@@ -2217,85 +2245,107 @@ function get90DaysAgoDate() {
   return today.toISOString().split('T')[0];
 }
 
-// ============================================
-// ATALHOS DE DATA
-// ============================================
-
-function filterLast7Days() {
-  const today = new Date();
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(today.getDate() - 7);
-
-  filterDateStart = sevenDaysAgo.toISOString().split('T')[0];
-  filterDateEnd = today.toISOString().split('T')[0];
-
-  document.getElementById('filterDateStart').value = filterDateStart;
-  document.getElementById('filterDateEnd').value = filterDateEnd;
-
-  console.log(`📅 Filtro: Últimos 7 dias (${filterDateStart} a ${filterDateEnd})`);
-  applyFilters();
-}
-
-function filterLast30Days() {
-  const today = new Date();
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(today.getDate() - 30);
-
-  filterDateStart = thirtyDaysAgo.toISOString().split('T')[0];
-  filterDateEnd = today.toISOString().split('T')[0];
-
-  document.getElementById('filterDateStart').value = filterDateStart;
-  document.getElementById('filterDateEnd').value = filterDateEnd;
-
-  console.log(`📅 Filtro: Últimos 30 dias (${filterDateStart} a ${filterDateEnd})`);
-  applyFilters();
-}
+// ===== FUNÇÕES DE FILTRO RÁPIDO POR DATA =====
 
 function filterThisMonth() {
+  console.log('🔄 Clicou em: Este Mês');
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-  filterDateStart = firstDay.toISOString().split('T')[0];
-  filterDateEnd = lastDay.toISOString().split('T')[0];
-
-  document.getElementById('filterDateStart').value = filterDateStart;
-  document.getElementById('filterDateEnd').value = filterDateEnd;
-
-  console.log(`📅 Filtro: Este mês (${filterDateStart} a ${filterDateEnd})`);
-  applyFilters();
-}
-
-function filterLastMonth() {
-  const today = new Date();
-  const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1);
   
-  const firstDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
-  const lastDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
-
   filterDateStart = firstDay.toISOString().split('T')[0];
   filterDateEnd = lastDay.toISOString().split('T')[0];
-
-  document.getElementById('filterDateStart').value = filterDateStart;
-  document.getElementById('filterDateEnd').value = filterDateEnd;
-
-  console.log(`📅 Filtro: Mês passado (${filterDateStart} a ${filterDateEnd})`);
+  
+  // Resetar outros filtros
+  filterType = 'all';
+  filterAccount = 'all';
+  filterCategory = 'all';
+  
+  // Resetar selects (SEM os inputs que não existem)
+  const typeSelect = document.getElementById('transactionTypeFilter');
+  const accountSelect = document.getElementById('transactionAccountFilter');
+  const categorySelect = document.getElementById('filterCategory');
+  
+  if (typeSelect) typeSelect.value = 'all';
+  if (accountSelect) accountSelect.value = 'all';
+  if (categorySelect) categorySelect.value = 'all';
+  
+  console.log(`📅 Este Mês: ${filterDateStart} a ${filterDateEnd}`);
   applyFilters();
 }
 
 function filterThisYear() {
+  console.log('🔄 Clicou em: Este Ano');
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), 0, 1);
   const lastDay = new Date(today.getFullYear(), 11, 31);
-
+  
   filterDateStart = firstDay.toISOString().split('T')[0];
   filterDateEnd = lastDay.toISOString().split('T')[0];
-
-  document.getElementById('filterDateStart').value = filterDateStart;
-  document.getElementById('filterDateEnd').value = filterDateEnd;
-
-  console.log(`📅 Filtro: Este ano (${filterDateStart} a ${filterDateEnd})`);
+  
+  // Resetar outros filtros
+  filterType = 'all';
+  filterAccount = 'all';
+  filterCategory = 'all';
+  
+  // Resetar selects
+  const typeSelect = document.getElementById('transactionTypeFilter');
+  const accountSelect = document.getElementById('transactionAccountFilter');
+  const categorySelect = document.getElementById('filterCategory');
+  
+  if (typeSelect) typeSelect.value = 'all';
+  if (accountSelect) accountSelect.value = 'all';
+  if (categorySelect) categorySelect.value = 'all';
+  
+  console.log(`📊 Este Ano: ${filterDateStart} a ${filterDateEnd}`);
   applyFilters();
 }
+
+function filterLastMonth() {
+  console.log('🔄 Clicou em: Mês Passado');
+  const today = new Date();
+  const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1);
+  const firstDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
+  const lastDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
   
-});
+  filterDateStart = firstDay.toISOString().split('T')[0];
+  filterDateEnd = lastDay.toISOString().split('T')[0];
+  
+  // Resetar outros filtros
+  filterType = 'all';
+  filterAccount = 'all';
+  filterCategory = 'all';
+  
+  // Resetar selects
+  const typeSelect = document.getElementById('transactionTypeFilter');
+  const accountSelect = document.getElementById('transactionAccountFilter');
+  const categorySelect = document.getElementById('filterCategory');
+  
+  if (typeSelect) typeSelect.value = 'all';
+  if (accountSelect) accountSelect.value = 'all';
+  if (categorySelect) categorySelect.value = 'all';
+  
+  console.log(`📆 Mês Passado: ${filterDateStart} a ${filterDateEnd}`);
+  applyFilters();
+}
+
+
+// ===== FUNÇÃO DE SINCRONIZAÇÃO =====
+function syncFilters() {
+  console.log('Sincronizando filtros...');
+  filterType = document.getElementById('transactionTypeFilter')?.value || 'all';
+  filterAccount = document.getElementById('transactionAccountFilter')?.value || 'all';
+  filterCategory = document.getElementById('filterCategory')?.value || 'all';
+  
+  console.log('Filtros sincronizados:', {
+    tipo: filterType,
+    conta: filterAccount,
+    categoria: filterCategory,
+    dateStart: filterDateStart,
+    dateEnd: filterDateEnd
+  });
+  
+  applyFilters();
+}
+
+
