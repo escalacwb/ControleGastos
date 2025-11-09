@@ -1,12 +1,4 @@
 // ============================================
-// CONTROLE FINANCEIRO - app.js CORRIGIDO
-// Versão com filtros ajustados e atalhos de data
-// ============================================
-// ESTE ARQUIVO CONTÉM TODAS AS FUNÇÕES
-// Mantém as existentes e remove duplicadas
-// ============================================
-
-// ============================================
 // VARIÁVEIS GLOBAIS
 // ============================================
 
@@ -19,12 +11,11 @@ let investments = [];
 let creditCards = [];
 let currentView = 'dashboard';
 let charts = {};
-
-// Flag para edição
-let isEditingTransaction = false;
-
-// Auto-reload
-let autoReloadInterval = null;
+let filterCategory = 'all';  // 'all' ou ID da categoria
+let filterType = 'all';      // 'all', 'income', 'expense', 'transfer'
+let filterAccount = 'all';   // 'all' ou ID da conta
+let filterDateStart = null;  // Data inicial (YYYY-MM-DD)
+let filterDateEnd = null;    // Data final (YYYY-MM-DD)
 
 // ============================================
 // CONFIGURAÇÃO DO SUPABASE (EMBUTIDA)
@@ -40,44 +31,44 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 async function initApp() {
   try {
     console.log('🚀 Iniciando aplicação...');
-
+    
     // Inicializar Supabase com credenciais embutidas
-    console.log('Conectando ao Supabase...');
+    console.log('🔌 Conectando ao Supabase...');
     supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    console.log('Supabase inicializado com sucesso!');
+    console.log('✅ Supabase inicializado com sucesso!');
 
     // Verificar sessão
     const { data, error } = await supabase.auth.getSession();
+    
     if (error) {
-      console.error('Erro ao verificar sessão:', error);
-      showScreenloginScreen;
+      console.error('❌ Erro ao verificar sessão:', error);
+      showScreen('loginScreen');
       return;
     }
 
     if (data?.session) {
       currentUser = data.session.user;
-      console.log('Usuário logado:', currentUser.email);
-      showScreenmainApp;
+      console.log('✅ Usuário logado:', currentUser.email);
+      showScreen('mainApp');
       loadAllData();
-
       if (typeof startAutoReload === 'function') {
-        startAutoReload(30);
+      startAutoReload(30);
       }
     } else {
-      console.log('Nenhuma sessão ativa. Mostrando tela de login.');
-      showScreenloginScreen;
+      console.log('ℹ️ Nenhuma sessão ativa. Mostrando tela de login.');
+      showScreen('loginScreen');
     }
   } catch (error) {
-    console.error('Erro fatal na inicialização:', error);
-    alert('Erro ao conectar com Supabase: ' + error.message);
-    showScreenloginScreen;
+    console.error('❌ Erro fatal na inicialização:', error);
+    alert('❌ Erro ao conectar com Supabase:\n' + error.message);
+    showScreen('loginScreen');
   }
 }
 
 async function loadAllData() {
   try {
     console.log('📥 Carregando todos os dados...');
-
+    
     await Promise.all([
       loadAccounts(),
       loadCategories(),
@@ -90,7 +81,8 @@ async function loadAllData() {
     await recalculateAccountBalances();
 
     updateDashboard();
-
+    initializeFilters();  // Preencher selects com dados
+    applyFilters();       // Aplicar filtros padrão
     console.log('✅ Todos os dados carregados!');
   } catch (error) {
     console.error('❌ Erro ao carregar dados:', error);
@@ -103,7 +95,7 @@ async function loadAllData() {
 
 async function handleLogin() {
   if (!supabase) {
-    alert('Supabase não está disponível');
+    alert('❌ Supabase não está disponível');
     return;
   }
 
@@ -111,31 +103,32 @@ async function handleLogin() {
   const password = document.getElementById('loginPassword')?.value;
 
   if (!email || !password) {
-    alert('Preencha email e senha');
+    alert('⚠️ Preencha email e senha');
     return;
   }
 
   try {
-    console.log('Tentando login com:', email);
-
-    const { data, error } = await supabase.auth.signInWithPassword(email, password);
+    console.log('🔐 Tentando login com:', email);
+    const { data, error } = await supabase.auth.signInWithPassword({ 
+      email, 
+      password 
+    });
 
     if (error) throw error;
 
     currentUser = data.user;
-    console.log('Login bem-sucedido!');
-
-    showScreenmainApp;
+    console.log('✅ Login bem-sucedido!');
+    showScreen('mainApp');
     loadAllData();
   } catch (error) {
-    console.error('Erro no login:', error);
-    alert('Erro no login: ' + error.message);
+    console.error('❌ Erro no login:', error);
+    alert('❌ Erro no login:\n' + error.message);
   }
 }
 
 async function handleSignup() {
   if (!supabase) {
-    alert('Supabase não está disponível');
+    alert('❌ Supabase não está disponível');
     return;
   }
 
@@ -143,27 +136,29 @@ async function handleSignup() {
   const password = document.getElementById('signupPassword')?.value;
 
   if (!email || !password) {
-    alert('Preencha email e senha');
+    alert('⚠️ Preencha email e senha');
     return;
   }
 
   if (password.length < 6) {
-    alert('A senha deve ter pelo menos 6 caracteres');
+    alert('⚠️ A senha deve ter pelo menos 6 caracteres');
     return;
   }
 
   try {
-    console.log('Criando conta com:', email);
-
-    const { data, error } = await supabase.auth.signUp(email, password);
+    console.log('📝 Criando conta com:', email);
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password 
+    });
 
     if (error) throw error;
-
-    alert('Conta criada! Verifique seu email para confirmar.');
+    
+    alert('✅ Conta criada! Verifique seu email para confirmar.');
     showLogin();
   } catch (error) {
-    console.error('Erro no cadastro:', error);
-    alert('Erro no cadastro: ' + error.message);
+    console.error('❌ Erro no cadastro:', error);
+    alert('❌ Erro no cadastro:\n' + error.message);
   }
 }
 
@@ -171,9 +166,8 @@ async function handleLogout() {
   if (supabase) {
     await supabase.auth.signOut();
   }
-
   currentUser = null;
-  showScreenloginScreen;
+  showScreen('loginScreen');
 }
 
 // ============================================
@@ -183,7 +177,9 @@ async function handleLogout() {
 function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const screen = document.getElementById(screenId);
-  if (screen) screen.classList.add('active');
+  if (screen) {
+    screen.classList.add('active');
+  }
 }
 
 function showLogin() {
@@ -196,20 +192,20 @@ function showSignup() {
 
 function showView(viewName) {
   currentView = viewName;
-
+  
   document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
   const navBtn = document.querySelector(`[data-view="${viewName}"]`);
   if (navBtn) navBtn.classList.add('active');
 
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-
+  
   const viewMap = {
-    dashboard: 'dashboardView',
-    transactions: 'transactionsView',
+    'dashboard': 'dashboardView',
+    'transactions': 'transactionsView',
     'credit-cards': 'creditCardsView',
-    accounts: 'accountsView',
-    categories: 'categoriesView',
-    investments: 'investmentsView'
+    'accounts': 'accountsView',
+    'categories': 'categoriesView',
+    'investments': 'investmentsView'
   };
 
   const viewId = viewMap[viewName];
@@ -229,12 +225,16 @@ function showView(viewName) {
 
 function closeModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) modal.style.display = 'none';
+  if (modal) {
+    modal.style.display = 'none';
+  }
 }
 
 function openModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) modal.style.display = 'block';
+  if (modal) {
+    modal.style.display = 'block';
+  }
 }
 
 // Fechar modal ao clicar fora
@@ -250,29 +250,29 @@ window.addEventListener('click', (e) => {
 
 async function loadCreditCards() {
   if (!supabase || !currentUser) {
-    console.warn('Não é possível carregar cartões: supabase ou usuário não disponível');
+    console.warn('⚠️ Não é possível carregar cartões: supabase ou usuário não disponível');
     return;
   }
-
+  
   try {
     const { data, error } = await supabase
-      .from('creditcards')
+      .from('credit_cards')
       .select('*')
       .eq('user_id', currentUser.id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-
-    creditCards = data;
-    console.log('Cartões carregados:', creditCards.length);
+    creditCards = data || [];
+    console.log('✅ Cartões carregados:', creditCards.length);
     displayCreditCards();
   } catch (error) {
-    console.error('Erro ao carregar cartões:', error);
+    console.error('❌ Erro ao carregar cartões:', error);
   }
 }
 
 function displayCreditCards() {
   const grid = document.getElementById('creditCardsGrid');
+  
   if (!grid) return;
 
   if (creditCards.length === 0) {
@@ -281,7 +281,9 @@ function displayCreditCards() {
         <div style="font-size: 64px; margin-bottom: 20px;">💳</div>
         <h3 style="font-size: 20px; margin-bottom: 10px; color: #1F2937;">Nenhum cartão cadastrado</h3>
         <p style="color: #6B7280; margin-bottom: 20px;">Comece adicionando seu primeiro cartão de crédito</p>
-        <button class="btn btn--primary" onclick="showAddCreditCardModal()">Adicionar Primeiro Cartão</button>
+        <button class="btn btn--primary" onclick="showAddCreditCardModal()">
+          ➕ Adicionar Primeiro Cartão
+        </button>
       </div>
     `;
     return;
@@ -291,26 +293,26 @@ function displayCreditCards() {
     const saldo = card.balance || 0;
     const utilizacao = (saldo / card.credit_limit * 100).toFixed(1);
     const disponivel = card.credit_limit - saldo;
-
+    
     let statusClass = 'status-ok';
-    let statusText = 'OK';
-
-    if (utilizacao >= 80) {
+    let statusText = '✅ OK';
+    
+    if (utilizacao > 80) {
       statusClass = 'status-danger';
-      statusText = 'ATENÇÃO';
-    } else if (utilizacao >= 50) {
+      statusText = '⚠️ ATENÇÃO';
+    } else if (utilizacao > 50) {
       statusClass = 'status-warning';
-      statusText = 'AVISO';
+      statusText = '🟡 AVISO';
     }
 
     return `
-      <div class="credit-card-item" style="background: ${getCardGradient(card.card_network)}">
+      <div class="credit-card-item" style="background: ${getCardGradient(card.card_network)};">
         <div class="card-header">
           <div class="card-info-left">
             <div class="card-bank">${card.bank_name}</div>
             <div class="card-network">${card.card_network}</div>
           </div>
-          <div class="card-digits">${card.last_four_digits}</div>
+          <div class="card-digits">•••• ${card.last_four_digits}</div>
         </div>
 
         <div class="card-body">
@@ -326,11 +328,9 @@ function displayCreditCards() {
             <span class="card-info-label">Disponível</span>
             <span class="card-info-value">R$ ${disponivel.toFixed(2)}</span>
           </div>
-
           <div class="card-progress-bar">
             <div class="card-progress-fill" style="width: ${Math.min(utilizacao, 100)}%"></div>
           </div>
-
           <div class="card-status ${statusClass}">${statusText} - ${utilizacao}%</div>
         </div>
 
@@ -379,7 +379,7 @@ function showAddCreditCardModal() {
 
 async function saveCreditCard() {
   if (!supabase || !currentUser) {
-    alert('Erro: Supabase não está disponível');
+    alert('❌ Erro: Supabase não está disponível');
     return;
   }
 
@@ -399,14 +399,17 @@ async function saveCreditCard() {
   };
 
   try {
-    const { error } = await supabase.from('creditcards').insert(data);
+    const { error } = await supabase
+      .from('credit_cards')
+      .insert([data]);
+
     if (error) throw error;
 
-    alert('Cartão adicionado com sucesso!');
+    alert('✅ Cartão adicionado com sucesso!');
     closeModal('creditCardModal');
     loadCreditCards();
   } catch (error) {
-    alert('Erro ao salvar cartão: ' + error.message);
+    alert('❌ Erro ao salvar cartão: ' + error.message);
   }
 }
 
@@ -422,7 +425,7 @@ async function showCreditCardDetail(cardId) {
     .order('date', { ascending: false });
 
   const totalGasto = cardTransactions?.reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : 0), 0) || 0;
-  const utilizacao = (card.balance || 0 / card.credit_limit * 100).toFixed(1);
+  const utilizacao = ((card.balance || 0) / card.credit_limit * 100).toFixed(1);
   const disponivel = card.credit_limit - (card.balance || 0);
 
   const content = `
@@ -431,7 +434,7 @@ async function showCreditCardDetail(cardId) {
         <div>
           <p><strong>Banco:</strong> ${card.bank_name}</p>
           <p><strong>Bandeira:</strong> ${card.card_network}</p>
-          <p><strong>Dígitos:</strong> ${card.last_four_digits}</p>
+          <p><strong>Dígitos:</strong> •••• ${card.last_four_digits}</p>
           <p><strong>Titular:</strong> ${card.holder_name}</p>
         </div>
         <div>
@@ -458,13 +461,14 @@ async function showCreditCardDetail(cardId) {
         `).join('') || '<tr><td colspan="3" style="padding: 8px; text-align: center;">Nenhuma transação</td></tr>'}
       </table>
 
-      <p style="margin-top: 20px; font-weight: bold; text-align: right;">Total R$ ${totalGasto.toFixed(2)}</p>
+      <p style="margin-top: 20px; font-weight: bold; text-align: right;">
+        Total: R$ ${totalGasto.toFixed(2)}
+      </p>
     </div>
   `;
 
   document.getElementById('cardDetailTitle').textContent = `${card.bank_name} - ${card.card_network}`;
   document.getElementById('cardDetailContent').innerHTML = content;
-
   openModal('creditCardDetailModal');
 }
 
@@ -473,7 +477,8 @@ function showPayCardModal(cardId) {
   if (!card) return;
 
   const saldo = card.balance || 0;
-  document.getElementById('payCardInfo').innerHTML = `<strong>${card.bank_name}</strong> - Saldo a pagar <strong>R$ ${saldo.toFixed(2)}</strong>`;
+  document.getElementById('payCardInfo').innerHTML = 
+    `<strong>${card.bank_name}</strong> - Saldo a pagar: <strong>R$ ${saldo.toFixed(2)}</strong>`;
   document.getElementById('payCardAmount').value = saldo.toFixed(2);
   document.getElementById('payCardDate').valueAsDate = new Date();
 
@@ -495,14 +500,14 @@ async function processCardPayment() {
   const fromAccountId = document.getElementById('payCardFromAccount').value;
 
   if (!amount || amount <= 0) {
-    alert('Insira um valor válido');
+    alert('❌ Insira um valor válido');
     return;
   }
 
   try {
     const { error: transError } = await supabase
       .from('transactions')
-      .insert({
+      .insert([{
         user_id: currentUser.id,
         type: 'transfer',
         amount: amount,
@@ -510,13 +515,13 @@ async function processCardPayment() {
         description: `Pagamento ${card.bank_name}`,
         account_id: fromAccountId,
         transfer_to_account_id: card.account_id
-      });
+      }]);
 
     if (transError) throw transError;
 
     await supabase
       .from('card_payments')
-      .insert({
+      .insert([{
         user_id: currentUser.id,
         credit_card_id: cardId,
         account_id: fromAccountId,
@@ -524,20 +529,20 @@ async function processCardPayment() {
         payment_date: date,
         payment_method: 'bank_transfer',
         status: 'paid'
-      });
+      }]);
 
     await supabase
-      .from('creditcards')
-      .update({ balance: Math.max(0, card.balance - amount) })
+      .from('credit_cards')
+      .update({ balance: Math.max(0, (card.balance || 0) - amount) })
       .eq('id', cardId);
 
-    alert('Pagamento registrado com sucesso!');
+    alert('✅ Pagamento registrado com sucesso!');
     closeModal('payCardModal');
     loadCreditCards();
     loadAccounts();
     loadTransactions();
   } catch (error) {
-    alert('Erro ao processar pagamento: ' + error.message);
+    alert('❌ Erro ao processar pagamento: ' + error.message);
   }
 }
 
@@ -546,16 +551,16 @@ async function deleteCreditCard(cardId) {
 
   try {
     const { error } = await supabase
-      .from('creditcards')
+      .from('credit_cards')
       .delete()
       .eq('id', cardId);
 
     if (error) throw error;
 
-    alert('Cartão deletado!');
+    alert('✅ Cartão deletado!');
     loadCreditCards();
   } catch (error) {
-    alert('Erro ao deletar: ' + error.message);
+    alert('❌ Erro ao deletar: ' + error.message);
   }
 }
 
@@ -574,18 +579,24 @@ async function loadAccounts() {
       .order('created_at', { ascending: true });
 
     if (error) throw error;
-
-    accounts = data;
-    console.log('Contas carregadas:', accounts.length);
+    accounts = data || [];
+    console.log('✅ Contas carregadas:', accounts.length);
     updateAccountSelects();
     displayAccounts();
   } catch (error) {
-    console.error('Erro ao carregar contas:', error);
+    console.error('❌ Erro ao carregar contas:', error);
   }
 }
 
 function updateAccountSelects() {
-  const selects = ['transactionAccount', 'transactionTransferTo', 'investmentAccount', 'invTransactionAccount', 'creditCardAccount', 'payCardFromAccount'];
+  const selects = [
+    'transactionAccount',
+    'transactionTransferTo',
+    'investmentAccount',
+    'invTransactionAccount',
+    'creditCardAccount',
+    'payCardFromAccount'
+  ];
 
   selects.forEach(selectId => {
     const select = document.getElementById(selectId);
@@ -597,7 +608,8 @@ function updateAccountSelects() {
   const filterSelect = document.getElementById('transactionAccountFilter');
   if (filterSelect) {
     const currentValue = filterSelect.value;
-    filterSelect.innerHTML = `<option value="all">Todas as Contas</option>` + accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+    filterSelect.innerHTML = '<option value="all">Todas as Contas</option>' +
+      accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
     filterSelect.value = currentValue;
   }
 }
@@ -642,14 +654,17 @@ async function saveAccount() {
   };
 
   try {
-    const { error } = await supabase.from('accounts').insert(data);
+    const { error } = await supabase
+      .from('accounts')
+      .insert([data]);
+
     if (error) throw error;
 
-    alert('Conta criada com sucesso!');
+    alert('✅ Conta criada com sucesso!');
     closeModal('accountModal');
     loadAccounts();
   } catch (error) {
-    alert('Erro ao salvar conta: ' + error.message);
+    alert('❌ Erro ao salvar conta: ' + error.message);
   }
 }
 
@@ -657,12 +672,15 @@ async function deleteAccount(accountId) {
   if (!confirm('Tem certeza?')) return;
 
   try {
-    const { error } = await supabase.from('accounts').delete().eq('id', accountId);
-    if (error) throw error;
+    const { error } = await supabase
+      .from('accounts')
+      .delete()
+      .eq('id', accountId);
 
+    if (error) throw error;
     loadAccounts();
   } catch (error) {
-    alert('Erro ao deletar: ' + error.message);
+    alert('❌ Erro ao deletar: ' + error.message);
   }
 }
 
@@ -681,22 +699,31 @@ async function loadCategories() {
       .order('name');
 
     if (error) throw error;
-
-    categories = data;
-    console.log('Categorias carregadas:', categories.length);
+    categories = data || [];
+    console.log('✅ Categorias carregadas:', categories.length);
     updateCategorySelects();
     displayCategories();
   } catch (error) {
-    console.error('Erro ao carregar categorias:', error);
+    console.error('❌ Erro ao carregar categorias:', error);
   }
 }
 
 function updateCategorySelects() {
+  // Atualizar select do formulário de nova transação (filtra por tipo)
   const select = document.getElementById('transactionCategory');
   if (select) {
     const type = document.getElementById('transactionType').value;
     const filtered = categories.filter(c => c.type === type);
     select.innerHTML = filtered.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  }
+
+  // Atualizar select do filtro (mostra todas as categorias)
+  const filterSelect = document.getElementById('transactionCategoryFilter');
+  if (filterSelect) {
+    const currentValue = filterSelect.value;
+    filterSelect.innerHTML = '<option value="all">Todas as Categorias</option>' +
+      categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    filterSelect.value = currentValue;
   }
 }
 
@@ -714,7 +741,7 @@ function displayCategories() {
         <div class="category-color" style="background-color: ${cat.color}; width: 20px; height: 20px; border-radius: 4px;"></div>
         <div>
           <div style="font-weight: bold;">${cat.name}</div>
-          <div style="font-size: 12px; color: #666;">${cat.primary_allocation}% - ${cat.secondary_allocation}%</div>
+          <div style="font-size: 12px; color: #666;">${cat.primary_allocation || ''} → ${cat.secondary_allocation || ''}</div>
         </div>
       </div>
       <button class="btn btn--sm btn--outline" onclick="deleteCategory('${cat.id}')">Deletar</button>
@@ -728,7 +755,7 @@ function displayCategories() {
         <div class="category-color" style="background-color: ${cat.color}; width: 20px; height: 20px; border-radius: 4px;"></div>
         <div>
           <div style="font-weight: bold;">${cat.name}</div>
-          <div style="font-size: 12px; color: #666;">${cat.primary_allocation}%</div>
+          <div style="font-size: 12px; color: #666;">${cat.primary_allocation || ''}</div>
         </div>
       </div>
       <button class="btn btn--sm btn--outline" onclick="deleteCategory('${cat.id}')">Deletar</button>
@@ -760,14 +787,17 @@ async function saveCategory() {
   };
 
   try {
-    const { error } = await supabase.from('categories').insert(data);
+    const { error } = await supabase
+      .from('categories')
+      .insert([data]);
+
     if (error) throw error;
 
-    alert('Categoria criada com sucesso!');
+    alert('✅ Categoria criada com sucesso!');
     closeModal('categoryModal');
     loadCategories();
   } catch (error) {
-    alert('Erro ao salvar categoria: ' + error.message);
+    alert('❌ Erro ao salvar categoria: ' + error.message);
   }
 }
 
@@ -775,17 +805,20 @@ async function deleteCategory(categoryId) {
   if (!confirm('Tem certeza?')) return;
 
   try {
-    const { error } = await supabase.from('categories').delete().eq('id', categoryId);
-    if (error) throw error;
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', categoryId);
 
+    if (error) throw error;
     loadCategories();
   } catch (error) {
-    alert('Erro ao deletar: ' + error.message);
+    alert('❌ Erro ao deletar: ' + error.message);
   }
 }
 
 // ============================================
-// TRANSAÇÕES (MANTÉM VERSÃO ANTIGA FUNCIONAL)
+// TRANSAÇÕES
 // ============================================
 
 async function loadTransactions() {
@@ -799,12 +832,11 @@ async function loadTransactions() {
       .order('date', { ascending: false });
 
     if (error) throw error;
-
-    transactions = data;
-    console.log('Transações carregadas:', transactions.length);
+    transactions = data || [];
+    console.log('✅ Transações carregadas:', transactions.length);
     filterTransactions();
   } catch (error) {
-    console.error('Erro ao carregar transações:', error);
+    console.error('❌ Erro ao carregar transações:', error);
   }
 }
 
@@ -814,6 +846,7 @@ async function recalculateAccountBalances() {
   console.log('🔄 Recalculando saldos das contas...');
 
   for (const account of accounts) {
+    // Buscar todas as transações da conta
     const { data: trans, error } = await supabase
       .from('transactions')
       .select('*')
@@ -824,18 +857,21 @@ async function recalculateAccountBalances() {
       continue;
     }
 
+    // Calcular saldo baseado nas transações
     let balance = 0;
-
+    
     trans.forEach(t => {
       if (t.type === 'income') {
         balance += t.amount;
       } else if (t.type === 'expense') {
         balance -= t.amount;
       } else if (t.type === 'transfer') {
+        // Se é origem da transferência, deduz
         balance -= t.amount;
       }
     });
 
+    // Somar transferências recebidas (onde esta conta é destino)
     const { data: receivedTransfers } = await supabase
       .from('transactions')
       .select('*')
@@ -846,6 +882,7 @@ async function recalculateAccountBalances() {
       balance += t.amount;
     });
 
+    // Atualizar no Supabase
     const { error: updateError } = await supabase
       .from('accounts')
       .update({ balance: balance })
@@ -858,48 +895,37 @@ async function recalculateAccountBalances() {
     }
   }
 
+  // Recarregar contas
   await loadAccounts();
   console.log('✅ Saldos recalculados!');
 }
+
 
 function updateTransactionForm() {
   const type = document.getElementById('transactionType').value;
   const categoryField = document.getElementById('transactionCategoryField');
   const transferField = document.getElementById('transactionTransferField');
-
+  
+  // Mostrar/ocultar campos baseado no tipo
   if (categoryField) {
     categoryField.style.display = type === 'transfer' ? 'none' : 'block';
   }
-
+  
   if (transferField) {
     transferField.style.display = type === 'transfer' ? 'block' : 'none';
   }
-
+  
   console.log(`📋 Formulário atualizado para tipo: ${type}`);
 }
 
-// FILTRO ANTIGO QUE FUNCIONA
 function filterTransactions() {
-  const typeFilter = document.getElementById('transactionTypeFilter')?.value || 'all';
-  const accountFilter = document.getElementById('transactionAccountFilter')?.value || 'all';
-  const categoryFilter = document.getElementById('transactionCategoryFilter')?.value || 'all';
+  // Atualizar variáveis globais com os valores dos selects
+  filterType = document.getElementById('transactionTypeFilter')?.value || 'all';
+  filterAccount = document.getElementById('transactionAccountFilter')?.value || 'all';
+  filterCategory = document.getElementById('transactionCategoryFilter')?.value || 'all';
 
-  let filtered = transactions;
-
-  if (typeFilter !== 'all') {
-    filtered = filtered.filter(t => t.type === typeFilter);
-  }
-
-  if (accountFilter !== 'all') {
-    filtered = filtered.filter(t => t.account_id === accountFilter);
-  }
-
-  if (categoryFilter !== 'all') {
-    filtered = filtered.filter(t => t.category_id === categoryFilter);
-  }
-
-  displayTransactions(filtered);
-  updateTransactionTotals(filtered);
+  // Aplicar filtros usando a função centralizada
+  applyFilters();
 }
 
 function displayTransactions(transList) {
@@ -909,7 +935,7 @@ function displayTransactions(transList) {
   list.innerHTML = transList.map(trans => {
     const account = accounts.find(a => a.id === trans.account_id);
     const category = categories.find(c => c.id === trans.category_id);
-
+    
     let typeLabel = trans.type === 'expense' ? '↓ Despesa' : trans.type === 'income' ? '↑ Receita' : '⇄ Transferência';
     let typeColor = trans.type === 'expense' ? '#ef4444' : trans.type === 'income' ? '#10b981' : '#06b6d4';
 
@@ -930,15 +956,18 @@ function displayTransactions(transList) {
             <div style="font-size: 12px; color: #999;">${typeLabel}</div>
           </div>
           <div style="display: flex; gap: 6px; margin-left: 12px;">
-            <button class="btn-transaction" onclick="editTransaction('${trans.id}')" title="Editar">✏️</button>
-            <button class="btn-transaction btn-danger" onclick="deleteTransaction('${trans.id}')" title="Deletar">🗑️</button>
+            <button class="btn-transaction" onclick="editTransaction('${trans.id}')" title="Editar">
+              ✏️
+            </button>
+            <button class="btn-transaction btn-danger" onclick="deleteTransaction('${trans.id}')" title="Deletar">
+              🗑️
+            </button>
           </div>
         </div>
       </div>
     `;
   }).join('');
 }
-
 function updateTransactionTotals(transactionsList) {
   const income = transactionsList.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
   const expense = transactionsList.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
@@ -977,10 +1006,11 @@ async function saveTransaction() {
     transfer_to_account_id: document.getElementById('transactionType').value === 'transfer' ? document.getElementById('transactionTransferTo').value : null
   };
 
-  isEditingTransaction = true;
-
   try {
-    const { error } = await supabase.from('transactions').insert(data);
+    const { error } = await supabase
+      .from('transactions')
+      .insert([data]);
+
     if (error) throw error;
 
     const account = accounts.find(a => a.id === data.account_id);
@@ -1010,483 +1040,20 @@ async function saveTransaction() {
       const card = creditCards.find(c => c.account_id === data.account_id);
       if (card) {
         await supabase
-          .from('creditcards')
+          .from('credit_cards')
           .update({ balance: (card.balance || 0) + data.amount })
           .eq('id', card.id);
       }
     }
 
-    alert('Transação registrada com sucesso!');
+    alert('✅ Transação registrada com sucesso!');
     closeModal('transactionModal');
     loadTransactions();
     loadAccounts();
     loadCreditCards();
   } catch (error) {
-    alert('Erro ao salvar transação: ' + error.message);
-  } finally {
-    isEditingTransaction = false;
+    alert('❌ Erro ao salvar transação: ' + error.message);
   }
-}
-
-async function editTransaction(transactionId) {
-  const transaction = transactions.find(t => t.id === transactionId);
-  if (!transaction) {
-    console.error('❌ Transação não encontrada');
-    return;
-  }
-
-  console.log('✏️ Editando transação:', transaction);
-
-  isEditingTransaction = true;
-
-  let dateValue = transaction.date;
-  if (dateValue.includes('T')) {
-    dateValue = dateValue.split('T')[0];
-  }
-
-  setTimeout(() => {
-    console.log('📝 Preenchendo formulário...');
-
-    const dateInput = document.getElementById('transactionDate');
-    if (dateInput) {
-      dateInput.value = dateValue;
-      console.log(`✅ Data: ${dateValue}`);
-    }
-
-    const typeInput = document.getElementById('transactionType');
-    if (typeInput) {
-      typeInput.value = transaction.type || 'expense';
-      console.log(`✅ Tipo: ${transaction.type}`);
-      updateTransactionForm();
-    }
-
-    const amountInput = document.getElementById('transactionAmount');
-    if (amountInput) {
-      amountInput.value = transaction.amount;
-      console.log(`✅ Valor: ${transaction.amount}`);
-    }
-
-    const descriptionInput = document.getElementById('transactionDescription');
-    if (descriptionInput) {
-      descriptionInput.value = transaction.description;
-      console.log(`✅ Descrição: ${transaction.description}`);
-    }
-
-    const accountSelect = document.getElementById('transactionAccount');
-    if (accountSelect && transaction.account_id) {
-      console.log(`🏦 Tentando selecionar conta: ${transaction.account_id}`);
-      accountSelect.value = transaction.account_id;
-      if (!accountSelect.value || accountSelect.value === '') {
-        const option = accountSelect.querySelector(`option[value="${transaction.account_id}"]`);
-        if (option) {
-          accountSelect.value = transaction.account_id;
-          console.log(`✅ Conta selecionada via option`);
-        }
-      } else {
-        console.log(`✅ Conta selecionada: ${accountSelect.value}`);
-      }
-      accountSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
-    const categorySelect = document.getElementById('transactionCategory');
-    if (categorySelect && transaction.category_id) {
-      console.log(`📂 Tentando selecionar categoria: ${transaction.category_id}`);
-      categorySelect.value = transaction.category_id;
-      if (!categorySelect.value || categorySelect.value === '') {
-        const option = categorySelect.querySelector(`option[value="${transaction.category_id}"]`);
-        if (option) {
-          categorySelect.value = transaction.category_id;
-          console.log(`✅ Categoria selecionada via option`);
-        }
-      } else {
-        console.log(`✅ Categoria selecionada: ${categorySelect.value}`);
-      }
-      categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
-    console.log('✅ Formulário preenchido completamente');
-  }, 100);
-
-  const modalTitle = document.querySelector('#transactionModal .modal-header h3');
-  if (modalTitle) {
-    modalTitle.textContent = '🔄 Editar Transação';
-  }
-
-  const modal = document.getElementById('transactionModal');
-  const modalBody = modal.querySelector('.modal-body');
-
-  let saveBtns = Array.from(modalBody.querySelectorAll('button')).filter(btn =>
-    btn.textContent.includes('Salvar') || btn.textContent.includes('Atualizar')
-  );
-
-  if (saveBtns.length > 0) {
-    const saveBtn = saveBtns[0];
-    saveBtn.textContent = '🔄 Atualizar Transação';
-    saveBtn.dataset.editingTransactionId = transactionId;
-    saveBtn.onclick = () => {
-      updateTransaction(transactionId);
-    };
-    console.log('✅ Botão modificado para "Atualizar"');
-  }
-
-  modal.dataset.editingTransactionId = transactionId;
-  openModal('transactionModal');
-  console.log('✅ Modal aberto para edição');
-}
-
-function resetTransactionModal() {
-  const modalTitle = document.querySelector('#transactionModal .modal-header h3');
-  if (modalTitle) {
-    modalTitle.textContent = '➕ Nova Transação';
-  }
-
-  let saveBtns = Array.from(document.querySelectorAll('#transactionModal button')).filter(btn =>
-    btn.textContent.includes('Atualizar') || btn.textContent.includes('Salvar')
-  );
-
-  if (saveBtns.length > 0) {
-    const saveBtn = saveBtns[0];
-    saveBtn.textContent = '💾 Salvar Transação';
-    saveBtn.onclick = () => saveTransaction();
-    delete saveBtn.dataset.editingTransactionId;
-  }
-
-  const modal = document.getElementById('transactionModal');
-  delete modal.dataset.editingTransactionId;
-
-  isEditingTransaction = false;
-}
-
-async function updateTransaction(transactionId) {
-  if (!supabase || !currentUser) {
-    console.error('❌ Supabase não inicializado');
-    return;
-  }
-
-  const transaction = transactions.find(t => t.id === transactionId);
-  if (!transaction) {
-    console.error('❌ Transação não encontrada');
-    return;
-  }
-
-  try {
-    console.log('💾 Atualizando transação...');
-
-    const updateData = {
-      type: document.getElementById('transactionType').value,
-      amount: parseFloat(document.getElementById('transactionAmount').value),
-      date: document.getElementById('transactionDate').value,
-      description: document.getElementById('transactionDescription').value,
-      account_id: document.getElementById('transactionAccount').value,
-      category_id: document.getElementById('transactionType').value === 'transfer'
-        ? null
-        : (document.getElementById('transactionCategory').value || null),
-    };
-
-    console.log('📝 Dados a atualizar:', updateData);
-
-    const { error } = await supabase
-      .from('transactions')
-      .update(updateData)
-      .eq('id', transactionId)
-      .eq('user_id', currentUser.id);
-
-    if (error) {
-      console.error('❌ Erro do Supabase:', error);
-      throw error;
-    }
-
-    console.log('✅ Transação atualizada no Supabase');
-
-    const novaContaId = updateData.account_id;
-    const diferenca = updateData.amount - transaction.amount;
-    const contaMudou = transaction.account_id !== novaContaId;
-
-    console.log(`📊 Diferença: R$ ${diferenca.toFixed(2)}, Conta mudou: ${contaMudou}`);
-
-    if (contaMudou) {
-      console.log('🔄 Conta foi alterada, revertendo saldo da conta antiga...');
-
-      const contaAntiga = accounts.find(a => a.id === transaction.account_id);
-      if (contaAntiga) {
-        let novoSaldoAntiga = contaAntiga.balance;
-
-        if (transaction.type === 'expense') novoSaldoAntiga += transaction.amount;
-        if (transaction.type === 'income') novoSaldoAntiga -= transaction.amount;
-
-        const { error: accError1 } = await supabase
-          .from('accounts')
-          .update({ balance: novoSaldoAntiga })
-          .eq('id', transaction.account_id)
-          .eq('user_id', currentUser.id);
-
-        if (accError1) {
-          console.error('Erro ao atualizar conta antiga:', accError1);
-        } else {
-          console.log(`✅ Conta antiga revertida: R$ ${novoSaldoAntiga.toFixed(2)}`);
-        }
-      }
-
-      const contaNova = accounts.find(a => a.id === novaContaId);
-      if (contaNova) {
-        let novoSaldoNova = contaNova.balance;
-
-        if (updateData.type === 'expense') novoSaldoNova -= updateData.amount;
-        if (updateData.type === 'income') novoSaldoNova += updateData.amount;
-
-        const { error: accError2 } = await supabase
-          .from('accounts')
-          .update({ balance: novoSaldoNova })
-          .eq('id', novaContaId)
-          .eq('user_id', currentUser.id);
-
-        if (accError2) {
-          console.error('Erro ao atualizar conta nova:', accError2);
-        } else {
-          console.log(`✅ Conta nova atualizada: R$ ${novoSaldoNova.toFixed(2)}`);
-        }
-      }
-    } else {
-      if (diferenca !== 0) {
-        const account = accounts.find(a => a.id === transaction.account_id);
-        if (account) {
-          const novoSaldo = account.balance - diferenca;
-
-          const { error: accError } = await supabase
-            .from('accounts')
-            .update({ balance: novoSaldo })
-            .eq('id', transaction.account_id)
-            .eq('user_id', currentUser.id);
-
-          if (accError) {
-            console.error('Erro ao atualizar conta:', accError);
-          } else {
-            console.log(`✅ Saldo ajustado: R$ ${novoSaldo.toFixed(2)}`);
-          }
-        }
-      }
-    }
-
-    if (updateData.type === 'expense') {
-      const card = creditCards.find(c => c.account_id === novaContaId);
-      if (card) {
-        let novoSaldoCard = (card.balance || 0);
-
-        if (contaMudou) {
-          const cardAntiga = creditCards.find(c => c.account_id === transaction.account_id);
-          if (cardAntiga) {
-            novoSaldoCard = (cardAntiga.balance || 0) - transaction.amount;
-            await supabase
-              .from('creditcards')
-              .update({ balance: novoSaldoCard })
-              .eq('id', cardAntiga.id);
-          }
-        }
-
-        novoSaldoCard = (card.balance || 0) + updateData.amount;
-        await supabase
-          .from('creditcards')
-          .update({ balance: novoSaldoCard })
-          .eq('id', card.id);
-      }
-    }
-
-    alert('✅ Transação atualizada com sucesso!');
-    closeModal('transactionModal');
-
-    resetTransactionModal();
-
-    isEditingTransaction = false;
-    console.log('✅ Modo edição desativado');
-
-    console.log('🔄 Recarregando dados...');
-    await loadTransactions();
-    await loadAccounts();
-    await loadCreditCards();
-    updateDashboard();
-
-    console.log('✅ Dados recarregados');
-  } catch (error) {
-    console.error('❌ Erro ao atualizar:', error);
-    alert('❌ Erro ao atualizar transação: ' + error.message);
-    isEditingTransaction = false;
-  }
-}
-
-async function deleteTransaction(transactionId) {
-  const transaction = transactions.find(t => t.id === transactionId);
-  if (!transaction) {
-    console.error('❌ Transação não encontrada');
-    return;
-  }
-
-  const confirmDelete = confirm(
-    `⚠️ Deletar transação?\n\n${transaction.description}\nR$ ${transaction.amount.toFixed(2)}\n${new Date(transaction.date).toLocaleDateString('pt-BR')}\n\nEsta ação não pode ser desfeita!`
-  );
-
-  if (!confirmDelete) {
-    console.log('❌ Exclusão cancelada pelo usuário');
-    return;
-  }
-
-  try {
-    console.log('🗑️ Deletando transação...');
-
-    const account = accounts.find(a => a.id === transaction.account_id);
-    if (account) {
-      let novoSaldo = account.balance;
-
-      if (transaction.type === 'expense') novoSaldo += transaction.amount;
-      if (transaction.type === 'income') novoSaldo -= transaction.amount;
-      if (transaction.type === 'transfer') novoSaldo += transaction.amount;
-
-      await supabase
-        .from('accounts')
-        .update({ balance: novoSaldo })
-        .eq('id', transaction.account_id);
-
-      console.log(`✅ Saldo revertido: ${account.name}`);
-
-      if (transaction.type === 'transfer' && transaction.transfer_to_account_id) {
-        const targetAccount = accounts.find(a => a.id === transaction.transfer_to_account_id);
-        if (targetAccount) {
-          await supabase
-            .from('accounts')
-            .update({ balance: targetAccount.balance - transaction.amount })
-            .eq('id', transaction.transfer_to_account_id);
-        }
-      }
-    }
-
-    if (transaction.type === 'expense') {
-      const card = creditCards.find(c => c.account_id === transaction.account_id);
-      if (card) {
-        await supabase
-          .from('creditcards')
-          .update({ balance: Math.max(0, (card.balance || 0) - transaction.amount) })
-          .eq('id', card.id);
-
-        console.log('✅ Saldo do cartão revertido');
-      }
-    }
-
-    const { error } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', transactionId);
-
-    if (error) throw error;
-
-    console.log('✅ Transação deletada do Supabase');
-
-    alert('✅ Transação deletada com sucesso!');
-
-    const element = document.getElementById(`trans-${transactionId}`);
-    if (element) {
-      element.style.transition = 'opacity 0.3s ease';
-      element.style.opacity = '0';
-      setTimeout(() => {
-        loadTransactions();
-        loadAccounts();
-        loadCreditCards();
-      }, 300);
-    } else {
-      await Promise.all([
-        loadTransactions(),
-        loadAccounts(),
-        loadCreditCards()
-      ]);
-    }
-  } catch (error) {
-    console.error('❌ Erro ao deletar:', error);
-    alert('❌ Erro ao deletar transação: ' + error.message);
-  }
-}
-
-// ============================================
-// ATALHOS DE DATA (NOVOS ADICIONADOS)
-// ============================================
-
-function filterThisMonth() {
-  const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-  const startDate = firstDay.toISOString().split('T')[0];
-  const endDate = lastDay.toISOString().split('T')[0];
-
-  filterTransactionsByDate(startDate, endDate);
-  console.log(`📅 Filtro: Este mês (${startDate} a ${endDate})`);
-}
-
-function filterLastMonth() {
-  const today = new Date();
-  const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1);
-
-  const firstDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
-  const lastDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
-
-  const startDate = firstDay.toISOString().split('T')[0];
-  const endDate = lastDay.toISOString().split('T')[0];
-
-  filterTransactionsByDate(startDate, endDate);
-  console.log(`📅 Filtro: Mês passado (${startDate} a ${endDate})`);
-}
-
-function filterThisYear() {
-  const today = new Date();
-  const firstDay = new Date(today.getFullYear(), 0, 1);
-  const lastDay = new Date(today.getFullYear(), 11, 31);
-
-  const startDate = firstDay.toISOString().split('T')[0];
-  const endDate = lastDay.toISOString().split('T')[0];
-
-  filterTransactionsByDate(startDate, endDate);
-  console.log(`📅 Filtro: Este ano (${startDate} a ${endDate})`);
-}
-
-function filterLast30Days() {
-  const today = new Date();
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(today.getDate() - 30);
-
-  const startDate = thirtyDaysAgo.toISOString().split('T')[0];
-  const endDate = today.toISOString().split('T')[0];
-
-  filterTransactionsByDate(startDate, endDate);
-  console.log(`📅 Filtro: Últimos 30 dias (${startDate} a ${endDate})`);
-}
-
-function filterLast7Days() {
-  const today = new Date();
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(today.getDate() - 7);
-
-  const startDate = sevenDaysAgo.toISOString().split('T')[0];
-  const endDate = today.toISOString().split('T')[0];
-
-  filterTransactionsByDate(startDate, endDate);
-  console.log(`📅 Filtro: Últimos 7 dias (${startDate} a ${endDate})`);
-}
-
-function filterTransactionsByDate(startDate, endDate) {
-  let filtered = transactions;
-
-  filtered = filtered.filter(t => {
-    const transDate = new Date(t.date);
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-    return transDate >= start && transDate <= end;
-  });
-
-  displayTransactions(filtered);
-  updateTransactionTotals(filtered);
-}
-
-function clearDateFilter() {
-  filterTransactions();
-  console.log('🔄 Filtro de data removido');
 }
 
 // ============================================
@@ -1504,12 +1071,11 @@ async function loadInvestments() {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-
-    investments = data;
-    console.log('Investimentos carregados:', investments.length);
+    investments = data || [];
+    console.log('✅ Investimentos carregados:', investments.length);
     filterInvestments();
   } catch (error) {
-    console.error('Erro ao carregar investimentos:', error);
+    console.error('❌ Erro ao carregar investimentos:', error);
   }
 }
 
@@ -1531,7 +1097,7 @@ function displayInvestments(invList) {
 
   list.innerHTML = invList.map(inv => {
     const returnAmount = inv.current_value - inv.initial_amount;
-    const returnPercent = (returnAmount / inv.initial_amount * 100).toFixed(2);
+    const returnPercent = ((returnAmount / inv.initial_amount) * 100).toFixed(2);
     const returnColor = returnAmount >= 0 ? '#10b981' : '#ef4444';
 
     return `
@@ -1542,19 +1108,18 @@ function displayInvestments(invList) {
         </div>
         <div class="investment-values">
           <div class="inv-value-row">
-            <span>Investido</span>
+            <span>Investido:</span>
             <strong>R$ ${inv.initial_amount.toFixed(2)}</strong>
           </div>
           <div class="inv-value-row">
-            <span>Valor Atual</span>
+            <span>Valor Atual:</span>
             <strong>R$ ${inv.current_value.toFixed(2)}</strong>
           </div>
           <div class="inv-value-row" style="color: ${returnColor};">
-            <span>Retorno</span>
+            <span>Retorno:</span>
             <strong>R$ ${returnAmount.toFixed(2)} (${returnPercent}%)</strong>
           </div>
         </div>
-
         <div class="investment-footer">
           <button class="btn btn--sm btn--primary" onclick="showInvestmentDetail('${inv.id}')">Detalhes</button>
           <button class="btn btn--sm btn--outline" onclick="deleteInvestment('${inv.id}')">Deletar</button>
@@ -1568,7 +1133,7 @@ function updateInvestmentsSummary(invList) {
   const totalInvested = invList.reduce((sum, i) => sum + i.initial_amount, 0);
   const totalCurrent = invList.reduce((sum, i) => sum + i.current_value, 0);
   const totalReturn = totalCurrent - totalInvested;
-  const returnPercent = totalInvested > 0 ? (totalReturn / totalInvested * 100).toFixed(2) : 0;
+  const returnPercent = totalInvested > 0 ? ((totalReturn / totalInvested) * 100).toFixed(2) : 0;
 
   const invInvEl = document.getElementById('invTotalInvested');
   const invCurEl = document.getElementById('invCurrentValue');
@@ -1578,7 +1143,7 @@ function updateInvestmentsSummary(invList) {
   if (invInvEl) invInvEl.textContent = `R$ ${totalInvested.toFixed(2)}`;
   if (invCurEl) invCurEl.textContent = `R$ ${totalCurrent.toFixed(2)}`;
   if (invRetEl) invRetEl.textContent = `R$ ${totalReturn.toFixed(2)}`;
-  if (invPerEl) invPerEl.textContent = returnPercent;
+  if (invPerEl) invPerEl.textContent = `${returnPercent}%`;
 }
 
 function showAddInvestmentModal() {
@@ -1587,7 +1152,7 @@ function showAddInvestmentModal() {
   document.getElementById('investmentName').value = '';
   document.getElementById('investmentInitialAmount').value = '';
   document.getElementById('investmentCurrentValue').value = '';
-
+  
   const accountSelect = document.getElementById('investmentAccount');
   if (accountSelect) {
     accountSelect.innerHTML = accounts
@@ -1615,14 +1180,17 @@ async function saveInvestment() {
   };
 
   try {
-    const { error } = await supabase.from('investments').insert(data);
+    const { error } = await supabase
+      .from('investments')
+      .insert([data]);
+
     if (error) throw error;
 
-    alert('Investimento criado com sucesso!');
+    alert('✅ Investimento criado com sucesso!');
     closeModal('investmentModal');
     loadInvestments();
   } catch (error) {
-    alert('Erro ao salvar investimento: ' + error.message);
+    alert('❌ Erro ao salvar investimento: ' + error.message);
   }
 }
 
@@ -1631,7 +1199,7 @@ function showInvestmentDetail(investmentId) {
   if (!inv) return;
 
   const returnAmount = inv.current_value - inv.initial_amount;
-  const returnPercent = (returnAmount / inv.initial_amount * 100).toFixed(2);
+  const returnPercent = ((returnAmount / inv.initial_amount) * 100).toFixed(2);
 
   document.getElementById('invDetailName').textContent = inv.name;
   document.getElementById('invDetailType').textContent = inv.type;
@@ -1639,7 +1207,7 @@ function showInvestmentDetail(investmentId) {
   document.getElementById('invDetailTotalInvested').textContent = `R$ ${inv.initial_amount.toFixed(2)}`;
   document.getElementById('invDetailCurrentValue').textContent = `R$ ${inv.current_value.toFixed(2)}`;
   document.getElementById('invDetailReturn').textContent = `R$ ${returnAmount.toFixed(2)}`;
-  document.getElementById('invDetailReturnPercent').textContent = returnPercent;
+  document.getElementById('invDetailReturnPercent').textContent = `${returnPercent}%`;
 
   document.getElementById('investmentDetailModal').dataset.investmentId = investmentId;
   openModal('investmentDetailModal');
@@ -1649,13 +1217,16 @@ async function deleteInvestment(investmentId) {
   if (!confirm('Tem certeza?')) return;
 
   try {
-    const { error } = await supabase.from('investments').delete().eq('id', investmentId);
-    if (error) throw error;
+    const { error } = await supabase
+      .from('investments')
+      .delete()
+      .eq('id', investmentId);
 
+    if (error) throw error;
     loadInvestments();
     closeModal('investmentDetailModal');
   } catch (error) {
-    alert('Erro ao deletar: ' + error.message);
+    alert('❌ Erro ao deletar: ' + error.message);
   }
 }
 
@@ -1663,7 +1234,7 @@ function showAddInvestmentTransactionModal() {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('invTransactionDate').value = today;
   document.getElementById('invTransactionAmount').value = '';
-
+  
   const accountSelect = document.getElementById('invTransactionAccount');
   if (accountSelect) {
     accountSelect.innerHTML = accounts
@@ -1692,11 +1263,13 @@ async function saveInvestmentTransaction() {
   };
 
   try {
-    const { error } = await supabase.from('investment_transactions').insert(data);
+    const { error } = await supabase
+      .from('investment_transactions')
+      .insert([data]);
+
     if (error) throw error;
 
     let newValue = inv.current_value;
-
     if (data.type === 'contribution' || data.type === 'yield' || data.type === 'dividend') {
       newValue += data.amount;
     } else if (data.type === 'withdrawal') {
@@ -1708,11 +1281,11 @@ async function saveInvestmentTransaction() {
       .update({ current_value: newValue })
       .eq('id', investmentId);
 
-    alert('Transação registrada com sucesso!');
+    alert('✅ Transação registrada com sucesso!');
     closeModal('investmentTransactionModal');
     loadInvestments();
   } catch (error) {
-    alert('Erro ao salvar: ' + error.message);
+    alert('❌ Erro ao salvar: ' + error.message);
   }
 }
 
@@ -1725,7 +1298,10 @@ function updateDashboard() {
   const currentYear = new Date().getFullYear();
   const lastYear = currentYear - 1;
 
-  // Dados do mês atual
+  // ============================================
+  // 1. DADOS DO MÊS ATUAL
+  // ============================================
+  
   const monthTransactions = transactions.filter(t => {
     const date = new Date(t.date);
     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
@@ -1735,7 +1311,10 @@ function updateDashboard() {
   const monthExpense = monthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   const monthBalance = monthIncome - monthExpense;
 
-  // Dados do ano atual
+  // ============================================
+  // 2. DADOS DO ANO ATUAL
+  // ============================================
+  
   const yearTransactions = transactions.filter(t => {
     const date = new Date(t.date);
     return date.getFullYear() === currentYear;
@@ -1745,7 +1324,10 @@ function updateDashboard() {
   const yearExpense = yearTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   const yearBalance = yearIncome - yearExpense;
 
-  // Dados do ano anterior
+  // ============================================
+  // 3. DADOS DO ANO ANTERIOR (COMPARATIVO)
+  // ============================================
+  
   const lastYearTransactions = transactions.filter(t => {
     const date = new Date(t.date);
     return date.getFullYear() === lastYear;
@@ -1755,16 +1337,23 @@ function updateDashboard() {
   const lastYearExpense = lastYearTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   const lastYearBalance = lastYearIncome - lastYearExpense;
 
+  // Cálculo de variação percentual
   const incomeVariation = lastYearIncome > 0 ? ((yearIncome - lastYearIncome) / lastYearIncome * 100).toFixed(1) : 0;
   const expenseVariation = lastYearExpense > 0 ? ((yearExpense - lastYearExpense) / lastYearExpense * 100).toFixed(1) : 0;
 
-  // Patrimônio
+  // ============================================
+  // 4. PATRIMÔNIO E SALDOS
+  // ============================================
+  
   const totalAccounts = accounts.reduce((sum, a) => sum + parseFloat(a.balance || 0), 0);
-  const totalInvested = investments.reduce((sum, i) => sum + (i.current_value || 0), 0);
+  const totalInvested = investments.reduce((sum, i) => sum + (i.currentvalue || 0), 0);
   const totalCardsDebt = creditCards.reduce((sum, c) => sum + (c.balance || 0), 0);
   const netWorth = totalAccounts + totalInvested - totalCardsDebt;
 
-  // Categoria mais gasta
+  // ============================================
+  // 5. CATEGORIA MAIS GASTA (MÊS ATUAL)
+  // ============================================
+  
   const categoryExpenses = {};
   monthTransactions.filter(t => t.type === 'expense' && t.category_id).forEach(t => {
     const cat = categories.find(c => c.id === t.category_id);
@@ -1776,42 +1365,53 @@ function updateDashboard() {
   const topCategoryName = topCategory ? topCategory[0] : 'N/A';
   const topCategoryValue = topCategory ? topCategory[1] : 0;
 
-  // Média de gastos
+  // ============================================
+  // 6. MÉDIA DE GASTOS (ÚLTIMOS 6 MESES)
+  // ============================================
+  
   const last6Months = [];
   for (let i = 0; i < 6; i++) {
     const date = new Date();
     date.setMonth(date.getMonth() - i);
-
+    
     const monthTrans = transactions.filter(t => {
       const tDate = new Date(t.date);
       return tDate.getMonth() === date.getMonth() && tDate.getFullYear() === date.getFullYear();
     });
-
+    
     const expense = monthTrans.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
     last6Months.push(expense);
   }
 
   const avgMonthExpense = last6Months.reduce((sum, val) => sum + val, 0) / 6;
 
-  // Atualizar interface
+  // ============================================
+  // 7. ATUALIZAR INTERFACE
+  // ============================================
+
+  // Mês Atual
   updateElement('monthIncomeValue', `R$ ${monthIncome.toFixed(2)}`);
   updateElement('monthExpenseValue', `R$ ${monthExpense.toFixed(2)}`);
   updateElement('monthBalanceValue', `R$ ${monthBalance.toFixed(2)}`);
 
+  // Ano Atual
   updateElement('yearIncomeValue', `R$ ${yearIncome.toFixed(2)}`);
   updateElement('yearExpenseValue', `R$ ${yearExpense.toFixed(2)}`);
   updateElement('yearBalanceValue', `R$ ${yearBalance.toFixed(2)}`);
 
+  // Comparativo com ano anterior
   updateElement('lastYearIncomeValue', `R$ ${lastYearIncome.toFixed(2)}`);
   updateElement('lastYearExpenseValue', `R$ ${lastYearExpense.toFixed(2)}`);
   updateElement('incomeVariation', `${incomeVariation > 0 ? '+' : ''}${incomeVariation}%`);
   updateElement('expenseVariation', `${expenseVariation > 0 ? '+' : ''}${expenseVariation}%`);
 
+  // Patrimônio
   updateElement('totalAccountsValue', `R$ ${totalAccounts.toFixed(2)}`);
   updateElement('totalInvestedValue', `R$ ${totalInvested.toFixed(2)}`);
   updateElement('totalCardsDebtValue', `R$ ${totalCardsDebt.toFixed(2)}`);
   updateElement('netWorthValue', `R$ ${netWorth.toFixed(2)}`);
 
+  // Insights
   updateElement('topCategoryName', topCategoryName);
   updateElement('topCategoryValue', `R$ ${topCategoryValue.toFixed(2)}`);
   updateElement('avgMonthExpenseValue', `R$ ${avgMonthExpense.toFixed(2)}`);
@@ -1820,6 +1420,7 @@ function updateDashboard() {
   console.log(`📊 Mês: R$ ${monthBalance.toFixed(2)} | Ano: R$ ${yearBalance.toFixed(2)}`);
 }
 
+// Função auxiliar para atualizar elementos
 function updateElement(id, value) {
   const el = document.getElementById(id);
   if (el) {
@@ -1827,25 +1428,575 @@ function updateElement(id, value) {
   }
 }
 
+async function updateTransaction(transactionId) {
+  if (!supabase || !currentUser) {
+    console.error('❌ Supabase não inicializado');
+    return;
+  }
+
+  const transaction = transactions.find(t => t.id === transactionId);
+  if (!transaction) {
+    console.error('❌ Transação não encontrada');
+    return;
+  }
+
+  try {
+    console.log('💾 Salvando alterações...');
+
+    const updateData = {
+      type: document.getElementById('transactionType').value,
+      amount: parseFloat(document.getElementById('transactionAmount').value),
+      date: document.getElementById('transactionDate').value,
+      description: document.getElementById('transactionDescription').value,
+      category_id: document.getElementById('transactionType').value === 'transfer' ? null : document.getElementById('transactionCategory').value,
+    };
+
+    // Calcular diferença de saldo (se mudou o valor)
+    const diferenca = updateData.amount - transaction.amount;
+    console.log(`📊 Diferença de valor: R$ ${diferenca}`);
+
+    // Atualizar no Supabase
+    const { error } = await supabase
+      .from('transactions')
+      .update(updateData)
+      .eq('id', transactionId);
+
+    if (error) throw error;
+    console.log('✅ Transação atualizada no Supabase');
+
+    // Ajustar saldo da conta se o valor mudou
+    if (diferenca !== 0) {
+      const account = accounts.find(a => a.id === transaction.account_id);
+      if (account) {
+        const novoSaldo = account.balance - diferenca;
+        await supabase
+          .from('accounts')
+          .update({ balance: novoSaldo })
+          .eq('id', transaction.account_id);
+        console.log(`✅ Saldo da conta ajustado: ${account.name}`);
+      }
+
+      // Ajustar cartão de crédito se for despesa
+      if (updateData.type === 'expense') {
+        const card = creditCards.find(c => c.account_id === transaction.account_id);
+        if (card) {
+          const novoSaldoCard = (card.balance || 0) + diferenca;
+          await supabase
+            .from('credit_cards')
+            .update({ balance: novoSaldoCard })
+            .eq('id', card.id);
+          console.log(`✅ Saldo do cartão ajustado`);
+        }
+      }
+    }
+
+    alert('✅ Transação atualizada com sucesso!');
+    closeModal('transactionModal');
+    
+    // Resetar modal para novo lançamento
+    resetTransactionModal();
+
+    // Recarregar dados
+    await Promise.all([
+      loadTransactions(),
+      loadAccounts(),
+      loadCreditCards()
+    ]);
+    
+    console.log('✅ Dados recarregados');
+  } catch (error) {
+    console.error('❌ Erro ao atualizar:', error);
+    alert('❌ Erro ao atualizar transação: ' + error.message);
+  }
+}
+
+function updateCharts() {
+  // Implementar gráficos com Chart.js se necessário
+}
+
+
+async function editTransaction(transactionId) {
+  const transaction = transactions.find(t => t.id === transactionId);
+  if (!transaction) {
+    console.error('❌ Transação não encontrada');
+    return;
+  }
+
+  console.log('✏️ Editando transação:', transaction);
+
+  // ⚠️ ATIVAR FLAG DE EDIÇÃO
+  isEditingTransaction = true;
+
+  // Converter data para formato correto (sem timezone)
+  let dateValue = transaction.date;
+  if (dateValue.includes('T')) {
+    dateValue = dateValue.split('T')[0];
+  }
+
+  // ============================================
+  // PREENCHER TODOS OS CAMPOS COM DELAY
+  // Para garantir que selects estão carregados
+  // ============================================
+
+  setTimeout(() => {
+    console.log('📝 Preenchendo formulário...');
+
+    // Data
+    const dateInput = document.getElementById('transactionDate');
+    if (dateInput) {
+      dateInput.value = dateValue;
+      console.log(`✅ Data: ${dateValue}`);
+    }
+
+    // Tipo (Income/Expense/Transfer)
+    const typeInput = document.getElementById('transactionType');
+    if (typeInput) {
+      typeInput.value = transaction.type || 'expense';
+      console.log(`✅ Tipo: ${transaction.type}`);
+      
+      // IMPORTANTE: Chamar updateTransactionForm para mostrar campos corretos
+      updateTransactionForm();
+    }
+
+    // Valor
+    const amountInput = document.getElementById('transactionAmount');
+    if (amountInput) {
+      amountInput.value = transaction.amount;
+      console.log(`✅ Valor: ${transaction.amount}`);
+    }
+
+    // Descrição
+    const descriptionInput = document.getElementById('transactionDescription');
+    if (descriptionInput) {
+      descriptionInput.value = transaction.description;
+      console.log(`✅ Descrição: ${transaction.description}`);
+    }
+
+    // ============================================
+    // CONTA - CORRIGIDA
+    // ============================================
+    const accountSelect = document.getElementById('transactionAccount');
+    if (accountSelect && transaction.account_id) {
+      console.log(`🏦 Tentando selecionar conta: ${transaction.account_id}`);
+      
+      // Método 1: Valor direto
+      accountSelect.value = transaction.account_id;
+      
+      // Método 2: Se não funcionar, procurar pelo option
+      if (!accountSelect.value || accountSelect.value === '') {
+        const option = accountSelect.querySelector(`option[value="${transaction.account_id}"]`);
+        if (option) {
+          accountSelect.value = transaction.account_id;
+          console.log(`✅ Conta selecionada via option`);
+        } else {
+          console.warn(`⚠️ Option não encontrada para conta: ${transaction.account_id}`);
+          console.log('Opções disponíveis:', Array.from(accountSelect.options).map(o => ({ value: o.value, text: o.text })));
+        }
+      } else {
+        console.log(`✅ Conta selecionada: ${accountSelect.value}`);
+      }
+      
+      // Disparar evento para atualizar UI
+      accountSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // ============================================
+    // CATEGORIA - CORRIGIDA
+    // ============================================
+    const categorySelect = document.getElementById('transactionCategory');
+    if (categorySelect && transaction.category_id) {
+      console.log(`📂 Tentando selecionar categoria: ${transaction.category_id}`);
+      
+      // Método 1: Valor direto
+      categorySelect.value = transaction.category_id;
+      
+      // Método 2: Se não funcionar, procurar pelo option
+      if (!categorySelect.value || categorySelect.value === '') {
+        const option = categorySelect.querySelector(`option[value="${transaction.category_id}"]`);
+        if (option) {
+          categorySelect.value = transaction.category_id;
+          console.log(`✅ Categoria selecionada via option`);
+        } else {
+          console.warn(`⚠️ Option não encontrada para categoria: ${transaction.category_id}`);
+        }
+      } else {
+        console.log(`✅ Categoria selecionada: ${categorySelect.value}`);
+      }
+      
+      // Disparar evento
+      categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // Cartão de crédito (se existir)
+    const creditCardSelect = document.getElementById('transactionCreditCard');
+    if (creditCardSelect && transaction.credit_card_id) {
+      console.log(`💳 Tentando selecionar cartão: ${transaction.credit_card_id}`);
+      creditCardSelect.value = transaction.credit_card_id;
+      creditCardSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // Conta destino (transferência)
+    const transferToSelect = document.getElementById('transactionTransferTo');
+    if (transferToSelect && transaction.transfer_to_account_id) {
+      console.log(`📤 Tentando selecionar conta destino: ${transaction.transfer_to_account_id}`);
+      transferToSelect.value = transaction.transfer_to_account_id;
+      transferToSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    console.log('✅ Formulário preenchido completamente');
+  }, 100);  // Delay de 100ms para garantir que os selects estão prontos
+
+  // Mudar título do modal
+  const modalTitle = document.querySelector('#transactionModal .modal-header h3');
+  if (modalTitle) {
+    modalTitle.textContent = '🔄 Editar Transação';
+  }
+
+  // Encontrar e modificar o botão salvar
+  const modal = document.getElementById('transactionModal');
+  const modalBody = modal.querySelector('.modal-body');
+  
+  let saveBtns = Array.from(modalBody.querySelectorAll('button')).filter(btn => 
+    btn.textContent.includes('Salvar') || btn.textContent.includes('Atualizar')
+  );
+  
+  if (saveBtns.length > 0) {
+    const saveBtn = saveBtns[0];
+    saveBtn.textContent = '🔄 Atualizar Transação';
+    saveBtn.dataset.editingTransactionId = transactionId;
+    saveBtn.onclick = () => {
+      updateTransaction(transactionId);
+    };
+    console.log('✅ Botão modificado para "Atualizar"');
+  }
+
+  modal.dataset.editingTransactionId = transactionId;
+  openModal('transactionModal');
+  console.log('✅ Modal aberto para edição');
+}
+
+
+function resetTransactionModal() {
+  const modalTitle = document.querySelector('#transactionModal .modal-header h3');
+  if (modalTitle) {
+    modalTitle.textContent = '➕ Nova Transação';
+  }
+
+  let saveBtns = Array.from(document.querySelectorAll('#transactionModal button')).filter(btn => 
+    btn.textContent.includes('Atualizar') || btn.textContent.includes('Salvar')
+  );
+  
+  if (saveBtns.length > 0) {
+    const saveBtn = saveBtns[0];
+    saveBtn.textContent = '💾 Salvar Transação';
+    saveBtn.onclick = () => saveTransaction();
+    delete saveBtn.dataset.editingTransactionId;
+  }
+
+  const modal = document.getElementById('transactionModal');
+  delete modal.dataset.editingTransactionId;
+}
+
+async function updateTransaction(transactionId) {
+  if (!supabase || !currentUser) {
+    console.error('❌ Supabase não inicializado');
+    return;
+  }
+
+  const transaction = transactions.find(t => t.id === transactionId);
+  if (!transaction) {
+    console.error('❌ Transação não encontrada');
+    return;
+  }
+
+  try {
+    console.log('💾 Atualizando transação...');
+
+    // Obter dados do formulário
+    const updateData = {
+      type: document.getElementById('transactionType').value,
+      amount: parseFloat(document.getElementById('transactionAmount').value),
+      date: document.getElementById('transactionDate').value,
+      description: document.getElementById('transactionDescription').value,
+      // ⚠️ IMPORTANTE: Incluir account_id na atualização
+      account_id: document.getElementById('transactionAccount').value,
+      category_id: document.getElementById('transactionType').value === 'transfer' 
+        ? null 
+        : (document.getElementById('transactionCategory').value || null),
+    };
+
+    console.log('📝 Dados a atualizar:', updateData);
+
+    // Atualizar transação
+    const { error } = await supabase
+      .from('transactions')
+      .update(updateData)
+      .eq('id', transactionId)
+      .eq('user_id', currentUser.id);
+
+    if (error) {
+      console.error('❌ Erro do Supabase:', error);
+      throw error;
+    }
+
+    console.log('✅ Transação atualizada no Supabase');
+
+    // ============================================
+    // RECALCULAR SALDOS SE CONTA MUDOU
+    // ============================================
+
+    const novaContaId = updateData.account_id;
+    const diferenca = updateData.amount - transaction.amount;
+    const contaMudou = transaction.account_id !== novaContaId;
+
+    console.log(`📊 Diferença: R$ ${diferenca.toFixed(2)}, Conta mudou: ${contaMudou}`);
+
+    // Se conta mudou, reverter saldo da conta antiga
+    if (contaMudou) {
+      console.log('🔄 Conta foi alterada, revertendo saldo da conta antiga...');
+      
+      const contaAntiga = accounts.find(a => a.id === transaction.account_id);
+      if (contaAntiga) {
+        let novoSaldoAntiga = contaAntiga.balance;
+        
+        // Reverter transação antiga
+        if (transaction.type === 'expense') novoSaldoAntiga += transaction.amount;
+        if (transaction.type === 'income') novoSaldoAntiga -= transaction.amount;
+
+        const { error: accError1 } = await supabase
+          .from('accounts')
+          .update({ balance: novoSaldoAntiga })
+          .eq('id', transaction.account_id)
+          .eq('user_id', currentUser.id);
+
+        if (accError1) {
+          console.error('Erro ao atualizar conta antiga:', accError1);
+        } else {
+          console.log(`✅ Conta antiga revertida: R$ ${novoSaldoAntiga.toFixed(2)}`);
+        }
+      }
+
+      // Aplicar nova transação na conta nova
+      const contaNova = accounts.find(a => a.id === novaContaId);
+      if (contaNova) {
+        let novoSaldoNova = contaNova.balance;
+        
+        if (updateData.type === 'expense') novoSaldoNova -= updateData.amount;
+        if (updateData.type === 'income') novoSaldoNova += updateData.amount;
+
+        const { error: accError2 } = await supabase
+          .from('accounts')
+          .update({ balance: novoSaldoNova })
+          .eq('id', novaContaId)
+          .eq('user_id', currentUser.id);
+
+        if (accError2) {
+          console.error('Erro ao atualizar conta nova:', accError2);
+        } else {
+          console.log(`✅ Conta nova atualizada: R$ ${novoSaldoNova.toFixed(2)}`);
+        }
+      }
+    } else {
+      // Se conta não mudou, apenas ajustar pela diferença
+      if (diferenca !== 0) {
+        const account = accounts.find(a => a.id === transaction.account_id);
+        if (account) {
+          const novoSaldo = account.balance - diferenca;
+          
+          const { error: accError } = await supabase
+            .from('accounts')
+            .update({ balance: novoSaldo })
+            .eq('id', transaction.account_id)
+            .eq('user_id', currentUser.id);
+
+          if (accError) {
+            console.error('Erro ao atualizar conta:', accError);
+          } else {
+            console.log(`✅ Saldo ajustado: R$ ${novoSaldo.toFixed(2)}`);
+          }
+        }
+      }
+    }
+
+    // Ajustar cartão de crédito se for despesa
+    if (updateData.type === 'expense') {
+      const card = creditCards.find(c => c.account_id === novaContaId);
+      if (card) {
+        let novoSaldoCard = (card.balance || 0);
+        
+        // Se mudou de conta, remover da conta anterior
+        if (contaMudou) {
+          const cardAntiga = creditCards.find(c => c.account_id === transaction.account_id);
+          if (cardAntiga) {
+            novoSaldoCard = (cardAntiga.balance || 0) - transaction.amount;
+            await supabase
+              .from('credit_cards')
+              .update({ balance: novoSaldoCard })
+              .eq('id', cardAntiga.id);
+          }
+        }
+        
+        // Adicionar à nova conta
+        novoSaldoCard = (card.balance || 0) + updateData.amount;
+        await supabase
+          .from('credit_cards')
+          .update({ balance: novoSaldoCard })
+          .eq('id', card.id);
+      }
+    }
+
+    alert('✅ Transação atualizada com sucesso!');
+    closeModal('transactionModal');
+    
+    resetTransactionModal();
+
+    // Desativar flag
+    isEditingTransaction = false;
+    console.log('✅ Modo edição desativado');
+
+    // Recarregar dados
+    console.log('🔄 Recarregando dados...');
+    await loadTransactions();
+    await loadAccounts();
+    await loadCreditCards();
+    updateDashboard();
+    
+    console.log('✅ Dados recarregados');
+  } catch (error) {
+    console.error('❌ Erro ao atualizar:', error);
+    alert('❌ Erro ao atualizar transação: ' + error.message);
+    isEditingTransaction = false;
+  }
+}
+
+async function deleteTransaction(transactionId) {
+  const transaction = transactions.find(t => t.id === transactionId);
+  if (!transaction) {
+    console.error('❌ Transação não encontrada');
+    return;
+  }
+
+  // Confirmação
+  const confirmDelete = confirm(
+    `⚠️ Deletar transação?\n\n` +
+    `${transaction.description}\n` +
+    `R$ ${transaction.amount.toFixed(2)}\n` +
+    `${new Date(transaction.date).toLocaleDateString('pt-BR')}\n\n` +
+    `Esta ação não pode ser desfeita!`
+  );
+
+  if (!confirmDelete) {
+    console.log('❌ Exclusão cancelada pelo usuário');
+    return;
+  }
+
+  try {
+    console.log('🗑️ Deletando transação...');
+
+    // Reverter o saldo da conta
+    const account = accounts.find(a => a.id === transaction.account_id);
+    if (account) {
+      let novoSaldo = account.balance;
+      
+      if (transaction.type === 'expense') novoSaldo += transaction.amount;
+      if (transaction.type === 'income') novoSaldo -= transaction.amount;
+      if (transaction.type === 'transfer') novoSaldo += transaction.amount;
+
+      await supabase
+        .from('accounts')
+        .update({ balance: novoSaldo })
+        .eq('id', transaction.account_id);
+
+      console.log(`✅ Saldo revertido: ${account.name}`);
+
+      // Se foi transferência, atualizar conta de destino
+      if (transaction.type === 'transfer' && transaction.transfer_to_account_id) {
+        const targetAccount = accounts.find(a => a.id === transaction.transfer_to_account_id);
+        if (targetAccount) {
+          await supabase
+            .from('accounts')
+            .update({ balance: targetAccount.balance - transaction.amount })
+            .eq('id', transaction.transfer_to_account_id);
+        }
+      }
+    }
+
+    // Reverter saldo do cartão se for despesa
+    if (transaction.type === 'expense') {
+      const card = creditCards.find(c => c.account_id === transaction.account_id);
+      if (card) {
+        await supabase
+          .from('credit_cards')
+          .update({ balance: Math.max(0, (card.balance || 0) - transaction.amount) })
+          .eq('id', card.id);
+        console.log('✅ Saldo do cartão revertido');
+      }
+    }
+
+    // Deletar transação
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', transactionId);
+
+    if (error) throw error;
+    console.log('✅ Transação deletada do Supabase');
+
+    alert('✅ Transação deletada com sucesso!');
+    
+    // Animar remoção
+    const element = document.getElementById(`trans-${transactionId}`);
+    if (element) {
+      element.style.transition = 'opacity 0.3s ease';
+      element.style.opacity = '0';
+      setTimeout(() => {
+        loadTransactions();
+        loadAccounts();
+        loadCreditCards();
+      }, 300);
+    } else {
+      await Promise.all([
+        loadTransactions(),
+        loadAccounts(),
+        loadCreditCards()
+      ]);
+    }
+  } catch (error) {
+    console.error('❌ Erro ao deletar:', error);
+    alert('❌ Erro ao deletar transação: ' + error.message);
+  }
+}
+
+
 // ============================================
-// AUTO-RELOAD
+// INICIALIZAR APP QUANDO PÁGINA CARREGAR
 // ============================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 Iniciando aplicação...');
+  console.log('📦 Versão: 1.0.0');
+  console.log('✅ Supabase configurado internamente');
+  
+  // Fechar modais ao clicar no X
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const modal = e.target.closest('.modal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    });
+  });
+
+  // Iniciar app
+  initApp();
+
+  // Iniciar auto-reload
+let autoReloadInterval = null;
 
 function startAutoReload(intervalSeconds = 30) {
   if (autoReloadInterval) clearInterval(autoReloadInterval);
-
+  
   autoReloadInterval = setInterval(async () => {
-    if (typeof isEditingTransaction !== 'undefined' && isEditingTransaction) {
-      console.log('⏸️ Auto-reload pausado (editando transação)');
-      return;
-    }
-
-    const modal = document.getElementById('transactionModal');
-    if (modal && modal.style.display === 'block') {
-      console.log('⏸️ Auto-reload pausado (modal aberto)');
-      return;
-    }
-
     console.log('🔄 Auto-recarregando dados...');
     try {
       await loadAllData();
@@ -1854,8 +2005,8 @@ function startAutoReload(intervalSeconds = 30) {
       console.error('❌ Erro no auto-reload:', error);
     }
   }, intervalSeconds * 1000);
-
-  console.log(`✅ Auto-reload iniciado (a cada ${intervalSeconds}s, com proteção)`);
+  
+  console.log(`✅ Auto-reload iniciado (a cada ${intervalSeconds}s)`);
 }
 
 function stopAutoReload() {
@@ -1866,22 +2017,284 @@ function stopAutoReload() {
   }
 }
 
-// ============================================
-// INICIALIZAR APP QUANDO PÁGINA CARREGAR
-// ============================================
-
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('Iniciando aplicação...');
-  console.log('Versão 1.0.0');
-  console.log('Supabase configurado internamente');
-
-  // Fechar modais ao clicar no X
-  document.querySelectorAll('.modal-close').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const modal = e.target.closest('.modal');
-      if (modal) modal.style.display = 'none';
-    });
+function applyFilters() {
+  console.log('🔍 Aplicando filtros...');
+  console.log({
+    category: filterCategory,
+    type: filterType,
+    account: filterAccount,
+    dateStart: filterDateStart,
+    dateEnd: filterDateEnd
   });
 
-  initApp();
+  let filtered = transactions;
+
+  // Filtro por tipo
+  if (filterType !== 'all') {
+    filtered = filtered.filter(t => t.type === filterType);
+    console.log(`✅ Filtrado por tipo: ${filterType} (${filtered.length} transações)`);
+  }
+
+  // Filtro por conta
+  if (filterAccount !== 'all') {
+    filtered = filtered.filter(t => t.account_id === filterAccount);
+    console.log(`✅ Filtrado por conta: ${filterAccount} (${filtered.length} transações)`);
+  }
+
+  // Filtro por categoria
+  if (filterCategory !== 'all') {
+    filtered = filtered.filter(t => t.category_id === filterCategory);
+    console.log(`✅ Filtrado por categoria: ${filterCategory} (${filtered.length} transações)`);
+  }
+
+  // Filtro por data inicial
+  if (filterDateStart) {
+    filtered = filtered.filter(t => {
+      const transDate = new Date(t.date);
+      const startDate = new Date(filterDateStart);
+      return transDate >= startDate;
+    });
+    console.log(`✅ Filtrado data inicial: ${filterDateStart} (${filtered.length} transações)`);
+  }
+
+  // Filtro por data final
+  if (filterDateEnd) {
+    filtered = filtered.filter(t => {
+      const transDate = new Date(t.date);
+      const endDate = new Date(filterDateEnd);
+      endDate.setHours(23, 59, 59, 999); // Incluir todo o dia final
+      return transDate <= endDate;
+    });
+    console.log(`✅ Filtrado data final: ${filterDateEnd} (${filtered.length} transações)`);
+  }
+
+  // Ordenar por data (mais recente primeiro)
+  filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  // Exibir transações filtradas
+  displayTransactions(filtered);
+
+  // Atualizar totais
+  updateFilteredTotals(filtered);
+
+  console.log(`✅ Filtros aplicados! Total: ${filtered.length} transações`);
+}
+
+// ============================================
+// FUNÇÃO: ATUALIZAR TOTAIS COM FILTRO
+// ============================================
+
+function updateFilteredTotals(filteredTrans) {
+  const totalReceitas = filteredTrans
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalDespesas = filteredTrans
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const saldo = totalReceitas - totalDespesas;
+
+  // Atualizar elementos HTML
+  const receitas = document.getElementById('filteredTotalReceitas');
+  const despesas = document.getElementById('filteredTotalDespesas');
+  const saldoEl = document.getElementById('filteredSaldo');
+
+  if (receitas) receitas.textContent = `R$ ${totalReceitas.toFixed(2)}`;
+  if (despesas) despesas.textContent = `R$ ${totalDespesas.toFixed(2)}`;
+  if (saldoEl) saldoEl.textContent = `R$ ${saldo.toFixed(2)}`;
+
+  console.log(`💰 Totais: Receitas ${totalReceitas.toFixed(2)} | Despesas ${totalDespesas.toFixed(2)} | Saldo ${saldo.toFixed(2)}`);
+}
+
+// ============================================
+// EVENTO: ALTERAR TIPO
+// ============================================
+
+function onFilterTypeChange(event) {
+  filterType = event.target.value;
+  console.log(`📋 Tipo filtrado: ${filterType}`);
+  applyFilters();
+}
+
+// ============================================
+// EVENTO: ALTERAR CONTA
+// ============================================
+
+function onFilterAccountChange(event) {
+  filterAccount = event.target.value;
+  console.log(`🏦 Conta filtrada: ${filterAccount}`);
+  applyFilters();
+}
+
+// ============================================
+// EVENTO: ALTERAR CATEGORIA
+// ============================================
+
+function onFilterCategoryChange(event) {
+  filterCategory = event.target.value;
+  console.log(`📂 Categoria filtrada: ${filterCategory}`);
+  applyFilters();
+}
+
+// ============================================
+// EVENTO: ALTERAR DATA INICIAL
+// ============================================
+
+function onFilterDateStartChange(event) {
+  filterDateStart = event.target.value;
+  console.log(`📅 Data inicial: ${filterDateStart}`);
+  applyFilters();
+}
+
+// ============================================
+// EVENTO: ALTERAR DATA FINAL
+// ============================================
+
+function onFilterDateEndChange(event) {
+  filterDateEnd = event.target.value;
+  console.log(`📅 Data final: ${filterDateEnd}`);
+  applyFilters();
+}
+
+// ============================================
+// FUNÇÃO: LIMPAR TODOS OS FILTROS
+// ============================================
+
+function clearAllFilters() {
+  console.log('🔄 Limpando todos os filtros...');
+  
+  filterCategory = 'all';
+  filterType = 'all';
+  filterAccount = 'all';
+  filterDateStart = null;
+  filterDateEnd = null;
+
+  // Resetar elementos HTML
+  const typeSelect = document.getElementById('filterType');
+  const accountSelect = document.getElementById('filterAccount');
+  const categorySelect = document.getElementById('filterCategory');
+  const dateStartInput = document.getElementById('filterDateStart');
+  const dateEndInput = document.getElementById('filterDateEnd');
+
+  if (typeSelect) typeSelect.value = 'all';
+  if (accountSelect) accountSelect.value = 'all';
+  if (categorySelect) categorySelect.value = 'all';
+  if (dateStartInput) dateStartInput.value = '';
+  if (dateEndInput) dateEndInput.value = '';
+
+  applyFilters();
+  console.log('✅ Filtros limpos!');
+}
+
+// ============================================
+// FUNÇÃO: OBTER DATA HOJE
+// ============================================
+
+function getTodayDate() {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+}
+
+// ============================================
+// FUNÇÃO: OBTER DATA 30 DIAS ATRÁS
+// ============================================
+
+function get30DaysAgoDate() {
+  const today = new Date();
+  today.setDate(today.getDate() - 30);
+  return today.toISOString().split('T')[0];
+}
+
+// ============================================
+// FUNÇÃO: OBTER DATA 90 DIAS ATRÁS
+// ============================================
+
+function get90DaysAgoDate() {
+  const today = new Date();
+  today.setDate(today.getDate() - 90);
+  return today.toISOString().split('T')[0];
+}
+
+// ============================================
+// ATALHOS DE DATA
+// ============================================
+
+function filterLast7Days() {
+  const today = new Date();
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(today.getDate() - 7);
+
+  filterDateStart = sevenDaysAgo.toISOString().split('T')[0];
+  filterDateEnd = today.toISOString().split('T')[0];
+
+  document.getElementById('filterDateStart').value = filterDateStart;
+  document.getElementById('filterDateEnd').value = filterDateEnd;
+
+  console.log(`📅 Filtro: Últimos 7 dias (${filterDateStart} a ${filterDateEnd})`);
+  applyFilters();
+}
+
+function filterLast30Days() {
+  const today = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+
+  filterDateStart = thirtyDaysAgo.toISOString().split('T')[0];
+  filterDateEnd = today.toISOString().split('T')[0];
+
+  document.getElementById('filterDateStart').value = filterDateStart;
+  document.getElementById('filterDateEnd').value = filterDateEnd;
+
+  console.log(`📅 Filtro: Últimos 30 dias (${filterDateStart} a ${filterDateEnd})`);
+  applyFilters();
+}
+
+function filterThisMonth() {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+  filterDateStart = firstDay.toISOString().split('T')[0];
+  filterDateEnd = lastDay.toISOString().split('T')[0];
+
+  document.getElementById('filterDateStart').value = filterDateStart;
+  document.getElementById('filterDateEnd').value = filterDateEnd;
+
+  console.log(`📅 Filtro: Este mês (${filterDateStart} a ${filterDateEnd})`);
+  applyFilters();
+}
+
+function filterLastMonth() {
+  const today = new Date();
+  const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1);
+  
+  const firstDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
+  const lastDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
+
+  filterDateStart = firstDay.toISOString().split('T')[0];
+  filterDateEnd = lastDay.toISOString().split('T')[0];
+
+  document.getElementById('filterDateStart').value = filterDateStart;
+  document.getElementById('filterDateEnd').value = filterDateEnd;
+
+  console.log(`📅 Filtro: Mês passado (${filterDateStart} a ${filterDateEnd})`);
+  applyFilters();
+}
+
+function filterThisYear() {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), 0, 1);
+  const lastDay = new Date(today.getFullYear(), 11, 31);
+
+  filterDateStart = firstDay.toISOString().split('T')[0];
+  filterDateEnd = lastDay.toISOString().split('T')[0];
+
+  document.getElementById('filterDateStart').value = filterDateStart;
+  document.getElementById('filterDateEnd').value = filterDateEnd;
+
+  console.log(`📅 Filtro: Este ano (${filterDateStart} a ${filterDateEnd})`);
+  applyFilters();
+}
+  
 });
