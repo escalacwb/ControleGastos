@@ -11,6 +11,11 @@ let investments = [];
 let creditCards = [];
 let currentView = 'dashboard';
 let charts = {};
+let filterCategory = 'all';  // 'all' ou ID da categoria
+let filterType = 'all';      // 'all', 'income', 'expense', 'transfer'
+let filterAccount = 'all';   // 'all' ou ID da conta
+let filterDateStart = null;  // Data inicial (YYYY-MM-DD)
+let filterDateEnd = null;    // Data final (YYYY-MM-DD)
 
 // ============================================
 // CONFIGURAÇÃO DO SUPABASE (EMBUTIDA)
@@ -2008,6 +2013,286 @@ function stopAutoReload() {
     autoReloadInterval = null;
     console.log('⏹️ Auto-reload parado');
   }
+}
+
+function applyFilters() {
+  console.log('🔍 Aplicando filtros...');
+  console.log({
+    category: filterCategory,
+    type: filterType,
+    account: filterAccount,
+    dateStart: filterDateStart,
+    dateEnd: filterDateEnd
+  });
+
+  let filtered = transactions;
+
+  // Filtro por tipo
+  if (filterType !== 'all') {
+    filtered = filtered.filter(t => t.type === filterType);
+    console.log(`✅ Filtrado por tipo: ${filterType} (${filtered.length} transações)`);
+  }
+
+  // Filtro por conta
+  if (filterAccount !== 'all') {
+    filtered = filtered.filter(t => t.account_id === filterAccount);
+    console.log(`✅ Filtrado por conta: ${filterAccount} (${filtered.length} transações)`);
+  }
+
+  // Filtro por categoria
+  if (filterCategory !== 'all') {
+    filtered = filtered.filter(t => t.category_id === filterCategory);
+    console.log(`✅ Filtrado por categoria: ${filterCategory} (${filtered.length} transações)`);
+  }
+
+  // Filtro por data inicial
+  if (filterDateStart) {
+    filtered = filtered.filter(t => {
+      const transDate = new Date(t.date);
+      const startDate = new Date(filterDateStart);
+      return transDate >= startDate;
+    });
+    console.log(`✅ Filtrado data inicial: ${filterDateStart} (${filtered.length} transações)`);
+  }
+
+  // Filtro por data final
+  if (filterDateEnd) {
+    filtered = filtered.filter(t => {
+      const transDate = new Date(t.date);
+      const endDate = new Date(filterDateEnd);
+      endDate.setHours(23, 59, 59, 999); // Incluir todo o dia final
+      return transDate <= endDate;
+    });
+    console.log(`✅ Filtrado data final: ${filterDateEnd} (${filtered.length} transações)`);
+  }
+
+  // Ordenar por data (mais recente primeiro)
+  filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  // Exibir transações filtradas
+  displayTransactions(filtered);
+
+  // Atualizar totais
+  updateFilteredTotals(filtered);
+
+  console.log(`✅ Filtros aplicados! Total: ${filtered.length} transações`);
+}
+
+// ============================================
+// FUNÇÃO: ATUALIZAR TOTAIS COM FILTRO
+// ============================================
+
+function updateFilteredTotals(filteredTrans) {
+  const totalReceitas = filteredTrans
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalDespesas = filteredTrans
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const saldo = totalReceitas - totalDespesas;
+
+  // Atualizar elementos HTML
+  const receitas = document.getElementById('filteredTotalReceitas');
+  const despesas = document.getElementById('filteredTotalDespesas');
+  const saldoEl = document.getElementById('filteredSaldo');
+
+  if (receitas) receitas.textContent = `R$ ${totalReceitas.toFixed(2)}`;
+  if (despesas) despesas.textContent = `R$ ${totalDespesas.toFixed(2)}`;
+  if (saldoEl) saldoEl.textContent = `R$ ${saldo.toFixed(2)}`;
+
+  console.log(`💰 Totais: Receitas ${totalReceitas.toFixed(2)} | Despesas ${totalDespesas.toFixed(2)} | Saldo ${saldo.toFixed(2)}`);
+}
+
+// ============================================
+// EVENTO: ALTERAR TIPO
+// ============================================
+
+function onFilterTypeChange(event) {
+  filterType = event.target.value;
+  console.log(`📋 Tipo filtrado: ${filterType}`);
+  applyFilters();
+}
+
+// ============================================
+// EVENTO: ALTERAR CONTA
+// ============================================
+
+function onFilterAccountChange(event) {
+  filterAccount = event.target.value;
+  console.log(`🏦 Conta filtrada: ${filterAccount}`);
+  applyFilters();
+}
+
+// ============================================
+// EVENTO: ALTERAR CATEGORIA
+// ============================================
+
+function onFilterCategoryChange(event) {
+  filterCategory = event.target.value;
+  console.log(`📂 Categoria filtrada: ${filterCategory}`);
+  applyFilters();
+}
+
+// ============================================
+// EVENTO: ALTERAR DATA INICIAL
+// ============================================
+
+function onFilterDateStartChange(event) {
+  filterDateStart = event.target.value;
+  console.log(`📅 Data inicial: ${filterDateStart}`);
+  applyFilters();
+}
+
+// ============================================
+// EVENTO: ALTERAR DATA FINAL
+// ============================================
+
+function onFilterDateEndChange(event) {
+  filterDateEnd = event.target.value;
+  console.log(`📅 Data final: ${filterDateEnd}`);
+  applyFilters();
+}
+
+// ============================================
+// FUNÇÃO: LIMPAR TODOS OS FILTROS
+// ============================================
+
+function clearAllFilters() {
+  console.log('🔄 Limpando todos os filtros...');
+  
+  filterCategory = 'all';
+  filterType = 'all';
+  filterAccount = 'all';
+  filterDateStart = null;
+  filterDateEnd = null;
+
+  // Resetar elementos HTML
+  const typeSelect = document.getElementById('filterType');
+  const accountSelect = document.getElementById('filterAccount');
+  const categorySelect = document.getElementById('filterCategory');
+  const dateStartInput = document.getElementById('filterDateStart');
+  const dateEndInput = document.getElementById('filterDateEnd');
+
+  if (typeSelect) typeSelect.value = 'all';
+  if (accountSelect) accountSelect.value = 'all';
+  if (categorySelect) categorySelect.value = 'all';
+  if (dateStartInput) dateStartInput.value = '';
+  if (dateEndInput) dateEndInput.value = '';
+
+  applyFilters();
+  console.log('✅ Filtros limpos!');
+}
+
+// ============================================
+// FUNÇÃO: OBTER DATA HOJE
+// ============================================
+
+function getTodayDate() {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+}
+
+// ============================================
+// FUNÇÃO: OBTER DATA 30 DIAS ATRÁS
+// ============================================
+
+function get30DaysAgoDate() {
+  const today = new Date();
+  today.setDate(today.getDate() - 30);
+  return today.toISOString().split('T')[0];
+}
+
+// ============================================
+// FUNÇÃO: OBTER DATA 90 DIAS ATRÁS
+// ============================================
+
+function get90DaysAgoDate() {
+  const today = new Date();
+  today.setDate(today.getDate() - 90);
+  return today.toISOString().split('T')[0];
+}
+
+// ============================================
+// ATALHOS DE DATA
+// ============================================
+
+function filterLast7Days() {
+  const today = new Date();
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(today.getDate() - 7);
+
+  filterDateStart = sevenDaysAgo.toISOString().split('T')[0];
+  filterDateEnd = today.toISOString().split('T')[0];
+
+  document.getElementById('filterDateStart').value = filterDateStart;
+  document.getElementById('filterDateEnd').value = filterDateEnd;
+
+  console.log(`📅 Filtro: Últimos 7 dias (${filterDateStart} a ${filterDateEnd})`);
+  applyFilters();
+}
+
+function filterLast30Days() {
+  const today = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+
+  filterDateStart = thirtyDaysAgo.toISOString().split('T')[0];
+  filterDateEnd = today.toISOString().split('T')[0];
+
+  document.getElementById('filterDateStart').value = filterDateStart;
+  document.getElementById('filterDateEnd').value = filterDateEnd;
+
+  console.log(`📅 Filtro: Últimos 30 dias (${filterDateStart} a ${filterDateEnd})`);
+  applyFilters();
+}
+
+function filterThisMonth() {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+  filterDateStart = firstDay.toISOString().split('T')[0];
+  filterDateEnd = lastDay.toISOString().split('T')[0];
+
+  document.getElementById('filterDateStart').value = filterDateStart;
+  document.getElementById('filterDateEnd').value = filterDateEnd;
+
+  console.log(`📅 Filtro: Este mês (${filterDateStart} a ${filterDateEnd})`);
+  applyFilters();
+}
+
+function filterLastMonth() {
+  const today = new Date();
+  const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1);
+  
+  const firstDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
+  const lastDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
+
+  filterDateStart = firstDay.toISOString().split('T')[0];
+  filterDateEnd = lastDay.toISOString().split('T')[0];
+
+  document.getElementById('filterDateStart').value = filterDateStart;
+  document.getElementById('filterDateEnd').value = filterDateEnd;
+
+  console.log(`📅 Filtro: Mês passado (${filterDateStart} a ${filterDateEnd})`);
+  applyFilters();
+}
+
+function filterThisYear() {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), 0, 1);
+  const lastDay = new Date(today.getFullYear(), 11, 31);
+
+  filterDateStart = firstDay.toISOString().split('T')[0];
+  filterDateEnd = lastDay.toISOString().split('T')[0];
+
+  document.getElementById('filterDateStart').value = filterDateStart;
+  document.getElementById('filterDateEnd').value = filterDateEnd;
+
+  console.log(`📅 Filtro: Este ano (${filterDateStart} a ${filterDateEnd})`);
+  applyFilters();
 }
   
 });
