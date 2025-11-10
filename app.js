@@ -89,7 +89,7 @@ function ensureGuideLoaded() {
 }
 
 /**
- * Sugere categoria usando Supabase Edge Function
+ * Sugere categoria usando Supabase Edge Function COM AUTENTICAÇÃO
  */
 async function suggestCategoryWithAI() {
   const descriptionInput = document.getElementById('transactionDescription');
@@ -106,14 +106,23 @@ async function suggestCategoryWithAI() {
   try {
     console.log('🔄 Enviando para Supabase Edge Function...');
     
-    // Chamar Supabase Edge Function
-    // SUBSTITUA "seu-projeto" pelo seu projeto real do Supabase!
+    // Obter token de autenticação
+    const session = await supabase.auth.getSession();
+    const token = session?.data?.session?.access_token;
+
+    if (!token) {
+      throw new Error('Você precisa estar logado para usar esta função');
+    }
+
+    // SUBSTITUA "gbvjdntklbggxycmfyhg" pelo seu ID real do Supabase!
+    // Encontre em: Dashboard → Settings → General → Project ID
     const supabaseUrl = 'https://gbvjdntklbggxycmfyhg.supabase.co/functions/v1/dynamic-api';
     
     const response = await fetch(supabaseUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`  // ← AUTENTICAÇÃO ADICIONADA!
       },
       body: JSON.stringify({ description })
     });
@@ -126,6 +135,10 @@ async function suggestCategoryWithAI() {
     const data = await response.json();
 
     console.log('✅ Resposta:', data);
+
+    if (!data.success) {
+      throw new Error(data.error || 'Erro na categorização');
+    }
 
     const { categoryName, categoryId, confidence, reason } = data;
 
