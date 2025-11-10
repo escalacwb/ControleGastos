@@ -116,7 +116,7 @@ async function suggestCategoryWithAI() {
 
     // SUBSTITUA "gbvjdntklbggxycmfyhg" pelo seu ID real do Supabase!
     // Encontre em: Dashboard → Settings → General → Project ID
-    const supabaseUrl = 'https://gbvjdntklbggxycmfyhg.supabase.co/functions/v1/dynamic-api';
+    const supabaseUrl = 'https://gbvjdntklbggxycmfyhg.supabase.co/functions/v1/categorizer';
     
     const response = await fetch(supabaseUrl, {
       method: 'POST',
