@@ -89,7 +89,7 @@ function ensureGuideLoaded() {
 }
 
 /**
- * Sugere categoria usando Claude API
+ * Sugere categoria usando Supabase Edge Function
  */
 async function suggestCategoryWithAI() {
   const descriptionInput = document.getElementById('transactionDescription');
@@ -100,72 +100,40 @@ async function suggestCategoryWithAI() {
     return;
   }
 
-  await ensureGuideLoaded();
-
-  if (!CATEGORIZATION_GUIDE) {
-    alert('❌ Guia não disponível. Selecione manualmente.');
-    return;
-  }
-
   const loadingEl = document.getElementById('aiLoadingIndicator');
   if (loadingEl) loadingEl.style.display = 'block';
 
   try {
-    console.log('🔄 Enviando para Claude...');
+    console.log('🔄 Enviando para Supabase Edge Function...');
     
-    const response = await fetch(CLAUDE_API_URL, {
+    // Chamar Supabase Edge Function
+    // SUBSTITUA "seu-projeto" pelo seu projeto real do Supabase!
+    const supabaseUrl = 'https://gbvjdntklbggxycmfyhg.supabase.co/functions/v1/dynamic-api';
+    
+    const response = await fetch(supabaseUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01'
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 200,
-        system: CATEGORIZATION_GUIDE,
-        messages: [{
-          role: 'user',
-          content: `Categorize esta transação: "${description}"`
-        }]
-      })
+      body: JSON.stringify({ description })
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(`Claude Error ${response.status}: ${errorData.error?.message || 'Unknown'}`);
+      throw new Error(errorData.error || `Erro ${response.status}`);
     }
 
     const data = await response.json();
-    const aiResponse = data.content[0].text;
 
-    console.log('📝 Resposta Claude:', aiResponse);
+    console.log('✅ Resposta:', data);
 
-    const categoryMatch = aiResponse.match(/CATEGORIA:\s*([^\n]+)/i);
-    const confidenceMatch = aiResponse.match(/CONFIANÇA:\s*([^\n]+)/i);
-    const reasonMatch = aiResponse.match(/RAZÃO:\s*(.+?)(?=\n|$)/is);
-
-    if (!categoryMatch) {
-      throw new Error('Não consegui extrair categoria da resposta');
-    }
-
-    const categoryName = categoryMatch[1].trim().toUpperCase();
-    const confidence = confidenceMatch ? confidenceMatch[1].trim() : 'desconhecida';
-    const reason = reasonMatch ? reasonMatch[1].trim() : '';
-
-    console.log('✅ Análise:', { categoryName, confidence, reason });
-
-    const categoryId = categoryMap[categoryName];
-    
-    if (!categoryId) {
-      throw new Error(`Categoria "${categoryName}" não mapeada`);
-    }
+    const { categoryName, categoryId, confidence, reason } = data;
 
     showAISuggestion(categoryName, categoryId, confidence, reason);
 
   } catch (error) {
     console.error('❌ Erro:', error);
-    alert(`❌ Erro:\n${error.message}`);
+    alert(`❌ Erro ao sugerir categoria:\n${error.message}`);
     
   } finally {
     if (loadingEl) loadingEl.style.display = 'none';
