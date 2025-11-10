@@ -336,6 +336,57 @@ function updateReloadIndicator(enabled) {
     </div>
   </div>
 
+  <!-- FASE 1B: Comparison Table -->
+  <div id="comparisonSection" style="display: none;">
+    <h3>📊 Gastos por Categoria — Este Mês vs. Histórico</h3>
+    <div id="comparisonTableContainer" style="overflow-x: auto;">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Categoria</th>
+            <th style="text-align: right;">Este Mês</th>
+            <th style="text-align: right;">Média 12m</th>
+            <th style="text-align: center;">Desvio %</th>
+            <th style="text-align: center;">Status</th>
+          </tr>
+        </thead>
+        <tbody id="comparisonTableBody">
+          <!-- Preenchido via JavaScript -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- FASE 1C: Historical Charts -->
+<div id="chartsSection" style="display: none; margin-top: var(--space-32);">
+  
+  <!-- Gráfico 1: Line Chart - Trend -->
+  <div style="margin-bottom: var(--space-32);">
+    <h3 style="margin-bottom: var(--space-16);">📊 Trend de Gastos — Últimos 12 Meses</h3>
+    <div style="position: relative; height: 300px; background-color: white; border-radius: var(--radius-lg); padding: var(--space-16); border: 1px solid var(--color-border);">
+      <canvas id="trendChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Gráfico 2: Bar Chart - Comparativo -->
+  <div style="margin-bottom: var(--space-32);">
+    <h3 style="margin-bottom: var(--space-16);">📊 Este Mês vs. Média Histórica</h3>
+    <div style="position: relative; height: 300px; background-color: white; border-radius: var(--radius-lg); padding: var(--space-16); border: 1px solid var(--color-border);">
+      <canvas id="comparisonChart"></canvas>
+    </div>
+  </div>
+  
+
+  <!-- FASE 2: Alerts & Anomalies -->
+<div id="alertsSection" style="display: none; margin-top: var(--space-32);">
+  <h3 style="margin-bottom: var(--space-16);">⚠️ Alertas & Oportunidades</h3>
+  <div id="alertsContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+    <!-- Preenchido via JavaScript -->
+  </div>
+</div>
+
+</div>
+
   <!-- ============================================
        6. AÇÕES RÁPIDAS
        ============================================ -->
@@ -557,6 +608,59 @@ function initializeFilters() {
         <button onclick="closeModal('transactionModal')" class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
+        <!-- ============================================
+             AI CATEGORIZATION SECTION - NOVO!
+             ============================================ -->
+        <div style="margin-bottom: var(--space-16); background: #f0f9ff; border-left: 4px solid #3B82F6; padding: 12px; border-radius: 4px;">
+          <label for="transactionDescription" style="font-weight: 600;">📝 Descrição da Transação *</label>
+          <div style="display: flex; gap: 8px; align-items: flex-end; margin-top: 8px;">
+            <input 
+              type="text" 
+              id="transactionDescription" 
+              class="form-control" 
+              placeholder="Ex: PG. SANESUL, Compra Mercado..."
+              style="flex: 1;"
+            />
+            <button 
+              type="button"
+              id="suggestCategoryBtn"
+              class="btn btn--primary"
+              style="white-space: nowrap; padding: 8px 16px;"
+              title="Clique para IA sugerir categoria"
+            >
+              🤖 Sugerir
+            </button>
+          </div>
+          <small style="color: #0369a1; margin-top: 4px; display: block;">
+            Digite uma descrição e clique "Sugerir" para a IA categorizar automaticamente
+          </small>
+        </div>
+
+        <!-- INDICADOR DE CARREGAMENTO (escondido por padrão) -->
+        <div id="aiLoadingIndicator" style="display: none; margin-bottom: 12px; padding: 12px; background: #e0f2fe; border-radius: 4px; color: #0369a1; border: 1px solid #0ea5e9;">
+          ⏳ Analisando descrição... (aguarde)
+        </div>
+
+        <!-- MENSAGEM DE SUGESTÃO DA IA (escondido por padrão) -->
+        <div id="aiSuggestionMessage" style="display: none; margin-bottom: 12px; padding: 12px; background: #dcfce7; border-radius: 4px; border: 1px solid #86efac;">
+          <div style="margin-bottom: 8px;">
+            <strong style="color: #166534;">✅ Sugestão da IA:</strong>
+            <span id="aiSuggestionText" style="color: #166534; margin-left: 8px;"></span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" id="acceptSuggestionBtn" class="btn btn--primary" style="padding: 6px 12px; font-size: 12px;">
+              ✅ Aceitar
+            </button>
+            <button type="button" id="rejectSuggestionBtn" class="btn btn--secondary" style="padding: 6px 12px; font-size: 12px;">
+              ❌ Rejeitar
+            </button>
+          </div>
+        </div>
+
+        <!-- ============================================
+             FIM DA SEÇÃO DE IA
+             ============================================ -->
+
         <div class="form-group">
           <label class="form-label">Tipo</label>
           <select id="transactionType" class="form-control" onchange="updateTransactionForm()">
@@ -903,6 +1007,10 @@ function initializeFilters() {
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Smart Analytics Engine -->
+  <script src="smart-analytics-engine.js"></script>
+
   <!-- App Script -->
   <script src="app.js"></script>
 </body>
