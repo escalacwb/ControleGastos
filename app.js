@@ -172,13 +172,17 @@ function showAISuggestion(categoryName, categoryId, confidence, reason) {
 }
 
 /**
- * Aceita sugestão da IA
+ * Aceita sugestão da IA e preenche o formulário
  */
 function acceptAISuggestion() {
   const messageEl = document.getElementById('aiSuggestionMessage');
   const categorySelect = document.getElementById('transactionCategory');
+  const descriptionInput = document.getElementById('transactionDescription');
 
-  if (!messageEl || !categorySelect) return;
+  if (!messageEl || !categorySelect) {
+    console.warn('⚠️ Elementos não encontrados');
+    return;
+  }
 
   const categoryId = messageEl.dataset.suggestedCategoryId;
 
@@ -187,11 +191,25 @@ function acceptAISuggestion() {
     return;
   }
 
+  // 🎯 Preencher a categoria
   categorySelect.value = categoryId;
+  console.log('✅ Categoria preenchida:', categoryId);
+
+  // 🎯 Preencher a descrição (manter o texto que já está lá)
+  // A descrição já está no campo, então não precisa fazer nada
+  // Mas se você quer limpar após aceitar, descomente:
+  // descriptionInput.value = '';
+
+  // 🎯 Fechar a mensagem de sugestão
   messageEl.style.display = 'none';
 
-  console.log('✅ Categoria aceita:', categoryId);
-  alert('✅ Categoria atualizada!');
+  // 🎯 Disparar evento de change (para atualizar o formulário)
+  categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+
+  console.log('✅ Formulário preenchido com a sugestão!');
+  
+  // Opcional: mostrar mensagem de sucesso
+  // alert('✅ Categoria atualizada!');
 }
 
 /**
@@ -206,6 +224,33 @@ function rejectAISuggestion() {
   console.log('❌ Sugestão rejeitada');
 }
 
+/**
+ * Mostra sugestão da IA
+ */
+function showAISuggestion(categoryName, categoryId, confidence, reason) {
+  const messageEl = document.getElementById('aiSuggestionMessage');
+  const textEl = document.getElementById('aiSuggestionText');
+
+  if (!messageEl || !textEl) {
+    console.warn('⚠️ Elementos de sugestão não encontrados');
+    return;
+  }
+
+  // Preencher a sugestão com informações da IA
+  textEl.innerHTML = `
+    <div style="margin: 10px 0;">
+      <strong>${categoryName}</strong> 
+      <span style="color: #666; font-size: 0.9em;">(${confidence})</span>
+      <br>
+      <small style="color: #666;">${reason}</small>
+    </div>
+  `;
+  
+  messageEl.style.display = 'block';
+  messageEl.dataset.suggestedCategoryId = categoryId;
+
+  console.log('✅ Sugestão exibida:', categoryName);
+}
 
 
 // ============================================
