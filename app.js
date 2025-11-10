@@ -17,6 +17,216 @@ let filterAccount = 'all';   // 'all' ou ID da conta
 let filterDateStart = null;  // Data inicial (YYYY-MM-DD)
 let filterDateEnd = null;    // Data final (YYYY-MM-DD)
 
+// ============================================
+// IA CATEGORY SUGGESTION - CLAUDE API
+// ============================================
+
+// Configuração da API
+const CLAUDE_API_KEY = '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';
+const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+
+// Mapeamento de categorias para IDs
+const categoryMap = {
+  'HABITAÇÃO': 'categoria_id_da_sua_categoria_habitacao',
+  'ALIMENTAÇÃO': 'categoria_id_da_sua_categoria_alimentacao',
+  'SAÚDE': 'categoria_id_da_sua_categoria_saude',
+  'MENSALIDADES CRIANÇAS': 'categoria_id_da_sua_categoria_mensalidades_criancas',
+  'INFANTIL': 'categoria_id_da_sua_categoria_infantil',
+  'ANIMAIS': 'categoria_id_da_sua_categoria_animais',
+  'MENSALIDADES ADULTOS': 'categoria_id_da_sua_categoria_mensalidades_adultos',
+  'VESTUÁRIO ADULTO': 'categoria_id_da_sua_categoria_vestuario_adulto',
+  'SAÚDE & BELEZA': 'categoria_id_da_sua_categoria_saude_beleza',
+  'SERVIÇOS DOMÉSTICOS': 'categoria_id_da_sua_categoria_servicos_domesticos',
+  'VEÍCULOS & COMBUSTÍVEL': 'categoria_id_da_sua_categoria_veiculos_combustivel',
+  'LAZER & CULTURA': 'categoria_id_da_sua_categoria_lazer_cultura',
+  'VIAGENS': 'categoria_id_da_sua_categoria_viagens'
+};
+
+// Variável para armazenar guia
+let CATEGORIZATION_GUIDE = null;
+
+/**
+ * Carrega guia de categorização do arquivo JSON
+ */
+async function loadCategorizationGuide() {
+  try {
+    console.log('📚 Carregando guia de categorização...');
+    
+    const response = await fetch('./categorization-guide.json');
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    CATEGORIZATION_GUIDE = data.guide;
+    
+    console.log(`✅ Guia carregado! (${Math.round(CATEGORIZATION_GUIDE.length / 1024)}KB)`);
+    
+  } catch (error) {
+    console.error('❌ Erro ao carregar guia:', error);
+    alert('⚠️ Guia não carregado. Categoria manual será necessária.');
+  }
+}
+
+/**
+ * Aguarda guia estar carregado
+ */
+function ensureGuideLoaded() {
+  return new Promise((resolve) => {
+    if (CATEGORIZATION_GUIDE) {
+      resolve();
+    } else {
+      let attempts = 0;
+      const check = setInterval(() => {
+        if (CATEGORIZATION_GUIDE || attempts++ > 50) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 100);
+    }
+  });
+}
+
+/**
+ * Sugere categoria usando Claude API
+ */
+async function suggestCategoryWithAI() {
+  const descriptionInput = document.getElementById('transactionDescription');
+  const description = descriptionInput?.value?.trim();
+
+  if (!description) {
+    alert('⚠️ Preencha a descrição da transação primeiro');
+    return;
+  }
+
+  await ensureGuideLoaded();
+
+  if (!CATEGORIZATION_GUIDE) {
+    alert('❌ Guia não disponível. Selecione manualmente.');
+    return;
+  }
+
+  const loadingEl = document.getElementById('aiLoadingIndicator');
+  if (loadingEl) loadingEl.style.display = 'block';
+
+  try {
+    console.log('🔄 Enviando para Claude...');
+    
+    const response = await fetch(CLAUDE_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 200,
+        system: CATEGORIZATION_GUIDE,
+        messages: [{
+          role: 'user',
+          content: `Categorize esta transação: "${description}"`
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Claude Error ${response.status}: ${errorData.error?.message || 'Unknown'}`);
+    }
+
+    const data = await response.json();
+    const aiResponse = data.content[0].text;
+
+    console.log('📝 Resposta Claude:', aiResponse);
+
+    const categoryMatch = aiResponse.match(/CATEGORIA:\s*([^\n]+)/i);
+    const confidenceMatch = aiResponse.match(/CONFIANÇA:\s*([^\n]+)/i);
+    const reasonMatch = aiResponse.match(/RAZÃO:\s*(.+?)(?=\n|$)/is);
+
+    if (!categoryMatch) {
+      throw new Error('Não consegui extrair categoria da resposta');
+    }
+
+    const categoryName = categoryMatch[1].trim().toUpperCase();
+    const confidence = confidenceMatch ? confidenceMatch[1].trim() : 'desconhecida';
+    const reason = reasonMatch ? reasonMatch[1].trim() : '';
+
+    console.log('✅ Análise:', { categoryName, confidence, reason });
+
+    const categoryId = categoryMap[categoryName];
+    
+    if (!categoryId) {
+      throw new Error(`Categoria "${categoryName}" não mapeada`);
+    }
+
+    showAISuggestion(categoryName, categoryId, confidence, reason);
+
+  } catch (error) {
+    console.error('❌ Erro:', error);
+    alert(`❌ Erro:\n${error.message}`);
+    
+  } finally {
+    if (loadingEl) loadingEl.style.display = 'none';
+  }
+}
+
+/**
+ * Mostra sugestão da IA
+ */
+function showAISuggestion(categoryName, categoryId, confidence, reason) {
+  const messageEl = document.getElementById('aiSuggestionMessage');
+  const textEl = document.getElementById('aiSuggestionText');
+
+  if (!messageEl || !textEl) {
+    console.warn('⚠️ Elementos de sugestão não encontrados');
+    return;
+  }
+
+  textEl.innerHTML = `<strong>${categoryName}</strong> (${confidence})<br><small>${reason}</small>`;
+  messageEl.style.display = 'block';
+  messageEl.dataset.suggestedCategoryId = categoryId;
+
+  console.log('✅ Sugestão exibida:', categoryName);
+}
+
+/**
+ * Aceita sugestão da IA
+ */
+function acceptAISuggestion() {
+  const messageEl = document.getElementById('aiSuggestionMessage');
+  const categorySelect = document.getElementById('transactionCategory');
+
+  if (!messageEl || !categorySelect) return;
+
+  const categoryId = messageEl.dataset.suggestedCategoryId;
+
+  if (!categoryId) {
+    alert('❌ Nenhuma sugestão para aceitar');
+    return;
+  }
+
+  categorySelect.value = categoryId;
+  messageEl.style.display = 'none';
+
+  console.log('✅ Categoria aceita:', categoryId);
+  alert('✅ Categoria atualizada!');
+}
+
+/**
+ * Rejeita sugestão da IA
+ */
+function rejectAISuggestion() {
+  const messageEl = document.getElementById('aiSuggestionMessage');
+  
+  if (!messageEl) return;
+
+  messageEl.style.display = 'none';
+  console.log('❌ Sugestão rejeitada');
+}
+
+
 
 // ============================================
 // CONFIGURAÇÃO DO SUPABASE (EMBUTIDA)
@@ -1325,132 +1535,7 @@ async function saveInvestmentTransaction() {
 // DASHBOARD
 // ============================================
 
-function updateDashboard() {
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-  const lastYear = currentYear - 1;
 
-  // ============================================
-  // 1. DADOS DO MÊS ATUAL
-  // ============================================
-  
-  const monthTransactions = transactions.filter(t => {
-    const date = new Date(t.date);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-  });
-
-  const monthIncome = monthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const monthExpense = monthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-  const monthBalance = monthIncome - monthExpense;
-
-  // ============================================
-  // 2. DADOS DO ANO ATUAL
-  // ============================================
-  
-  const yearTransactions = transactions.filter(t => {
-    const date = new Date(t.date);
-    return date.getFullYear() === currentYear;
-  });
-
-  const yearIncome = yearTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const yearExpense = yearTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-  const yearBalance = yearIncome - yearExpense;
-
-  // ============================================
-  // 3. DADOS DO ANO ANTERIOR (COMPARATIVO)
-  // ============================================
-  
-  const lastYearTransactions = transactions.filter(t => {
-    const date = new Date(t.date);
-    return date.getFullYear() === lastYear;
-  });
-
-  const lastYearIncome = lastYearTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const lastYearExpense = lastYearTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-  const lastYearBalance = lastYearIncome - lastYearExpense;
-
-  // Cálculo de variação percentual
-  const incomeVariation = lastYearIncome > 0 ? ((yearIncome - lastYearIncome) / lastYearIncome * 100).toFixed(1) : 0;
-  const expenseVariation = lastYearExpense > 0 ? ((yearExpense - lastYearExpense) / lastYearExpense * 100).toFixed(1) : 0;
-
-  // ============================================
-  // 4. PATRIMÔNIO E SALDOS
-  // ============================================
-  
-  const totalAccounts = accounts.reduce((sum, a) => sum + parseFloat(a.balance || 0), 0);
-  const totalInvested = investments.reduce((sum, i) => sum + (i.currentvalue || 0), 0);
-  const totalCardsDebt = creditCards.reduce((sum, c) => sum + (c.balance || 0), 0);
-  const netWorth = totalAccounts + totalInvested - totalCardsDebt;
-
-  // ============================================
-  // 5. CATEGORIA MAIS GASTA (MÊS ATUAL)
-  // ============================================
-  
-  const categoryExpenses = {};
-  monthTransactions.filter(t => t.type === 'expense' && t.category_id).forEach(t => {
-    const cat = categories.find(c => c.id === t.category_id);
-    const catName = cat ? cat.name : 'Outros';
-    categoryExpenses[catName] = (categoryExpenses[catName] || 0) + t.amount;
-  });
-
-  const topCategory = Object.entries(categoryExpenses).sort((a, b) => b[1] - a[1])[0];
-  const topCategoryName = topCategory ? topCategory[0] : 'N/A';
-  const topCategoryValue = topCategory ? topCategory[1] : 0;
-
-  // ============================================
-  // 6. MÉDIA DE GASTOS (ÚLTIMOS 6 MESES)
-  // ============================================
-  
-  const last6Months = [];
-  for (let i = 0; i < 6; i++) {
-    const date = new Date();
-    date.setMonth(date.getMonth() - i);
-    
-    const monthTrans = transactions.filter(t => {
-      const tDate = new Date(t.date);
-      return tDate.getMonth() === date.getMonth() && tDate.getFullYear() === date.getFullYear();
-    });
-    
-    const expense = monthTrans.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-    last6Months.push(expense);
-  }
-
-  const avgMonthExpense = last6Months.reduce((sum, val) => sum + val, 0) / 6;
-
-  // ============================================
-  // 7. ATUALIZAR INTERFACE
-  // ============================================
-
-  // Mês Atual
-  updateElement('monthIncomeValue', `R$ ${monthIncome.toFixed(2)}`);
-  updateElement('monthExpenseValue', `R$ ${monthExpense.toFixed(2)}`);
-  updateElement('monthBalanceValue', `R$ ${monthBalance.toFixed(2)}`);
-
-  // Ano Atual
-  updateElement('yearIncomeValue', `R$ ${yearIncome.toFixed(2)}`);
-  updateElement('yearExpenseValue', `R$ ${yearExpense.toFixed(2)}`);
-  updateElement('yearBalanceValue', `R$ ${yearBalance.toFixed(2)}`);
-
-  // Comparativo com ano anterior
-  updateElement('lastYearIncomeValue', `R$ ${lastYearIncome.toFixed(2)}`);
-  updateElement('lastYearExpenseValue', `R$ ${lastYearExpense.toFixed(2)}`);
-  updateElement('incomeVariation', `${incomeVariation > 0 ? '+' : ''}${incomeVariation}%`);
-  updateElement('expenseVariation', `${expenseVariation > 0 ? '+' : ''}${expenseVariation}%`);
-
-  // Patrimônio
-  updateElement('totalAccountsValue', `R$ ${totalAccounts.toFixed(2)}`);
-  updateElement('totalInvestedValue', `R$ ${totalInvested.toFixed(2)}`);
-  updateElement('totalCardsDebtValue', `R$ ${totalCardsDebt.toFixed(2)}`);
-  updateElement('netWorthValue', `R$ ${netWorth.toFixed(2)}`);
-
-  // Insights
-  updateElement('topCategoryName', topCategoryName);
-  updateElement('topCategoryValue', `R$ ${topCategoryValue.toFixed(2)}`);
-  updateElement('avgMonthExpenseValue', `R$ ${avgMonthExpense.toFixed(2)}`);
-
-  console.log('✅ Dashboard atualizado!');
-  console.log(`📊 Mês: R$ ${monthBalance.toFixed(2)} | Ano: R$ ${yearBalance.toFixed(2)}`);
-}
 
 // Função auxiliar para atualizar elementos
 function updateElement(id, value) {
@@ -2021,6 +2106,43 @@ async function deleteTransaction(transactionId) {
 
   // Iniciar app
   initApp();
+  
+  // ============================================
+  // INICIALIZAR GUIA DE CATEGORIZAÇÃO
+  // ============================================
+  loadCategorizationGuide();
+
+  // ============================================
+  // EVENT LISTENERS - IA CATEGORIZATION
+  // ============================================
+  
+  // Botão "Sugerir"
+  const suggestBtn = document.getElementById('suggestCategoryBtn');
+  if (suggestBtn) {
+    suggestBtn.addEventListener('click', suggestCategoryWithAI);
+  }
+
+  // Botão "Aceitar"
+  const acceptBtn = document.getElementById('acceptSuggestionBtn');
+  if (acceptBtn) {
+    acceptBtn.addEventListener('click', acceptAISuggestion);
+  }
+
+  // Botão "Rejeitar"
+  const rejectBtn = document.getElementById('rejectSuggestionBtn');
+  if (rejectBtn) {
+    rejectBtn.addEventListener('click', rejectAISuggestion);
+  }
+
+  // Enter no campo de descrição também dispara sugestão
+  const descInput = document.getElementById('transactionDescription');
+  if (descInput) {
+    descInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') suggestCategoryWithAI();
+    });
+  }
+
+  console.log('✅ AI Module Inicializado');
 
   // Iniciar auto-reload
 let autoReloadInterval = null;
@@ -2245,6 +2367,555 @@ function get90DaysAgoDate() {
   return today.toISOString().split('T')[0];
 }
 
+// ============================================
+// PHASE 1C: Historical Charts Functions
+// ============================================
+
+/**
+ * Gráfico 1: Line Chart - Trend de gastos últimos 12 meses
+ */
+function renderTrendChart() {
+  if (typeof SmartAnalytics === 'undefined' || typeof Chart === 'undefined') {
+    console.warn('⚠️ SmartAnalytics ou Chart.js não carregado');
+    return;
+  }
+
+  const canvas = document.getElementById('trendChart');
+  if (!canvas) return;
+
+  // Destruir gráfico anterior se existir
+  if (charts.trend) charts.trend.destroy();
+
+  // Agregar gastos por mês dos últimos 12 meses
+  const now = new Date();
+  const cutoffDate = new Date();
+  cutoffDate.setMonth(cutoffDate.getMonth() - 12);
+
+  // Construir array de meses
+  const months = [];
+  const monthData = {};
+
+  for (let i = 11; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthKey = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
+    months.push(monthKey);
+    monthData[monthKey] = 0;
+  }
+
+  // Agregar transações por mês
+  transactions.forEach(tx => {
+    if (tx.type === 'expense') {
+      const txDate = new Date(tx.date);
+      if (txDate >= cutoffDate) {
+        const monthKey = txDate.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
+        if (monthData[monthKey] !== undefined) {
+          monthData[monthKey] += Math.abs(tx.amount);
+        }
+      }
+    }
+  });
+
+  const data = months.map(m => monthData[m]);
+
+  // Criar gráfico
+  charts.trend = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [{
+        label: 'Gastos Mensais',
+        data: data,
+        borderColor: '#3B82F6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+        pointBackgroundColor: '#3B82F6',
+        pointHoverRadius: 6,
+        pointBorderColor: 'white',
+        pointBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: '#1F2937',
+            font: { size: 12, weight: '500' }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return 'R$ ' + value.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+            },
+            color: '#6B7280'
+          },
+          grid: {
+            color: 'rgba(0, 0, 0, 0.05)'
+          }
+        },
+        x: {
+          ticks: {
+            color: '#6B7280'
+          },
+          grid: {
+            display: false
+          }
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Gráfico 2: Bar Chart - Este Mês vs. Média por Categoria
+ */
+function renderComparisonChart() {
+  if (typeof SmartAnalytics === 'undefined' || typeof Chart === 'undefined') {
+    console.warn('⚠️ SmartAnalytics ou Chart.js não carregado');
+    return;
+  }
+
+  const canvas = document.getElementById('comparisonChart');
+  if (!canvas) return;
+
+  // Destruir gráfico anterior se existir
+  if (charts.comparison) charts.comparison.destroy();
+
+  // Obter análises
+  const analyses = SmartAnalytics.analyzeAllCategories();
+
+  if (analyses.length === 0) return;
+
+  // Preparar dados (pegar top 6 categorias)
+  const topCategories = analyses.slice(0, 6);
+  const labels = topCategories.map(a => a.categoryName);
+  const currentData = topCategories.map(a => a.currentSpend);
+  const averageData = topCategories.map(a => a.pattern.average);
+
+  // Criar gráfico
+  charts.comparison = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Este Mês',
+          data: currentData,
+          backgroundColor: 'rgba(59, 130, 246, 0.8)',
+          borderRadius: 4
+        },
+        {
+          label: 'Média 12m',
+          data: averageData,
+          backgroundColor: 'rgba(107, 114, 128, 0.5)',
+          borderRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: '#1F2937',
+            font: { size: 12, weight: '500' },
+            padding: 15
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return 'R$ ' + value.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+            },
+            color: '#6B7280'
+          },
+          grid: {
+            color: 'rgba(0, 0, 0, 0.05)'
+          }
+        },
+        x: {
+          ticks: {
+            color: '#6B7280',
+            font: { size: 11 }
+          },
+          grid: {
+            display: false
+          }
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Orquestrador: Renderiza ambos os gráficos
+ */
+function renderHistoricalCharts() {
+  // Garantir que dados estão carregados
+  if (transactions.length === 0 || categories.length === 0) {
+    console.warn('⚠️ Dados não carregados para gráficos');
+    return;
+  }
+
+  const chartsSection = document.getElementById('chartsSection');
+  if (!chartsSection) {
+    console.warn('⚠️ Seção de gráficos não encontrada no HTML');
+    return;
+  }
+
+  // Renderizar gráficos
+  renderTrendChart();
+  renderComparisonChart();
+
+  // Mostrar seção
+  chartsSection.style.display = 'block';
+
+  console.log('✅ Gráficos históricos renderizados');
+}
+
+// ============================================
+// PHASE 2: Alerts & Anomalies Functions
+// ============================================
+
+/**
+ * Renderiza cards de alertas e anomalias
+ */
+function renderAnomalyAlerts() {
+  if (typeof SmartAnalytics === 'undefined') {
+    console.warn('⚠️ Smart Analytics não está carregado');
+    return;
+  }
+
+  const section = document.getElementById('alertsSection');
+  const container = document.getElementById('alertsContainer');
+  
+  if (!section || !container) {
+    console.warn('⚠️ Elementos de alertas não encontrados no HTML');
+    return;
+  }
+
+  // Obter análises de todas as categorias
+  const analyses = SmartAnalytics.analyzeAllCategories();
+  
+  if (analyses.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  // Filtrar apenas com anomalias ou oportunidades
+  const alerts = analyses.filter(a => 
+    a.anomaly.isAnomaly || a.anomaly.isOpportunity
+  );
+
+  if (alerts.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  // Limpar container
+  container.innerHTML = '';
+
+  // Renderizar cada alerta
+  alerts.forEach(alert => {
+    const { categoryName, currentSpend, pattern, anomaly } = alert;
+
+    // Determinar tipo de alerta
+    let cardClass = 'alert-low';
+    let icon = '💡';
+    let title = 'Info';
+
+    if (anomaly.isAnomaly) {
+      if (anomaly.severity === 'high') {
+        cardClass = 'alert-high';
+        icon = '🔴';
+        title = 'ALERTA - Gasto Elevado';
+      } else if (anomaly.severity === 'medium') {
+        cardClass = 'alert-medium';
+        icon = '🟡';
+        title = 'AVISO - Acima da Média';
+      }
+    } else if (anomaly.isOpportunity) {
+      cardClass = 'alert-opportunity';
+      icon = '🟢';
+      title = 'OPORTUNIDADE - Economizando';
+    }
+
+    // Criar card
+    const card = document.createElement('div');
+    card.className = `alert-card ${cardClass}`;
+    
+    let html = `
+      <div class="alert-icon">${icon}</div>
+      <div class="alert-title">${title}</div>
+      <div class="alert-category"><strong>${categoryName}</strong></div>
+      <div class="alert-values">
+        <span class="alert-current">Gasto: R$ ${currentSpend.toFixed(0)}</span>
+        <span class="alert-average">Média: R$ ${pattern.average.toFixed(0)}</span>
+      </div>
+    `;
+
+    if (anomaly.recommendation) {
+      html += `<div class="alert-recommendation">💡 ${anomaly.recommendation}</div>`;
+    }
+
+    if (anomaly.isOpportunity && anomaly.message) {
+      html += `<div class="alert-recommendation">${anomaly.message}</div>`;
+    }
+
+    card.innerHTML = html;
+    container.appendChild(card);
+  });
+
+  // Mostrar seção
+  section.style.display = 'block';
+  console.log(`✅ ${alerts.length} alerta(s) renderizado(s)`);
+}
+
+// ============================================
+// PHASE 1B: Comparison Table Functions
+// ============================================
+
+/**
+ * Renderiza tabela comparativa: Este Mês vs. Histórico
+ */
+function renderComparisonTable() {
+  // Garantir que Smart Analytics está carregado
+  if (typeof SmartAnalytics === 'undefined') {
+    console.warn('⚠️ Smart Analytics não está carregado');
+    return;
+  }
+
+  const section = document.getElementById('comparisonSection');
+  const tbody = document.getElementById('comparisonTableBody');
+  
+  if (!section || !tbody) {
+    console.warn('⚠️ Elementos da tabela comparativa não encontrados no HTML');
+    return;
+  }
+
+  // Obter análises de todas as categorias
+  const analyses = SmartAnalytics.analyzeAllCategories();
+  
+  // Se não houver dados, esconder tabela
+  if (analyses.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  // Limpar tbody
+  tbody.innerHTML = '';
+
+  // Preencher cada linha
+  analyses.forEach(analysis => {
+    const { categoryName, currentSpend, pattern, anomaly } = analysis;
+
+    // Calcular desvio percentual
+    let desvioPercent = 0;
+    let statusClass = 'status-good';
+    let statusText = '✅ OK';
+
+    if (pattern.average > 0) {
+      desvioPercent = ((currentSpend / pattern.average - 1) * 100).toFixed(1);
+      
+      if (anomaly.isAnomaly) {
+        if (anomaly.severity === 'high') {
+          statusClass = 'status-alert';
+          statusText = '🔴 ALERTA';
+        } else if (anomaly.severity === 'medium') {
+          statusClass = 'status-warning';
+          statusText = '🟡 AVISO';
+        }
+      } else if (anomaly.isOpportunity) {
+        statusClass = 'status-good';
+        statusText = '🟢 OPORTUNIDADE';
+      }
+    }
+
+    // Criar linha da tabela
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${categoryName}</strong></td>
+      <td style="text-align: right; color: var(--color-text);">
+        <span class="currency">R$ ${currentSpend.toFixed(0)}</span>
+      </td>
+      <td style="text-align: right; color: var(--color-text-light);">
+        <span class="currency">R$ ${pattern.average.toFixed(0)}</span>
+      </td>
+      <td style="text-align: center; font-weight: 500; color: ${desvioPercent > 0 ? '#dc2626' : '#059669'};">
+        ${desvioPercent > 0 ? '+' : ''}${desvioPercent}%
+      </td>
+      <td style="text-align: center;">
+        <span class="status-badge ${statusClass}">${statusText}</span>
+      </td>
+    `;
+    
+    tbody.appendChild(tr);
+  });
+
+  // Mostrar seção
+  section.style.display = 'block';
+  console.log('✅ Tabela comparativa renderizada');
+}
+
+// ============================================
+// UPDATE DASHBOARD
+// ============================================
+
+function updateDashboard() {
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const lastYear = currentYear - 1;
+
+  // ============================================
+  // 1. DADOS DO MÊS ATUAL
+  // ============================================
+  
+  const monthTransactions = transactions.filter(t => {
+    const date = new Date(t.date);
+    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+  });
+
+  const monthIncome = monthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const monthExpense = monthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const monthBalance = monthIncome - monthExpense;
+
+  // ============================================
+  // 2. DADOS DO ANO ATUAL
+  // ============================================
+  
+  const yearTransactions = transactions.filter(t => {
+    const date = new Date(t.date);
+    return date.getFullYear() === currentYear;
+  });
+
+  const yearIncome = yearTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const yearExpense = yearTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const yearBalance = yearIncome - yearExpense;
+
+  // ============================================
+  // 3. DADOS DO ANO ANTERIOR (COMPARATIVO)
+  // ============================================
+  
+  const lastYearTransactions = transactions.filter(t => {
+    const date = new Date(t.date);
+    return date.getFullYear() === lastYear;
+  });
+
+  const lastYearIncome = lastYearTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const lastYearExpense = lastYearTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const lastYearBalance = lastYearIncome - lastYearExpense;
+
+  // Cálculo de variação percentual
+  const incomeVariation = lastYearIncome > 0 ? ((yearIncome - lastYearIncome) / lastYearIncome * 100).toFixed(1) : 0;
+  const expenseVariation = lastYearExpense > 0 ? ((yearExpense - lastYearExpense) / lastYearExpense * 100).toFixed(1) : 0;
+
+  // ============================================
+  // 4. PATRIMÔNIO E SALDOS
+  // ============================================
+  
+  const totalAccounts = accounts.reduce((sum, a) => sum + parseFloat(a.balance || 0), 0);
+  const totalInvested = investments.reduce((sum, i) => sum + (i.current_value || 0), 0);
+  const totalCardsDebt = creditCards.reduce((sum, c) => sum + (c.balance || 0), 0);
+  const netWorth = totalAccounts + totalInvested - totalCardsDebt;
+
+  // ============================================
+  // 5. CATEGORIA MAIS GASTA (MÊS ATUAL)
+  // ============================================
+  
+  const categoryExpenses = {};
+  monthTransactions.filter(t => t.type === 'expense' && t.category_id).forEach(t => {
+    const cat = categories.find(c => c.id === t.category_id);
+    const catName = cat ? cat.name : 'Outros';
+    categoryExpenses[catName] = (categoryExpenses[catName] || 0) + t.amount;
+  });
+
+  const topCategory = Object.entries(categoryExpenses).sort((a, b) => b[1] - a[1])[0];
+  const topCategoryName = topCategory ? topCategory[0] : 'N/A';
+  const topCategoryValue = topCategory ? topCategory[1] : 0;
+
+  // ============================================
+  // 6. MÉDIA DE GASTOS (ÚLTIMOS 6 MESES)
+  // ============================================
+  
+  const last6Months = [];
+  for (let i = 0; i < 6; i++) {
+    const date = new Date();
+    date.setMonth(date.getMonth() - i);
+    
+    const monthTrans = transactions.filter(t => {
+      const tDate = new Date(t.date);
+      return tDate.getMonth() === date.getMonth() && tDate.getFullYear() === date.getFullYear();
+    });
+    
+    const expense = monthTrans.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    last6Months.push(expense);
+  }
+
+  const avgMonthExpense = last6Months.reduce((sum, val) => sum + val, 0) / 6;
+
+  // ============================================
+  // 7. ATUALIZAR INTERFACE
+  // ============================================
+
+  // Mês Atual
+  updateElement('monthIncomeValue', `R$ ${monthIncome.toFixed(2)}`);
+  updateElement('monthExpenseValue', `R$ ${monthExpense.toFixed(2)}`);
+  updateElement('monthBalanceValue', `R$ ${monthBalance.toFixed(2)}`);
+
+  // Ano Atual
+  updateElement('yearIncomeValue', `R$ ${yearIncome.toFixed(2)}`);
+  updateElement('yearExpenseValue', `R$ ${yearExpense.toFixed(2)}`);
+  updateElement('yearBalanceValue', `R$ ${yearBalance.toFixed(2)}`);
+
+  // Comparativo com ano anterior
+  updateElement('lastYearIncomeValue', `R$ ${lastYearIncome.toFixed(2)}`);
+  updateElement('lastYearExpenseValue', `R$ ${lastYearExpense.toFixed(2)}`);
+  updateElement('incomeVariation', `${incomeVariation > 0 ? '+' : ''}${incomeVariation}%`);
+  updateElement('expenseVariation', `${expenseVariation > 0 ? '+' : ''}${expenseVariation}%`);
+
+  // Patrimônio
+  updateElement('totalAccountsValue', `R$ ${totalAccounts.toFixed(2)}`);
+  updateElement('totalInvestedValue', `R$ ${totalInvested.toFixed(2)}`);
+  updateElement('totalCardsDebtValue', `R$ ${totalCardsDebt.toFixed(2)}`);
+  updateElement('netWorthValue', `R$ ${netWorth.toFixed(2)}`);
+
+  // ===== FASE 1B: Renderizar Tabela Comparativa =====
+  renderComparisonTable();
+
+  // ===== FASE 1B: Renderizar Tabela Comparativa =====
+  renderComparisonTable();
+
+  // ===== FASE 1C: Renderizar Gráficos Históricos =====
+  renderHistoricalCharts();
+
+  // ===== FASE 2: Renderizar Alertas & Anomalias =====
+  renderAnomalyAlerts();
+
+  // Insights
+  updateElement('topCategoryName', topCategoryName);
+  updateElement('topCategoryValue', `R$ ${topCategoryValue.toFixed(2)}`);
+  updateElement('avgMonthExpenseValue', `R$ ${avgMonthExpense.toFixed(2)}`);
+  updateElement('totalTransactionsCount', transactions.length);
+
+  console.log('✅ Dashboard atualizado!');
+  console.log(`📊 Mês: R$ ${monthBalance.toFixed(2)} | Ano: R$ ${yearBalance.toFixed(2)}`);
+}
+
+
 // ===== FUNÇÕES DE FILTRO RÁPIDO POR DATA =====
 
 function filterThisMonth() {
@@ -2346,6 +3017,6 @@ function syncFilters() {
   });
   
   applyFilters();
+
+
 }
-
-
