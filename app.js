@@ -172,44 +172,61 @@ function showAISuggestion(categoryName, categoryId, confidence, reason) {
 }
 
 /**
- * Aceita sugestão da IA e preenche o formulário
+ * Aceita sugestão da IA e preenche o formulário COMPLETAMENTE
  */
 function acceptAISuggestion() {
+  console.log('🎯 Aceitar sugestão iniciado...');
+  
   const messageEl = document.getElementById('aiSuggestionMessage');
   const categorySelect = document.getElementById('transactionCategory');
   const descriptionInput = document.getElementById('transactionDescription');
 
-  if (!messageEl || !categorySelect) {
+  if (!messageEl || !categorySelect || !descriptionInput) {
     console.warn('⚠️ Elementos não encontrados');
+    console.log('messageEl:', !!messageEl);
+    console.log('categorySelect:', !!categorySelect);
+    console.log('descriptionInput:', !!descriptionInput);
     return;
   }
 
   const categoryId = messageEl.dataset.suggestedCategoryId;
+  const descriptionValue = descriptionInput.value.trim();
 
   if (!categoryId) {
     alert('❌ Nenhuma sugestão para aceitar');
     return;
   }
 
-  // 🎯 Preencher a categoria
+  if (!descriptionValue) {
+    alert('❌ Descrição vazia');
+    return;
+  }
+
+  // 🎯 PASSO 1: PREENCHER CATEGORIA NO SELECT
   categorySelect.value = categoryId;
   console.log('✅ Categoria preenchida:', categoryId);
 
-  // 🎯 Preencher a descrição (manter o texto que já está lá)
-  // A descrição já está no campo, então não precisa fazer nada
-  // Mas se você quer limpar após aceitar, descomente:
-  // descriptionInput.value = '';
-
-  // 🎯 Fechar a mensagem de sugestão
-  messageEl.style.display = 'none';
-
-  // 🎯 Disparar evento de change (para atualizar o formulário)
+  // 🎯 PASSO 2: DISPARAR EVENTO CHANGE (atualizar UI)
   categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+  console.log('✅ Evento change disparado');
 
-  console.log('✅ Formulário preenchido com a sugestão!');
-  
-  // Opcional: mostrar mensagem de sucesso
-  // alert('✅ Categoria atualizada!');
+  // 🎯 PASSO 3: GARANTIR QUE A DESCRIÇÃO MANTÉM SEU VALOR
+  // A descrição já está no campo, então só confirmamos
+  console.log('✅ Descrição mantida:', descriptionValue);
+
+  // 🎯 PASSO 4: FECHAR A MENSAGEM DE SUGESTÃO
+  messageEl.style.display = 'none';
+  console.log('✅ Sugestão fechada');
+
+  // 🎯 PASSO 5: OPCIONAL - MOSTRAR MENSAGEM DE SUCESSO
+  console.log('✅ Formulário preenchido com sucesso!');
+
+  // 🎯 PASSO 6: OPCIONAL - FOCAR NO PRÓXIMO CAMPO (Valor)
+  const amountInput = document.getElementById('transactionAmount');
+  if (amountInput) {
+    amountInput.focus();
+    console.log('✅ Foco movido para campo de valor');
+  }
 }
 
 /**
