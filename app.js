@@ -122,7 +122,6 @@ async function suggestCategoryWithAI() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`  // ← AUTENTICAÇÃO ADICIONADA!
       },
       body: JSON.stringify({ description })
     });
