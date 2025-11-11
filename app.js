@@ -833,60 +833,75 @@ async function showCreditCardDetail(cardId) {
   const card = creditCards.find(c => c.id === cardId);
   if (!card) return;
 
-  const { data: cardTransactions } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('account_id', card.account_id)
-    .gte('date', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
-    .order('date', { ascending: false });
+  try {
+    // ✅ CORREÇÃO 1: Buscar por credit_card_id (não account_id)
+    const { data: cardTransactions, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('credit_card_id', cardId)  // ← MUDANÇA CRÍTICA
+      .order('date', { ascending: false });
 
-  const totalGasto = cardTransactions?.reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : 0), 0) || 0;
-  const utilizacao = ((card.balance || 0) / card.credit_limit * 100).toFixed(1);
-  const disponivel = card.credit_limit - (card.balance || 0);
+    if (error) throw error;
 
-  const content = `
-    <div style="padding: 20px;">
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-        <div>
-          <p><strong>Banco:</strong> ${card.bank_name}</p>
-          <p><strong>Bandeira:</strong> ${card.card_network}</p>
-          <p><strong>Dígitos:</strong> •••• ${card.last_four_digits}</p>
-          <p><strong>Titular:</strong> ${card.holder_name}</p>
+    // ✅ CORREÇÃO 2: Apenas transações de tipo 'expense'
+    const expenseTransactions = (cardTransactions || []).filter(t => t.type === 'expense');
+    const totalGasto = expenseTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const utilizacao = ((card.balance || 0) / (card.credit_limit || 1) * 100).toFixed(1);
+    const disponivel = (card.credit_limit || 0) - (card.balance || 0);
+
+    // ✅ CORREÇÃO 3: Melhorar exibição com tratamento de datas
+    const content = `
+      <div style="padding: 20px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+          <div>
+            <p><strong>Banco:</strong> ${card.bank_name}</p>
+            <p><strong>Bandeira:</strong> ${card.card_network}</p>
+            <p><strong>Dígitos:</strong> •••• ${card.last_four_digits}</p>
+            <p><strong>Titular:</strong> ${card.holder_name}</p>
+          </div>
+          <div>
+            <p><strong>Limite:</strong> R$ ${(card.credit_limit || 0).toFixed(2)}</p>
+            <p><strong>Saldo:</strong> R$ ${(card.balance || 0).toFixed(2)}</p>
+            <p><strong>Disponível:</strong> R$ ${disponivel.toFixed(2)}</p>
+            <p><strong>Utilização:</strong> ${utilizacao}%</p>
+          </div>
         </div>
-        <div>
-          <p><strong>Limite:</strong> R$ ${card.credit_limit.toFixed(2)}</p>
-          <p><strong>Saldo:</strong> R$ ${(card.balance || 0).toFixed(2)}</p>
-          <p><strong>Disponível:</strong> R$ ${disponivel.toFixed(2)}</p>
-          <p><strong>Utilização:</strong> ${utilizacao}%</p>
-        </div>
-      </div>
 
-      <h4>Transações do Ciclo Atual</h4>
-      <table style="width: 100%; border-collapse: collapse;">
-        <tr style="background: #f5f5f5;">
-          <th style="padding: 8px; text-align: left; border-bottom: 2px solid #ddd;">Data</th>
-          <th style="padding: 8px; text-align: left; border-bottom: 2px solid #ddd;">Descrição</th>
-          <th style="padding: 8px; text-align: right; border-bottom: 2px solid #ddd;">Valor</th>
-        </tr>
-        ${cardTransactions?.map(t => `
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 8px;">${new Date(t.date).toLocaleDateString('pt-BR')}</td>
-            <td style="padding: 8px;">${t.description}</td>
-            <td style="padding: 8px; text-align: right; color: #ef4444;">R$ ${t.amount.toFixed(2)}</td>
+        <h4>Transações do Cartão</h4>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr style="background: #f5f5f5;">
+            <th style="padding: 8px; text-align: left; border-bottom: 2px solid #ddd;">Data</th>
+            <th style="padding: 8px; text-align: left; border-bottom: 2px solid #ddd;">Descrição</th>
+            <th style="padding: 8px; text-align: right; border-bottom: 2px solid #ddd;">Valor</th>
           </tr>
-        `).join('') || '<tr><td colspan="3" style="padding: 8px; text-align: center;">Nenhuma transação</td></tr>'}
-      </table>
+          ${expenseTransactions && expenseTransactions.length > 0 
+            ? expenseTransactions.map(t => `
+              <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px;">${new Date(t.date).toLocaleDateString('pt-BR')}</td>
+                <td style="padding: 8px;">${t.description || 'S/Descrição'}</td>
+                <td style="padding: 8px; text-align: right; color: #ef4444;">R$ ${t.amount.toFixed(2)}</td>
+              </tr>
+            `).join('')
+            : '<tr><td colspan="3" style="padding: 8px; text-align: center; color: #999;">Nenhuma transação neste cartão</td></tr>'
+          }
+        </table>
 
-      <p style="margin-top: 20px; font-weight: bold; text-align: right;">
-        Total: R$ ${totalGasto.toFixed(2)}
-      </p>
-    </div>
-  `;
+        <p style="margin-top: 20px; font-weight: bold; text-align: right;">
+          Total do Cartão: R$ ${totalGasto.toFixed(2)}
+        </p>
+      </div>
+    `;
 
-  document.getElementById('cardDetailTitle').textContent = `${card.bank_name} - ${card.card_network}`;
-  document.getElementById('cardDetailContent').innerHTML = content;
-  openModal('creditCardDetailModal');
+    document.getElementById('cardDetailTitle').textContent = `${card.bank_name} - ${card.card_network}`;
+    document.getElementById('cardDetailContent').innerHTML = content;
+    openModal('creditCardDetailModal');
+
+  } catch (error) {
+    console.error('❌ Erro ao carregar detalhes do cartão:', error);
+    alert('Erro ao carregar detalhes do cartão: ' + error.message);
+  }
 }
+
 
 function showPayCardModal(cardId) {
   const card = creditCards.find(c => c.id === cardId);
