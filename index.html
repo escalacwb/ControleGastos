@@ -673,10 +673,80 @@ function initializeFilters() {
           <label class="form-label">Valor</label>
           <input type="number" id="transactionAmount" class="form-control" placeholder="0.00" step="0.01">
         </div>
-        <div class="form-group" id="accountGroup">
-          <label class="form-label">Conta/Cartão</label>
-          <select id="transactionAccount" class="form-control"></select>
-        </div>
+        <!-- ============================================
+     NOVA ESTRUTURA: Separar Conta de Cartão
+     ============================================ -->
+
+<!-- GRUPO 1: Selecionar tipo de origem (Conta ou Cartão) -->
+<div class="form-group" id="accountTypeGroup">
+  <label class="form-label">💰 Origem do Gasto</label>
+  <div style="display: flex; gap: 8px;">
+    <label style="display: flex; align-items: center; flex: 1; cursor: pointer; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 4px; transition: all 0.2s; background: white;">
+      <input type="radio" name="accountType" value="bank_account" checked onchange="updateTransactionForm()" style="cursor: pointer;">
+      <span style="margin-left: 8px; font-weight: 500;">🏦 Conta Bancária</span>
+    </label>
+    <label style="display: flex; align-items: center; flex: 1; cursor: pointer; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 4px; transition: all 0.2s; background: white;">
+      <input type="radio" name="accountType" value="credit_card" onchange="updateTransactionForm()" style="cursor: pointer;">
+      <span style="margin-left: 8px; font-weight: 500;">💳 Cartão de Crédito</span>
+    </label>
+  </div>
+</div>
+
+<!-- GRUPO 2: Selecionar conta bancária (mostra para bank_account) -->
+<div class="form-group" id="bankAccountGroup" style="display: block;">
+  <label class="form-label">Qual Conta?</label>
+  <select id="transactionBankAccount" class="form-control"></select>
+</div>
+
+<!-- GRUPO 3: Selecionar cartão (mostra para credit_card) -->
+<div class="form-group" id="creditCardGroup" style="display: none;">
+  <label class="form-label">Qual Cartão?</label>
+  <select id="transactionCreditCard" class="form-control"></select>
+</div>
+
+<!-- Campo escondido para compatibilidade -->
+<input type="hidden" id="transactionAccount">
+
+<!-- ============================================
+     SEÇÃO: Parcelamento (apenas para cartão)
+     ============================================ -->
+
+<!-- Opção de parcelar (mostra quando selecionou cartão) -->
+<div class="form-group" id="installmentGroup" style="display: none;">
+  <label class="form-label">📅 Parcelar a Compra?</label>
+  <div style="display: flex; gap: 8px;">
+    <label style="display: flex; align-items: center; flex: 1; cursor: pointer; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 4px; background: white;">
+      <input type="radio" name="useInstallment" value="no" checked onchange="updateInstallmentFields()" style="cursor: pointer;">
+      <span style="margin-left: 8px;">À Vista</span>
+    </label>
+    <label style="display: flex; align-items: center; flex: 1; cursor: pointer; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 4px; background: white;">
+      <input type="radio" name="useInstallment" value="yes" onchange="updateInstallmentFields()" style="cursor: pointer;">
+      <span style="margin-left: 8px;">Parcelado</span>
+    </label>
+  </div>
+</div>
+
+<!-- Quantidade de parcelas (mostra apenas se parcelado) -->
+<div class="form-group" id="installmentCountGroup" style="display: none;">
+  <label class="form-label">Quantas Parcelas?</label>
+  <select id="installmentCount" class="form-control" onchange="updateInstallmentPreview()">
+    <option value="2">2x</option>
+    <option value="3">3x</option>
+    <option value="4">4x</option>
+    <option value="6">6x</option>
+    <option value="8">8x</option>
+    <option value="10">10x</option>
+    <option value="12">12x</option>
+  </select>
+</div>
+
+<!-- Preview do valor da parcela (informativo) -->
+<div class="form-group" id="installmentPreviewGroup" style="display: none; background: #f0f9ff; padding: 12px; border-radius: 4px; border-left: 4px solid #3B82F6;">
+  <p style="margin: 0; font-size: 14px; color: #1e40af;">
+    <strong>💰 Valor de cada parcela:</strong> <span id="installmentPreviewValue">R$ 0,00</span>
+  </p>
+</div>
+
         <div class="form-group" id="categoryGroup">
           <label class="form-label">Categoria</label>
           <select id="transactionCategory" class="form-control"></select>
@@ -809,6 +879,25 @@ function initializeFilters() {
           <input type="number" id="payCardAmount" class="form-control" placeholder="0.00" step="0.01">
         </div>
         
+        <!-- ============================================
+     MELHORIAS: Modal de Pagamento
+     ============================================ -->
+
+<div class="form-group" style="background: #fffbeb; padding: 12px; border-radius: 4px; border-left: 4px solid #f59e0b; margin: 12px 0;">
+  <p style="margin: 0; font-size: 13px; color: #92400e;">
+    <strong>ℹ️ Informação:</strong> Pagar o saldo completo zerará a fatura e um novo ciclo será criado automaticamente.
+  </p>
+</div>
+
+<div class="form-group">
+  <label class="form-label">Tipo de Pagamento</label>
+  <select id="payCardPaymentType" class="form-control" onchange="updatePaymentFields()">
+    <option value="full">Pagar Tudo (R$ <span id="fullPaymentAmount">0</span>)</option>
+    <option value="partial">Pagamento Parcial</option>
+    <option value="minimum">Pagamento Mínimo (10%)</option>
+  </select>
+</div>
+
         <div class="form-group">
           <label class="form-label">Data do Pagamento</label>
           <input type="date" id="payCardDate" class="form-control">
