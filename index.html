@@ -476,29 +476,29 @@ function initializeFilters() {
         <div class="filters-section">
 
           <!-- Botões de Filtro Rápido por Data -->
-        <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;">
-    <span style="font-weight: bold; color: #666; margin-right: 8px;">Filtros Rápidos:</span>
+      <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;">
+        <span style="font-weight: bold; color: #666; margin-right: 8px;">Filtros Rápidos:</span>
+     
+        <button onclick="filterThisMonth()" class="btn btn--primary btn--sm"
+        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; cursor: pointer;">
+        📅 Este Mês
+        </button>
     
-    <button onclick="filterThisMonth()" class="btn btn--primary btn--sm"
-      style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; cursor: pointer;">
-      📅 Este Mês
-    </button>
+        <button onclick="filterThisYear()" class="btn btn--primary btn--sm"
+        style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: none; color: white; cursor: pointer;">
+        📊 Este Ano
+        </button>
     
-    <button onclick="filterThisYear()" class="btn btn--primary btn--sm"
-      style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: none; color: white; cursor: pointer;">
-      📊 Este Ano
-    </button>
-    
-    <button onclick="filterLastMonth()" class="btn btn--primary btn--sm"
-      style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); border: none; color: white; cursor: pointer;">
-      📆 Mês Passado
-    </button>
+        <button onclick="filterLastMonth()" class="btn btn--primary btn--sm"
+         style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); border: none; color: white; cursor: pointer;">
+         📆 Mês Passado
+         </button>
 
-    <button onclick="clearAllFilters()" class="btn btn--secondary btn--sm"
-      style="background: #f0f0f0; color: #666; border: 1px solid #ddd; cursor: pointer;">
-      ✕ Limpar
-    </button>
-  </div>
+         <button onclick="clearAllFilters()" class="btn btn--secondary btn--sm"
+          style="background: #f0f0f0; color: #666; border: 1px solid #ddd; cursor: pointer;">
+          ✕ Limpar
+          </button>
+        </div>
 
           <select id="transactionTypeFilter" class="form-control" onchange="filterTransactions()">
             <option value="all">Todos os Tipos</option>
