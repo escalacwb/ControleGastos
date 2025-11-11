@@ -866,52 +866,50 @@ function initializeFilters() {
 
   <!-- Pay Credit Card Modal -->
   <div id="payCardModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Pagar Fatura do Cartão</h3>
-        <button onclick="closeModal('payCardModal')" class="modal-close">&times;</button>
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="payCardTitle">Pagar Fatura</h3>
+      <button type="button" onclick="closeModal('payCardModal')" class="modal-close">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <!-- Informações do cartão -->
+      <div id="payCardInfo" style="background: #f0f9ff; padding: 12px; border-radius: 4px; margin-bottom: 20px; border-left: 4px solid #3B82F6;"></div>
+
+      <!-- Tipo de pagamento -->
+      <div class="form-group">
+        <label class="form-label">Tipo de Pagamento</label>
+        <select id="payCardPaymentType" class="form-control" onchange="updatePaymentFields()">
+          <option value="full">Pagar Tudo</option>
+          <option value="partial">Pagamento Parcial</option>
+          <option value="minimum">Pagamento Mínimo (10%)</option>
+        </select>
       </div>
-      <div class="modal-body">
-        <div id="payCardInfo" style="background: #f0f4ff; border-left: 4px solid #3B82F6; padding: 12px; border-radius: 4px; margin-bottom: 16px;"></div>
-        
-        <div class="form-group">
-          <label class="form-label">Valor a Pagar (R$)</label>
-          <input type="number" id="payCardAmount" class="form-control" placeholder="0.00" step="0.01">
-        </div>
-        
-        <!-- ============================================
-     MELHORIAS: Modal de Pagamento
-     ============================================ -->
 
-<div class="form-group" style="background: #fffbeb; padding: 12px; border-radius: 4px; border-left: 4px solid #f59e0b; margin: 12px 0;">
-  <p style="margin: 0; font-size: 13px; color: #92400e;">
-    <strong>ℹ️ Informação:</strong> Pagar o saldo completo zerará a fatura e um novo ciclo será criado automaticamente.
-  </p>
-</div>
-
-<div class="form-group">
-  <label class="form-label">Tipo de Pagamento</label>
-  <select id="payCardPaymentType" class="form-control" onchange="updatePaymentFields()">
-    <option value="full">Pagar Tudo (R$ <span id="fullPaymentAmount">0</span>)</option>
-    <option value="partial">Pagamento Parcial</option>
-    <option value="minimum">Pagamento Mínimo (10%)</option>
-  </select>
-</div>
-
-        <div class="form-group">
-          <label class="form-label">Data do Pagamento</label>
-          <input type="date" id="payCardDate" class="form-control">
-        </div>
-        
-        <div class="form-group">
-          <label class="form-label">De qual conta?</label>
-          <select id="payCardFromAccount" class="form-control"></select>
-        </div>
-        
-        <button onclick="processCardPayment()" class="btn btn--primary btn--full-width">Confirmar Pagamento</button>
+      <!-- Valor a pagar -->
+      <div class="form-group">
+        <label class="form-label">Valor</label>
+        <input type="number" id="payCardAmount" class="form-control" step="0.01" placeholder="R$ 0,00">
       </div>
+
+      <!-- Data do pagamento -->
+      <div class="form-group">
+        <label class="form-label">Data do Pagamento</label>
+        <input type="date" id="payCardDate" class="form-control">
+      </div>
+
+      <!-- De qual conta pagar -->
+      <div class="form-group">
+        <label class="form-label">💰 De qual CONTA você vai pagar?</label>
+        <select id="payCardFromAccount" class="form-control"></select>
+        <small style="color: #999;">Você pode usar qualquer conta para pagar a fatura</small>
+      </div>
+
+      <!-- Botão de pagamento -->
+      <button onclick="processCardPayment()" class="btn btn--primary btn--full-width">✅ Confirmar Pagamento</button>
     </div>
   </div>
+</div>
 
   <!-- Add Category Modal -->
   <div id="categoryModal" class="modal">
