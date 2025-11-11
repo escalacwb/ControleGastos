@@ -331,6 +331,12 @@ async function loadAllData() {
       loadInvestments()
     ]);
     
+    displayAccounts();
+    displayCategories();
+    displayCreditCards();
+    displayTransactions();
+    updateDashboard();
+    
     console.log('✅ Todos os dados carregados');
   } catch (error) {
     console.error('❌ Erro ao carregar dados:', error);
