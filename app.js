@@ -834,22 +834,48 @@ async function showCreditCardDetail(cardId) {
   if (!card) return;
 
   try {
-    // ✅ CORREÇÃO 1: Buscar por credit_card_id (não account_id)
+    // ✅ CORREÇÃO 1: Buscar por credit_card_id
     const { data: cardTransactions, error } = await supabase
       .from('transactions')
       .select('*')
-      .eq('credit_card_id', cardId)  // ← MUDANÇA CRÍTICA
+      .eq('credit_card_id', cardId)
       .order('date', { ascending: false });
 
     if (error) throw error;
 
-    // ✅ CORREÇÃO 2: Apenas transações de tipo 'expense'
+    // ✅ CORREÇÃO 2: Apenas despesas
     const expenseTransactions = (cardTransactions || []).filter(t => t.type === 'expense');
-    const totalGasto = expenseTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+    // ✅ CORREÇÃO 3: Filtrar ciclos fechados
+    const { data: allCycles } = await supabase
+      .from('billing_cycles')
+      .select('*')
+      .eq('credit_card_id', cardId);
+
+    const closedCycleIds = (allCycles || [])
+      .filter(cycle => cycle.status === 'closed')
+      .map(cycle => cycle.id);
+
+    const { data: closedTransactionIds } = await supabase
+      .from('card_payments')
+      .select('transaction_id')
+      .in('billing_cycle_id', closedCycleIds.length > 0 ? closedCycleIds : [null]);
+
+    const paidTransactionIds = (closedTransactionIds || [])
+      .map(cp => cp.transaction_id)
+      .filter(id => id !== null);
+
+    // ✅ USAR NOME DIFERENTE: filteredTransactions (não cardTransactions)
+    const filteredTransactions = expenseTransactions.filter(t => {
+      return !paidTransactionIds.includes(t.id);
+    });
+
+    // ✅ Calcular totais
+    const totalGasto = filteredTransactions.reduce((sum, t) => sum + t.amount, 0);
     const utilizacao = ((card.balance || 0) / (card.credit_limit || 1) * 100).toFixed(1);
     const disponivel = (card.credit_limit || 0) - (card.balance || 0);
 
-    // ✅ CORREÇÃO 3: Melhorar exibição com tratamento de datas
+    // ✅ Exibir no modal
     const content = `
       <div style="padding: 20px;">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
@@ -867,27 +893,27 @@ async function showCreditCardDetail(cardId) {
           </div>
         </div>
 
-        <h4>Transações do Cartão</h4>
+        <h4>Transações do Ciclo Atual</h4>
         <table style="width: 100%; border-collapse: collapse;">
           <tr style="background: #f5f5f5;">
             <th style="padding: 8px; text-align: left; border-bottom: 2px solid #ddd;">Data</th>
             <th style="padding: 8px; text-align: left; border-bottom: 2px solid #ddd;">Descrição</th>
             <th style="padding: 8px; text-align: right; border-bottom: 2px solid #ddd;">Valor</th>
           </tr>
-          ${expenseTransactions && expenseTransactions.length > 0 
-            ? expenseTransactions.map(t => `
+          ${filteredTransactions && filteredTransactions.length > 0 
+            ? filteredTransactions.map(t => `
               <tr style="border-bottom: 1px solid #eee;">
                 <td style="padding: 8px;">${new Date(t.date).toLocaleDateString('pt-BR')}</td>
                 <td style="padding: 8px;">${t.description || 'S/Descrição'}</td>
                 <td style="padding: 8px; text-align: right; color: #ef4444;">R$ ${t.amount.toFixed(2)}</td>
               </tr>
             `).join('')
-            : '<tr><td colspan="3" style="padding: 8px; text-align: center; color: #999;">Nenhuma transação neste cartão</td></tr>'
+            : '<tr><td colspan="3" style="padding: 8px; text-align: center; color: #999;">Nenhuma transação neste ciclo</td></tr>'
           }
         </table>
 
         <p style="margin-top: 20px; font-weight: bold; text-align: right;">
-          Total do Cartão: R$ ${totalGasto.toFixed(2)}
+          Total do Ciclo: R$ ${totalGasto.toFixed(2)}
         </p>
       </div>
     `;
@@ -903,26 +929,69 @@ async function showCreditCardDetail(cardId) {
 }
 
 
+
 function showPayCardModal(cardId) {
   const card = creditCards.find(c => c.id === cardId);
-  if (!card) return;
+  if (!card) {
+    alert('❌ Cartão não encontrado');
+    return;
+  }
 
   const saldo = card.balance || 0;
+  
+  // Preencher informações do cartão
+  document.getElementById('payCardTitle').textContent = `Pagar Fatura - ${card.bank_name}`;
   document.getElementById('payCardInfo').innerHTML = 
     `<strong>${card.bank_name}</strong> - Saldo a pagar: <strong>R$ ${saldo.toFixed(2)}</strong>`;
+  
+  // Preencher valor inicial
   document.getElementById('payCardAmount').value = saldo.toFixed(2);
+  document.getElementById('payCardAmount').disabled = true;
+  
+  // Preencher data
   document.getElementById('payCardDate').valueAsDate = new Date();
-
+  
+  // Preencher seletor de contas (QUALQUER conta pode pagar!)
   const fromAccountSelect = document.getElementById('payCardFromAccount');
   fromAccountSelect.innerHTML = accounts
-    .filter(a => a.type !== 'credit_card')
-    .map(a => `<option value="${a.id}">${a.name}</option>`)
+    .filter(a => a.type !== 'credit_card')  // Apenas contas normais
+    .map(a => `<option value="${a.id}">${a.name} (R$ ${(a.balance || 0).toFixed(2)})</option>`)
     .join('');
 
+  if (fromAccountSelect.options.length === 0) {
+    alert('❌ Você não tem nenhuma conta disponível para pagar');
+    return;
+  }
+
+  // Guardar ID do cartão no modal
   document.getElementById('payCardModal').dataset.cardId = cardId;
+  
+  // Abrir modal
   openModal('payCardModal');
 }
 
+// NOVO: Atualizar campos de pagamento
+function updatePaymentFields() {
+  const paymentType = document.getElementById('payCardPaymentType').value;
+  const amountInput = document.getElementById('payCardAmount');
+  const cardId = document.getElementById('payCardModal').dataset.cardId;
+  const card = creditCards.find(c => c.id === cardId);
+
+  if (!card) return;
+
+  if (paymentType === 'full') {
+    amountInput.value = (card.balance || 0).toFixed(2);
+    amountInput.disabled = true;
+  } else if (paymentType === 'minimum') {
+    amountInput.value = ((card.balance || 0) * 0.1).toFixed(2);
+    amountInput.disabled = true;
+  } else if (paymentType === 'partial') {
+    amountInput.disabled = false;
+    amountInput.value = '';
+  }
+}
+
+// CORRIGIDA: Processar pagamento com suporte a conta diferente
 async function processCardPayment() {
   if (!supabase || !currentUser) return;
 
@@ -934,21 +1003,12 @@ async function processCardPayment() {
     return;
   }
 
-  const paymentType = document.getElementById('payCardPaymentType').value;
-  let amount = 0;
-
-  // Calcular valor a pagar baseado no tipo
-  if (paymentType === 'full') {
-    amount = card.balance || 0;
-  } else if (paymentType === 'partial') {
-    amount = parseFloat(document.getElementById('payCardAmount').value);
-  } else if (paymentType === 'minimum') {
-    amount = (card.balance || 0) * 0.1; // 10% do saldo
-  }
-
+  const amount = parseFloat(document.getElementById('payCardAmount').value);
   const date = document.getElementById('payCardDate').value;
   const fromAccountId = document.getElementById('payCardFromAccount').value;
+  const fromAccount = accounts.find(a => a.id === fromAccountId);
 
+  // ✅ VALIDAÇÕES
   if (!amount || amount <= 0) {
     alert('❌ Valor inválido');
     return;
@@ -959,9 +1019,19 @@ async function processCardPayment() {
     return;
   }
 
+  if (!fromAccount) {
+    alert('❌ Conta de origem não encontrada');
+    return;
+  }
+
+  if (fromAccount.balance < amount) {
+    alert(`❌ Saldo insuficiente. Disponível: R$ ${fromAccount.balance.toFixed(2)}`);
+    return;
+  }
+
   try {
-    // PASSO 1: Procurar billing_cycle aberto
-    const { data: billingCycles } = await supabase
+    // PASSO 1: Procurar ou criar billing_cycle
+    const { data: billingCycles, error: cycleError } = await supabase
       .from('billing_cycles')
       .select('*')
       .eq('credit_card_id', cardId)
@@ -969,24 +1039,35 @@ async function processCardPayment() {
       .order('cycle_end_date', { ascending: false })
       .limit(1);
 
+    if (cycleError) throw cycleError;
+
     let cycleId = null;
     let currentCycle = null;
+    
     if (billingCycles && billingCycles.length > 0) {
       cycleId = billingCycles[0].id;
       currentCycle = billingCycles[0];
+    } else {
+      // Se não houver ciclo aberto, criar um
+      const newCycle = await ensureBillingCycleExists(cardId);
+      if (newCycle) {
+        cycleId = newCycle.id;
+        currentCycle = newCycle;
+      }
     }
 
     // PASSO 2: Criar transação de transferência
+    // ⚠️ IMPORTANTE: Criar transferência da conta escolhida para a conta vinculada ao cartão
     const { data: transferTransaction, error: transError } = await supabase
       .from('transactions')
       .insert([{
         user_id: currentUser.id,
-        account_id: fromAccountId,
+        account_id: fromAccountId,  // ← Conta que vai SAIR o dinheiro
         type: 'transfer',
         amount: amount,
         date: date,
-        description: `Pagamento ${card.bank_name}`,
-        transfer_to_account_id: card.account_id
+        description: `Pagamento ${card.bank_name} com ${fromAccount.name}`,
+        transfer_to_account_id: card.account_id  // ← Conta vinculada ao cartão que vai RECEBER
       }])
       .select()
       .single();
@@ -1000,35 +1081,42 @@ async function processCardPayment() {
         user_id: currentUser.id,
         credit_card_id: cardId,
         billing_cycle_id: cycleId,
-        account_id: fromAccountId,
+        account_id: fromAccountId,  // ← Conta de origem do pagamento
         amount: amount,
         payment_date: date,
-        payment_method: 'bank_transfer',
-        description: 'Pagamento de fatura',
+        payment_method: 'transferencia_bancaria',
+        description: `Pagamento da fatura de ${card.bank_name} via ${fromAccount.name}`,
         status: 'paid',
-        operation_type: 'payment',
         transaction_id: transferTransaction.id
       }]);
 
     if (paymentError) throw paymentError;
 
-    // PASSO 4: Atualizar saldo do cartão
+    // PASSO 4: Atualizar saldo da conta de ORIGEM (reduzir)
+    const newFromBalance = fromAccount.balance - amount;
+    await supabase
+      .from('accounts')
+      .update({ balance: newFromBalance })
+      .eq('id', fromAccountId);
+
+    // PASSO 5: Atualizar saldo da conta VINCULADA ao cartão (aumentar)
+    const linkedAccount = accounts.find(a => a.id === card.account_id);
+    if (linkedAccount) {
+      const newLinkedBalance = linkedAccount.balance + amount;
+      await supabase
+        .from('accounts')
+        .update({ balance: newLinkedBalance })
+        .eq('id', card.account_id);
+    }
+
+    // PASSO 6: Reduzir balance do cartão
     const newCardBalance = Math.max(0, (card.balance || 0) - amount);
     await supabase
       .from('credit_cards')
       .update({ balance: newCardBalance })
       .eq('id', cardId);
 
-    // PASSO 5: Atualizar saldo da conta de origem
-    const fromAccount = accounts.find(a => a.id === fromAccountId);
-    if (fromAccount) {
-      await supabase
-        .from('accounts')
-        .update({ balance: fromAccount.balance - amount })
-        .eq('id', fromAccountId);
-    }
-
-    // PASSO 6: Atualizar billing_cycle
+    // PASSO 7: Atualizar billing_cycle
     if (cycleId && currentCycle) {
       const newTotalPaid = (currentCycle.total_paid || 0) + amount;
       const newStatus = newCardBalance === 0 ? 'paid' : 'partial_payment';
@@ -1041,28 +1129,28 @@ async function processCardPayment() {
         })
         .eq('id', cycleId);
 
-      // PASSO 7: Se pagou tudo, fechar ciclo e criar novo
+      // PASSO 8: Se pagou tudo, fechar ciclo e criar novo
       if (newCardBalance === 0) {
         await closeBillingCycleAndCreateNew(cardId);
+        alert('✅ Fatura paga completamente! Um novo ciclo foi criado automaticamente.');
+      } else {
+        alert(`✅ Pagamento registrado! Saldo restante: R$ ${newCardBalance.toFixed(2)}`);
       }
     }
 
-    // Mensagem de sucesso
-    if (newCardBalance === 0) {
-      alert('✅ Fatura paga! Um novo ciclo foi criado automaticamente.');
-    } else {
-      alert(`✅ Pagamento registrado! Saldo restante: R$ ${newCardBalance.toFixed(2)}`);
-    }
-    
+    // Fechar modal e recarregar dados
     closeModal('payCardModal');
     loadCreditCards();
     loadAccounts();
     loadTransactions();
     loadBillingCycles();
+    displayCreditCards();
+    displayAccounts();
+    displayTransactions();
 
   } catch (error) {
-    alert('❌ Erro ao processar pagamento: ' + error.message);
-    console.error('Erro completo:', error);
+    console.error('❌ Erro completo:', error);
+    alert('❌ Erro ao processar pagamento:\n' + error.message);
   }
 }
 
