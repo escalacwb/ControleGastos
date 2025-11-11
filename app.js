@@ -2361,72 +2361,78 @@ async function updateTransaction(transactionId) {
   }
 
   try {
-    console.log('💾 Salvando alterações...');
+    console.log('💾 Atualizando transação...');
 
+    // ✅ VALIDAR CAMPOS ANTES
+    const accountId = document.getElementById('transactionAccount')?.value;
+    const categoryId = document.getElementById('transactionCategory')?.value;
+    const creditCardId = document.getElementById('transactionCreditCard')?.value;
+    const amount = parseFloat(document.getElementById('transactionAmount').value);
+    const date = document.getElementById('transactionDate').value;
+    const description = document.getElementById('transactionDescription').value;
+    const type = document.getElementById('transactionType').value;
+
+    // ❌ VALIDAÇÕES CRÍTICAS
+    if (!accountId || accountId === '') {
+      alert('❌ Selecione uma conta!');
+      console.error('❌ account_id vazio');
+      return;
+    }
+
+    if (!categoryId || categoryId === '') {
+      alert('❌ Selecione uma categoria!');
+      console.error('❌ category_id vazio');
+      return;
+    }
+
+    if (!amount || amount <= 0) {
+      alert('❌ Valor inválido');
+      return;
+    }
+
+    console.log('✅ Todas as validações passaram');
+
+    // ✅ PREPARAR DADOS COM VALORES VÁLIDOS
     const updateData = {
-      type: document.getElementById('transactionType').value,
-      amount: parseFloat(document.getElementById('transactionAmount').value),
-      date: document.getElementById('transactionDate').value,
-      description: document.getElementById('transactionDescription').value,
-      category_id: document.getElementById('transactionType').value === 'transfer' ? null : document.getElementById('transactionCategory').value,
+      type: type,
+      amount: amount,
+      date: date,
+      description: description,
+      account_id: accountId,  // ← UUID válido
+      category_id: categoryId || null,  // ← UUID ou null, NUNCA ""
+      credit_card_id: creditCardId || null
     };
 
-    // Calcular diferença de saldo (se mudou o valor)
-    const diferenca = updateData.amount - transaction.amount;
-    console.log(`📊 Diferença de valor: R$ ${diferenca}`);
+    console.log('📝 Dados a atualizar:', updateData);
 
-    // Atualizar no Supabase
+    // ✅ ATUALIZAR - Agora com valores válidos
     const { error } = await supabase
       .from('transactions')
       .update(updateData)
-      .eq('id', transactionId);
+      .eq('id', transactionId)
+      .eq('user_id', currentUser.id);
 
-    if (error) throw error;
-    console.log('✅ Transação atualizada no Supabase');
-
-    // Ajustar saldo da conta se o valor mudou
-    if (diferenca !== 0) {
-      const account = accounts.find(a => a.id === transaction.account_id);
-      if (account) {
-        const novoSaldo = account.balance - diferenca;
-        await supabase
-          .from('accounts')
-          .update({ balance: novoSaldo })
-          .eq('id', transaction.account_id);
-        console.log(`✅ Saldo da conta ajustado: ${account.name}`);
-      }
-
-      // Ajustar cartão de crédito se for despesa
-      if (updateData.type === 'expense') {
-        const card = creditCards.find(c => c.account_id === transaction.account_id);
-        if (card) {
-          const novoSaldoCard = (card.balance || 0) + diferenca;
-          await supabase
-            .from('credit_cards')
-            .update({ balance: novoSaldoCard })
-            .eq('id', card.id);
-          console.log(`✅ Saldo do cartão ajustado`);
-        }
-      }
+    if (error) {
+      console.error('❌ Erro do Supabase:', error);
+      throw error;
     }
 
+    console.log('✅ Transação atualizada com sucesso!');
     alert('✅ Transação atualizada com sucesso!');
     closeModal('transactionModal');
-    
-    // Resetar modal para novo lançamento
     resetTransactionModal();
+    isEditingTransaction = false;
 
     // Recarregar dados
-    await Promise.all([
-      loadTransactions(),
-      loadAccounts(),
-      loadCreditCards()
-    ]);
-    
-    console.log('✅ Dados recarregados');
+    await loadTransactions();
+    await loadAccounts();
+    await loadCreditCards();
+    updateDashboard();
+
   } catch (error) {
     console.error('❌ Erro ao atualizar:', error);
     alert('❌ Erro ao atualizar transação: ' + error.message);
+    isEditingTransaction = false;
   }
 }
 
