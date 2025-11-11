@@ -319,23 +319,19 @@ async function initApp() {
 }
 
 async function loadAllData() {
+  if (!currentUser) return;
+
   try {
-    console.log('Carregando todos os dados...');
     await Promise.all([
       loadAccounts(),
       loadCategories(),
       loadTransactions(),
-      loadInvestments(),
-      loadCreditCards()
+      loadCreditCards(),
+      loadBillingCycles(),  // ← NOVO
+      loadInvestments()
     ]);
     
-    await recalculateAccountBalances();
-    updateDashboard();
-    initializeFilters();
-    
-    // NÃO CHAME applyFilters aqui!
-    
-    console.log('✅ Todos os dados carregados!');
+    console.log('✅ Todos os dados carregados');
   } catch (error) {
     console.error('❌ Erro ao carregar dados:', error);
   }
@@ -520,6 +516,135 @@ async function loadCreditCards() {
 
   } catch (error) {
     console.error('❌ Erro ao carregar cartões:', error);
+  }
+}
+
+async function loadBillingCycles() {
+  if (!supabase || !currentUser) return;
+
+  try {
+    const { data, error } = await supabase
+      .from('billing_cycles')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('due_date', { ascending: false });
+
+    if (error) throw error;
+
+    console.log('✅ Ciclos de faturamento carregados:', data?.length || 0);
+  } catch (error) {
+    console.error('❌ Erro ao carregar billing cycles:', error);
+  }
+}
+
+async function ensureBillingCycleExists(creditCardId) {
+  if (!supabase || !currentUser) return null;
+
+  try {
+    // Verificar se já existe ciclo aberto
+    const { data: existingCycle } = await supabase
+      .from('billing_cycles')
+      .select('*')
+      .eq('credit_card_id', creditCardId)
+      .eq('status', 'open')
+      .single();
+
+    if (existingCycle) {
+      return existingCycle;
+    }
+
+    // Se não existe, criar novo
+    const card = creditCards.find(c => c.id === creditCardId);
+    if (!card) return null;
+
+    const today = new Date();
+    const cycleEnd = new Date(today);
+    cycleEnd.setDate(card.closing_day);
+    
+    if (cycleEnd < today) {
+      cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+    }
+
+    const dueDate = new Date(cycleEnd);
+    dueDate.setDate(card.due_day);
+
+    const { data: newCycle, error } = await supabase
+      .from('billing_cycles')
+      .insert([{
+        user_id: currentUser.id,
+        credit_card_id: creditCardId,
+        cycle_start_date: today.toISOString().split('T')[0],
+        cycle_end_date: cycleEnd.toISOString().split('T')[0],
+        closing_date: cycleEnd.toISOString().split('T')[0],
+        due_date: dueDate.toISOString().split('T')[0],
+        total_spent: 0,
+        total_paid: 0,
+        status: 'open'
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log('✅ Novo ciclo de faturamento criado');
+    return newCycle;
+  } catch (error) {
+    console.error('❌ Erro ao garantir billing cycle:', error);
+    return null;
+  }
+}
+
+async function closeBillingCycleAndCreateNew(creditCardId) {
+  if (!supabase || !currentUser) return;
+
+  try {
+    const card = creditCards.find(c => c.id === creditCardId);
+    if (!card) return;
+
+    // Procurar ciclo aberto
+    const { data: openCycle } = await supabase
+      .from('billing_cycles')
+      .select('*')
+      .eq('credit_card_id', creditCardId)
+      .eq('status', 'open')
+      .single();
+
+    if (!openCycle) return;
+
+    // FECHAR ciclo atual
+    await supabase
+      .from('billing_cycles')
+      .update({ status: 'closed' })
+      .eq('id', openCycle.id);
+
+    // CRIAR novo ciclo
+    const newCycleStart = new Date(openCycle.cycle_end_date);
+    newCycleStart.setDate(newCycleStart.getDate() + 1);
+
+    const newCycleEnd = new Date(newCycleStart);
+    newCycleEnd.setMonth(newCycleEnd.getMonth() + 1);
+    newCycleEnd.setDate(card.closing_day);
+
+    const newDueDate = new Date(newCycleEnd);
+    newDueDate.setDate(card.due_day);
+
+    await supabase
+      .from('billing_cycles')
+      .insert([{
+        user_id: currentUser.id,
+        credit_card_id: creditCardId,
+        cycle_start_date: newCycleStart.toISOString().split('T')[0],
+        cycle_end_date: newCycleEnd.toISOString().split('T')[0],
+        closing_date: newCycleEnd.toISOString().split('T')[0],
+        due_date: newDueDate.toISOString().split('T')[0],
+        total_spent: 0,
+        total_paid: 0,
+        status: 'open'
+      }]);
+
+    console.log('✅ Novo ciclo de faturamento criado automaticamente');
+  } catch (error) {
+    console.error('❌ Erro ao fechar ciclo:', error);
   }
 }
 
@@ -778,56 +903,145 @@ function showPayCardModal(cardId) {
 }
 
 async function processCardPayment() {
+  if (!supabase || !currentUser) return;
+
   const cardId = document.getElementById('payCardModal').dataset.cardId;
   const card = creditCards.find(c => c.id === cardId);
-  const amount = parseFloat(document.getElementById('payCardAmount').value);
+  
+  if (!card) {
+    alert('❌ Cartão não encontrado');
+    return;
+  }
+
+  const paymentType = document.getElementById('payCardPaymentType').value;
+  let amount = 0;
+
+  // Calcular valor a pagar baseado no tipo
+  if (paymentType === 'full') {
+    amount = card.balance || 0;
+  } else if (paymentType === 'partial') {
+    amount = parseFloat(document.getElementById('payCardAmount').value);
+  } else if (paymentType === 'minimum') {
+    amount = (card.balance || 0) * 0.1; // 10% do saldo
+  }
+
   const date = document.getElementById('payCardDate').value;
   const fromAccountId = document.getElementById('payCardFromAccount').value;
 
   if (!amount || amount <= 0) {
-    alert('❌ Insira um valor válido');
+    alert('❌ Valor inválido');
+    return;
+  }
+
+  if (amount > (card.balance || 0)) {
+    alert(`❌ Valor maior que o saldo devedor (R$ ${(card.balance || 0).toFixed(2)})`);
     return;
   }
 
   try {
-    const { error: transError } = await supabase
+    // PASSO 1: Procurar billing_cycle aberto
+    const { data: billingCycles } = await supabase
+      .from('billing_cycles')
+      .select('*')
+      .eq('credit_card_id', cardId)
+      .eq('status', 'open')
+      .order('cycle_end_date', { ascending: false })
+      .limit(1);
+
+    let cycleId = null;
+    let currentCycle = null;
+    if (billingCycles && billingCycles.length > 0) {
+      cycleId = billingCycles[0].id;
+      currentCycle = billingCycles[0];
+    }
+
+    // PASSO 2: Criar transação de transferência
+    const { data: transferTransaction, error: transError } = await supabase
       .from('transactions')
       .insert([{
         user_id: currentUser.id,
+        account_id: fromAccountId,
         type: 'transfer',
         amount: amount,
         date: date,
         description: `Pagamento ${card.bank_name}`,
-        account_id: fromAccountId,
         transfer_to_account_id: card.account_id
-      }]);
+      }])
+      .select()
+      .single();
 
     if (transError) throw transError;
 
-    await supabase
+    // PASSO 3: Registrar em card_payments
+    const { error: paymentError } = await supabase
       .from('card_payments')
       .insert([{
         user_id: currentUser.id,
         credit_card_id: cardId,
+        billing_cycle_id: cycleId,
         account_id: fromAccountId,
         amount: amount,
         payment_date: date,
         payment_method: 'bank_transfer',
-        status: 'paid'
+        description: 'Pagamento de fatura',
+        status: 'paid',
+        operation_type: 'payment',
+        transaction_id: transferTransaction.id
       }]);
 
+    if (paymentError) throw paymentError;
+
+    // PASSO 4: Atualizar saldo do cartão
+    const newCardBalance = Math.max(0, (card.balance || 0) - amount);
     await supabase
       .from('credit_cards')
-      .update({ balance: Math.max(0, (card.balance || 0) - amount) })
+      .update({ balance: newCardBalance })
       .eq('id', cardId);
 
-    alert('✅ Pagamento registrado com sucesso!');
+    // PASSO 5: Atualizar saldo da conta de origem
+    const fromAccount = accounts.find(a => a.id === fromAccountId);
+    if (fromAccount) {
+      await supabase
+        .from('accounts')
+        .update({ balance: fromAccount.balance - amount })
+        .eq('id', fromAccountId);
+    }
+
+    // PASSO 6: Atualizar billing_cycle
+    if (cycleId && currentCycle) {
+      const newTotalPaid = (currentCycle.total_paid || 0) + amount;
+      const newStatus = newCardBalance === 0 ? 'paid' : 'partial_payment';
+
+      await supabase
+        .from('billing_cycles')
+        .update({
+          total_paid: newTotalPaid,
+          status: newStatus
+        })
+        .eq('id', cycleId);
+
+      // PASSO 7: Se pagou tudo, fechar ciclo e criar novo
+      if (newCardBalance === 0) {
+        await closeBillingCycleAndCreateNew(cardId);
+      }
+    }
+
+    // Mensagem de sucesso
+    if (newCardBalance === 0) {
+      alert('✅ Fatura paga! Um novo ciclo foi criado automaticamente.');
+    } else {
+      alert(`✅ Pagamento registrado! Saldo restante: R$ ${newCardBalance.toFixed(2)}`);
+    }
+    
     closeModal('payCardModal');
     loadCreditCards();
     loadAccounts();
     loadTransactions();
+    loadBillingCycles();
+
   } catch (error) {
     alert('❌ Erro ao processar pagamento: ' + error.message);
+    console.error('Erro completo:', error);
   }
 }
 
@@ -950,6 +1164,8 @@ function saveCard() {
   });
 }
 
+
+
 // ============================================
 // CONTAS
 // ============================================
@@ -974,29 +1190,43 @@ async function loadAccounts() {
   }
 }
 
-function updateAccountSelects() {
-  const selects = [
-    'transactionAccount',
-    'transactionTransferTo',
-    'investmentAccount',
-    'invTransactionAccount',
-    'creditCardAccount',
-    'payCardFromAccount'
-  ];
+function updateAccountSelects(type = 'expense', accountType = 'bank_account') {
+  let selectElement = null;
+  
+  // Selecionar o campo correto
+  if (type === 'expense' && accountType === 'credit_card') {
+    selectElement = document.getElementById('transactionCreditCard');
+  } else {
+    selectElement = document.getElementById('transactionBankAccount') || 
+                    document.getElementById('transactionAccount');
+  }
+  
+  if (!selectElement) {
+    console.warn('⚠️ Select element not found:', selectElement);
+    return;
+  }
 
-  selects.forEach(selectId => {
-    const select = document.getElementById(selectId);
-    if (select) {
-      select.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  let filteredAccounts = accounts;
+  
+  // Filtrar apenas contas normais (não cartões)
+  if (type === 'transfer' || type === 'income' || (type === 'expense' && accountType === 'bank_account')) {
+    filteredAccounts = accounts.filter(a => a.type !== 'credit_card');
+  }
+
+  // Preencher com contas
+  selectElement.innerHTML = filteredAccounts
+    .map(a => `<option value="${a.id}">${a.name} (R$ ${(a.balance || 0).toFixed(2)})</option>`)
+    .join('');
+
+  // Se é seletor de cartão, popular com cartões
+  if (type === 'expense' && accountType === 'credit_card') {
+    const cardSelect = document.getElementById('transactionCreditCard');
+    if (cardSelect) {
+      cardSelect.innerHTML = creditCards
+        .filter(c => c.is_active)
+        .map(c => `<option value="${c.id}">${c.bank_name} (${c.last_four_digits}) - R$ ${(c.balance || 0).toFixed(2)}</option>`)
+        .join('');
     }
-  });
-
-  const filterSelect = document.getElementById('transactionAccountFilter');
-  if (filterSelect) {
-    const currentValue = filterSelect.value;
-    filterSelect.innerHTML = '<option value="all">Todas as Contas</option>' +
-      accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
-    filterSelect.value = currentValue;
   }
 }
 
@@ -1280,19 +1510,104 @@ async function recalculateAccountBalances() {
 
 function updateTransactionForm() {
   const type = document.getElementById('transactionType').value;
-  const categoryField = document.getElementById('transactionCategoryField');
-  const transferField = document.getElementById('transactionTransferField');
+  const accountType = document.querySelector('input[name="accountType"]:checked')?.value || 'bank_account';
   
-  // Mostrar/ocultar campos baseado no tipo
-  if (categoryField) {
-    categoryField.style.display = type === 'transfer' ? 'none' : 'block';
+  // Referências aos elementos
+  const categoryGroup = document.getElementById('categoryGroup');
+  const transferToGroup = document.getElementById('transferToGroup');
+  const bankAccountGroup = document.getElementById('bankAccountGroup');
+  const creditCardGroup = document.getElementById('creditCardGroup');
+  const installmentGroup = document.getElementById('installmentGroup');
+
+  // Resetar visibilidade
+  if (transferToGroup) transferToGroup.style.display = 'none';
+  if (installmentGroup) installmentGroup.style.display = 'none';
+
+  // ===== TRANSFERÊNCIA =====
+  if (type === 'transfer') {
+    if (categoryGroup) categoryGroup.style.display = 'none';
+    if (transferToGroup) transferToGroup.style.display = 'block';
+    if (bankAccountGroup) bankAccountGroup.style.display = 'block';
+    if (creditCardGroup) creditCardGroup.style.display = 'none';
+    updateAccountSelects('transfer');
+  }
+  // ===== RECEITA =====
+  else if (type === 'income') {
+    if (categoryGroup) categoryGroup.style.display = 'block';
+    if (bankAccountGroup) bankAccountGroup.style.display = 'block';
+    if (creditCardGroup) creditCardGroup.style.display = 'none';
+    if (installmentGroup) installmentGroup.style.display = 'none';
+    updateAccountSelects('income');
+    updateCategorySelects('income');
+  }
+  // ===== DESPESA =====
+  else if (type === 'expense') {
+    if (categoryGroup) categoryGroup.style.display = 'block';
+    
+    if (accountType === 'bank_account') {
+      if (bankAccountGroup) bankAccountGroup.style.display = 'block';
+      if (creditCardGroup) creditCardGroup.style.display = 'none';
+      if (installmentGroup) installmentGroup.style.display = 'none';
+      updateAccountSelects('expense', 'bank_account');
+    } else if (accountType === 'credit_card') {
+      if (bankAccountGroup) bankAccountGroup.style.display = 'none';
+      if (creditCardGroup) creditCardGroup.style.display = 'block';
+      if (installmentGroup) installmentGroup.style.display = 'block';
+      updateAccountSelects('expense', 'credit_card');
+    }
+    
+    updateCategorySelects('expense');
+  }
+}
+
+function updateInstallmentFields() {
+  const useInstallment = document.querySelector('input[name="useInstallment"]:checked')?.value === 'yes';
+  const countGroup = document.getElementById('installmentCountGroup');
+  const previewGroup = document.getElementById('installmentPreviewGroup');
+  
+  if (useInstallment) {
+    if (countGroup) countGroup.style.display = 'block';
+    if (previewGroup) previewGroup.style.display = 'block';
+    updateInstallmentPreview();
+  } else {
+    if (countGroup) countGroup.style.display = 'none';
+    if (previewGroup) previewGroup.style.display = 'none';
+  }
+}
+
+// NOVO: Calcular preview de parcelas
+function updateInstallmentPreview() {
+  const amount = parseFloat(document.getElementById('transactionAmount').value) || 0;
+  const installmentCount = parseInt(document.getElementById('installmentCount').value) || 1;
+  const previewValue = document.getElementById('installmentPreviewValue');
+  
+  if (previewValue && amount > 0) {
+    const perInstallment = amount / installmentCount;
+    previewValue.textContent = `R$ ${perInstallment.toFixed(2)}`;
+  }
+}
+
+// NOVO: Atualizar campo de pagamento
+function updatePaymentFields() {
+  const paymentType = document.getElementById('payCardPaymentType').value;
+  const cardId = document.getElementById('payCardModal').dataset.cardId;
+  const card = creditCards.find(c => c.id === cardId);
+  const amountInput = document.getElementById('payCardAmount');
+  
+  if (!card) return;
+  
+  if (paymentType === 'full') {
+    amountInput.value = (card.balance || 0).toFixed(2);
+    amountInput.disabled = true;
+  } else if (paymentType === 'minimum') {
+    amountInput.value = ((card.balance || 0) * 0.1).toFixed(2);
+    amountInput.disabled = true;
+  } else {
+    amountInput.disabled = false;
+    amountInput.value = '';
   }
   
-  if (transferField) {
-    transferField.style.display = type === 'transfer' ? 'block' : 'none';
-  }
-  
-  console.log(`📋 Formulário atualizado para tipo: ${type}`);
+  updateInstallmentPreview();
 }
 
 function filterTransactions() {
@@ -1413,64 +1728,267 @@ function showAddTransactionModal() {
 async function saveTransaction() {
   if (!supabase || !currentUser) return;
 
-  const data = {
-    user_id: currentUser.id,
-    type: document.getElementById('transactionType').value,
-    amount: parseFloat(document.getElementById('transactionAmount').value),
-    date: document.getElementById('transactionDate').value,
-    description: document.getElementById('transactionDescription').value,
-    account_id: document.getElementById('transactionAccount').value,
-    category_id: document.getElementById('transactionType').value === 'transfer' ? null : document.getElementById('transactionCategory').value,
-    transfer_to_account_id: document.getElementById('transactionType').value === 'transfer' ? document.getElementById('transactionTransferTo').value : null
-  };
+  const type = document.getElementById('transactionType').value;
+  const accountType = document.querySelector('input[name="accountType"]:checked')?.value;
+  const amount = parseFloat(document.getElementById('transactionAmount').value);
+  const description = document.getElementById('transactionDescription').value;
+  const date = document.getElementById('transactionDate').value;
+  const categoryId = document.getElementById('transactionCategory').value;
+
+  if (!amount || amount <= 0) {
+    alert('❌ Insira um valor válido');
+    return;
+  }
+
+  if (!description.trim()) {
+    alert('❌ Insira uma descrição');
+    return;
+  }
 
   try {
-    const { error } = await supabase
-      .from('transactions')
-      .insert([data]);
+    let accountId = null;
+    let creditCardId = null;
+    let useInstallment = false;
+    let installmentCount = 1;
 
-    if (error) throw error;
-
-    const account = accounts.find(a => a.id === data.account_id);
-    if (account) {
-      let newBalance = account.balance;
-      if (data.type === 'expense') newBalance -= data.amount;
-      if (data.type === 'income') newBalance += data.amount;
-      if (data.type === 'transfer') newBalance -= data.amount;
-
-      await supabase
-        .from('accounts')
-        .update({ balance: newBalance })
-        .eq('id', data.account_id);
-
-      if (data.type === 'transfer' && data.transfer_to_account_id) {
-        const targetAccount = accounts.find(a => a.id === data.transfer_to_account_id);
-        if (targetAccount) {
-          await supabase
-            .from('accounts')
-            .update({ balance: targetAccount.balance + data.amount })
-            .eq('id', data.transfer_to_account_id);
-        }
+    // ============================================
+    // CASO 1: DESPESA EM CARTÃO DE CRÉDITO
+    // ============================================
+    if (type === 'expense' && accountType === 'credit_card') {
+      creditCardId = document.getElementById('transactionCreditCard').value;
+      useInstallment = document.querySelector('input[name="useInstallment"]:checked')?.value === 'yes';
+      
+      if (useInstallment) {
+        installmentCount = parseInt(document.getElementById('installmentCount').value) || 1;
       }
-    }
 
-    if (data.type === 'expense') {
-      const card = creditCards.find(c => c.account_id === data.account_id);
-      if (card) {
+      const card = creditCards.find(c => c.id === creditCardId);
+      if (!card) {
+        alert('❌ Cartão não encontrado');
+        return;
+      }
+
+      accountId = card.account_id; // Usar conta vinculada ao cartão
+      
+      // Garantir que existe billing cycle aberto
+      const cycle = await ensureBillingCycleExists(creditCardId);
+      if (!cycle) {
+        alert('❌ Erro ao criar ciclo de faturamento');
+        return;
+      }
+
+      // ===== PARCELADO =====
+      if (useInstallment && installmentCount > 1) {
+        const installmentAmount = amount / installmentCount;
+        
+        // 1. Criar transação principal
+        const { data: mainTransaction, error: mainError } = await supabase
+          .from('transactions')
+          .insert([{
+            user_id: currentUser.id,
+            account_id: accountId,
+            credit_card_id: creditCardId,
+            category_id: categoryId,
+            type: 'expense',
+            amount: amount,
+            description: `${description} (${installmentCount}x)`,
+            date: date
+          }])
+          .select()
+          .single();
+
+        if (mainError) throw mainError;
+
+        // 2. Criar registro de parcelas
+        for (let i = 1; i <= installmentCount; i++) {
+          const installmentDate = new Date(date);
+          installmentDate.setMonth(installmentDate.getMonth() + (i - 1));
+
+          const { error: installError } = await supabase
+            .from('installments')
+            .insert([{
+              user_id: currentUser.id,
+              credit_card_id: creditCardId,
+              transaction_id: mainTransaction.id,
+              total_installments: installmentCount,
+              current_installment: i,
+              total_amount: amount,
+              installment_amount: installmentAmount,
+              installment_date: installmentDate.toISOString().split('T')[0],
+              status: i === 1 ? 'pending' : 'scheduled'
+            }]);
+
+          if (installError) throw installError;
+        }
+
+        // 3. Atualizar billing cycle com total gasto
+        await supabase
+          .from('billing_cycles')
+          .update({
+            total_spent: (cycle.total_spent || 0) + amount
+          })
+          .eq('id', cycle.id);
+
+        // 4. Incrementar saldo do cartão
         await supabase
           .from('credit_cards')
-          .update({ balance: (card.balance || 0) + data.amount })
-          .eq('id', card.id);
+          .update({ balance: (card.balance || 0) + amount })
+          .eq('id', creditCardId);
+
+        alert(`✅ Compra parcelada em ${installmentCount}x de R$ ${installmentAmount.toFixed(2)} criada!`);
+      }
+      
+      // ===== À VISTA =====
+      else {
+        const { error: transError } = await supabase
+          .from('transactions')
+          .insert([{
+            user_id: currentUser.id,
+            account_id: accountId,
+            credit_card_id: creditCardId,
+            category_id: categoryId,
+            type: 'expense',
+            amount: amount,
+            description: description,
+            date: date
+          }]);
+
+        if (transError) throw transError;
+
+        // Atualizar billing cycle
+        await supabase
+          .from('billing_cycles')
+          .update({
+            total_spent: (cycle.total_spent || 0) + amount
+          })
+          .eq('id', cycle.id);
+
+        // Incrementar saldo do cartão
+        await supabase
+          .from('credit_cards')
+          .update({ balance: (card.balance || 0) + amount })
+          .eq('id', creditCardId);
+
+        alert('✅ Gasto em cartão registrado!');
       }
     }
 
-    alert('✅ Transação registrada com sucesso!');
+    // ============================================
+    // CASO 2: DESPESA EM CONTA NORMAL
+    // ============================================
+    else if (type === 'expense' && accountType === 'bank_account') {
+      accountId = document.getElementById('transactionBankAccount').value;
+
+      const { error: transError } = await supabase
+        .from('transactions')
+        .insert([{
+          user_id: currentUser.id,
+          account_id: accountId,
+          category_id: categoryId,
+          type: 'expense',
+          amount: amount,
+          description: description,
+          date: date
+        }]);
+
+      if (transError) throw transError;
+
+      // Atualizar saldo da conta
+      const account = accounts.find(a => a.id === accountId);
+      if (account) {
+        await supabase
+          .from('accounts')
+          .update({ balance: account.balance - amount })
+          .eq('id', accountId);
+      }
+
+      alert('✅ Despesa registrada!');
+    }
+
+    // ============================================
+    // CASO 3: RECEITA
+    // ============================================
+    else if (type === 'income') {
+      accountId = document.getElementById('transactionBankAccount').value;
+
+      const { error: transError } = await supabase
+        .from('transactions')
+        .insert([{
+          user_id: currentUser.id,
+          account_id: accountId,
+          category_id: categoryId,
+          type: 'income',
+          amount: amount,
+          description: description,
+          date: date
+        }]);
+
+      if (transError) throw transError;
+
+      // Atualizar saldo da conta
+      const account = accounts.find(a => a.id === accountId);
+      if (account) {
+        await supabase
+          .from('accounts')
+          .update({ balance: account.balance + amount })
+          .eq('id', accountId);
+      }
+
+      alert('✅ Receita registrada!');
+    }
+
+    // ============================================
+    // CASO 4: TRANSFERÊNCIA
+    // ============================================
+    else if (type === 'transfer') {
+      accountId = document.getElementById('transactionBankAccount').value;
+      const transferToId = document.getElementById('transactionTransferTo').value;
+
+      const { error: transError } = await supabase
+        .from('transactions')
+        .insert([{
+          user_id: currentUser.id,
+          account_id: accountId,
+          type: 'transfer',
+          amount: amount,
+          description: description,
+          date: date,
+          transfer_to_account_id: transferToId
+        }]);
+
+      if (transError) throw transError;
+
+      // Atualizar ambas as contas
+      const fromAccount = accounts.find(a => a.id === accountId);
+      const toAccount = accounts.find(a => a.id === transferToId);
+
+      if (fromAccount) {
+        await supabase
+          .from('accounts')
+          .update({ balance: fromAccount.balance - amount })
+          .eq('id', accountId);
+      }
+
+      if (toAccount) {
+        await supabase
+          .from('accounts')
+          .update({ balance: toAccount.balance + amount })
+          .eq('id', transferToId);
+      }
+
+      alert('✅ Transferência realizada!');
+    }
+
+    // Fechamento bem-sucedido
     closeModal('transactionModal');
     loadTransactions();
     loadAccounts();
     loadCreditCards();
+    loadBillingCycles();
+
   } catch (error) {
-    alert('❌ Erro ao salvar transação: ' + error.message);
+    alert('❌ Erro: ' + error.message);
+    console.error('Erro completo:', error);
   }
 }
 
