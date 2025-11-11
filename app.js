@@ -502,23 +502,56 @@ window.addEventListener('click', (e) => {
 
 async function loadCreditCards() {
   if (!supabase || !currentUser) {
-    console.warn('⚠️ Não é possível carregar cartões: supabase ou usuário não disponível');
+    console.warn('⚠️ Supabase não disponível');
     return;
   }
-  
+
   try {
     const { data, error } = await supabase
       .from('credit_cards')
       .select('*')
       .eq('user_id', currentUser.id)
-      .order('created_at', { ascending: false });
+      .eq('is_active', true);
 
     if (error) throw error;
+
     creditCards = data || [];
     console.log('✅ Cartões carregados:', creditCards.length);
-    displayCreditCards();
+
   } catch (error) {
     console.error('❌ Erro ao carregar cartões:', error);
+  }
+}
+
+async function addCreditCard(cardData) {
+  try {
+    const { data, error } = await supabase
+      .from('credit_cards')
+      .insert([{
+        user_id: currentUser.id,
+        bank_name: cardData.bankName,
+        card_network: cardData.network,
+        card_type: cardData.type,
+        last_four_digits: cardData.lastDigits,
+        holder_name: cardData.holderName,
+        closing_day: cardData.closingDay,
+        due_day: cardData.dueDay,
+        credit_limit: cardData.limit,
+        account_id: cardData.accountId,
+        balance: 0,
+        is_active: true
+      }]);
+
+    if (error) throw error;
+
+    console.log('✅ Cartão adicionado');
+    await loadCreditCards();
+    return true;
+
+  } catch (error) {
+    console.error('❌ Erro:', error);
+    alert('❌ Erro ao adicionar cartão: ' + error.message);
+    return false;
   }
 }
 
@@ -814,6 +847,107 @@ async function deleteCreditCard(cardId) {
   } catch (error) {
     alert('❌ Erro ao deletar: ' + error.message);
   }
+}
+
+function showAddCardForm() {
+  // Criar um formulário simples
+  const form = `
+    <div class="modal-overlay" onclick="closeForm()">
+      <div class="modal-content">
+        <h3>Adicionar Cartão de Crédito</h3>
+        
+        <div class="form-group">
+          <label>Banco:</label>
+          <input type="text" id="cardBank" placeholder="Ex: Itaú">
+        </div>
+
+        <div class="form-group">
+          <label>Rede (Visa, Mastercard, etc):</label>
+          <input type="text" id="cardNetwork" placeholder="Visa">
+        </div>
+
+        <div class="form-group">
+          <label>Últimos 4 dígitos:</label>
+          <input type="text" id="cardDigits" placeholder="1234" maxlength="4">
+        </div>
+
+        <div class="form-group">
+          <label>Titular:</label>
+          <input type="text" id="cardHolder" placeholder="Seu Nome">
+        </div>
+
+        <div class="form-group">
+          <label>Dia do Fechamento:</label>
+          <input type="number" id="cardClosing" min="1" max="31" placeholder="10">
+        </div>
+
+        <div class="form-group">
+          <label>Dia do Vencimento:</label>
+          <input type="number" id="cardDue" min="1" max="31" placeholder="20">
+        </div>
+
+        <div class="form-group">
+          <label>Limite de Crédito:</label>
+          <input type="number" id="cardLimit" step="0.01" placeholder="5000">
+        </div>
+
+        <div class="form-group">
+          <label>Conta Associada:</label>
+          <select id="cardAccount">
+            <option value="">Selecionar</option>
+          </select>
+        </div>
+
+        <button onclick="saveCard()" class="btn-primary">Adicionar</button>
+      </div>
+    </div>
+  `;
+
+  // Inserir no body
+  const container = document.createElement('div');
+  container.id = 'cardFormModal';
+  container.innerHTML = form;
+  document.body.appendChild(container);
+
+  // Preencher seletor de contas
+  const select = document.getElementById('cardAccount');
+  accounts.forEach(acc => {
+    const option = document.createElement('option');
+    option.value = acc.id;
+    option.textContent = acc.name;
+    select.appendChild(option);
+  });
+}
+
+function closeForm() {
+  const modal = document.getElementById('cardFormModal');
+  if (modal) modal.remove();
+}
+
+function saveCard() {
+  const cardData = {
+    bankName: document.getElementById('cardBank').value,
+    network: document.getElementById('cardNetwork').value,
+    type: 'Crédito',
+    lastDigits: document.getElementById('cardDigits').value,
+    holderName: document.getElementById('cardHolder').value,
+    closingDay: parseInt(document.getElementById('cardClosing').value),
+    dueDay: parseInt(document.getElementById('cardDue').value),
+    limit: parseFloat(document.getElementById('cardLimit').value),
+    accountId: document.getElementById('cardAccount').value
+  };
+
+  if (!cardData.bankName || !cardData.lastDigits || !cardData.accountId) {
+    alert('⚠️ Preencha todos os campos obrigatórios');
+    return;
+  }
+
+  addCreditCard(cardData).then(success => {
+    if (success) {
+      closeForm();
+      alert('✅ Cartão adicionado com sucesso!');
+    }
+  });
 }
 
 // ============================================
