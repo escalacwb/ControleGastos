@@ -4033,12 +4033,6 @@ function renderCsvPreviewTable() {
   container.innerHTML = html;
 }
 
-function toggleAllRows(checked) {
-  document.querySelectorAll('.csvRowCheckbox').forEach(checkbox => {
-    checkbox.checked = checked;
-  });
-}
-
 function formatDateForInput(dateStr) {
   if (!dateStr) return '';
   
@@ -4194,6 +4188,24 @@ function handleCsvFileSelect() {
   reader.readAsText(file);
 }
 
+function populateMappingSelects() {
+  ['mapDate', 'mapDescription', 'mapAmount', 'mapCreditCard', 'mapCategory', 'mapInstallment'].forEach(selectId => {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    
+    const firstOption = select.querySelector('option:first-child');
+    select.innerHTML = '';
+    select.appendChild(firstOption.cloneNode(true));
+    
+    csvHeaders.forEach(header => {
+      const option = document.createElement('option');
+      option.value = header;
+      option.textContent = header;
+      select.appendChild(option);
+    });
+  });
+  console.log('Selects preenchidos');
+}
 
 function generateCsvPreview() {
   const dateCol = document.getElementById('mapDate').value;
@@ -4387,4 +4399,5 @@ async function importAllTransactions() {
   } catch (error) {
     alert('Erro: ' + error.message);
   }
+}
 }
