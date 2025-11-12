@@ -4400,9 +4400,4 @@ async function importAllTransactions() {
     alert('Erro: ' + error.message);
   }
 }
-
-function toggleAllRows(checked) {
-  document.querySelectorAll('.csvRowCheckbox').forEach(checkbox => {
-    checkbox.checked = checked;
-  });
 }
