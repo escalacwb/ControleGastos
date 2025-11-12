@@ -4038,9 +4038,7 @@ function syncFilters() {
 
 // ✅ FUNÇÃO: Detectar delimitador (vírgula ou ponto-e-vírgula)
 function detectDelimiter(csvText) {
-  let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
+
   // Remover BOM UTF-8 se houver
   if (csvText.charCodeAt(0) === 0xFEFF || csvText.charCodeAt(0) === 0xEF) {
     csvText = csvText.substring(csvText.charCodeAt(0) === 0xFEFF ? 1 : 3);
@@ -4557,9 +4555,7 @@ async function importSelectedTransactions() {
 // ============================================
 
 async function importAllTransactions() {
-  let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
+ 
   console.log('Iniciando importacao de TODAS as transacoes...');
   console.log('Total de linhas:', csvData.length);
 
