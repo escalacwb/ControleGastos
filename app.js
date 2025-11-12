@@ -334,7 +334,7 @@ async function loadAllData() {
     displayAccounts();
     displayCategories();
     displayCreditCards();
-    displayTransactions();
+    displayTransactions(transactions);
     updateDashboard();
     
     console.log('✅ Todos os dados carregados');
@@ -1147,7 +1147,7 @@ async function processCardPayment() {
     loadBillingCycles();
     displayCreditCards();
     displayAccounts();
-    displayTransactions();
+    displayTransactions(transactions);
 
   } catch (error) {
     console.error('❌ Erro completo:', error);
