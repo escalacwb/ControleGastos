@@ -3917,15 +3917,29 @@ function handleCsvFileSelect() {
 }
 
 function populateMappingSelects() {
-  const selects = ['mapDate', 'mapDescription', 'mapAmount', 'mapCreditCard', 'mapCategory', 'mapInstallment'];
-  
-  selects.forEach(selectId => {
+  console.log('Preenchendo selects... creditCards:', creditCards);
+
+  // Apenas esses campos vêm do CSV
+  const csvFields = ['mapDate', 'mapDescription', 'mapAmount', 'mapCategory', 'mapInstallment'];
+
+  csvFields.forEach(selectId => {
     const select = document.getElementById(selectId);
+    if (!select) {
+      console.warn('Select não encontrado:', selectId);
+      return;
+    }
+
     const firstOption = select.querySelector('option:first-child');
-    
     select.innerHTML = '';
-    select.appendChild(firstOption.cloneNode(true));
-    
+    if (firstOption) {
+      select.appendChild(firstOption.cloneNode(true));
+    } else {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '-- Selecione --';
+      select.appendChild(opt);
+    }
+
     csvHeaders.forEach(header => {
       const option = document.createElement('option');
       option.value = header;
@@ -3933,16 +3947,40 @@ function populateMappingSelects() {
       select.appendChild(option);
     });
   });
-}
 
+  // ✅ CARTÃO: Preenchido pela lista de cartões cadastrados (NÃO do CSV!)
+  const cardSelect = document.getElementById('mapCreditCard');
+  if (cardSelect) {
+    cardSelect.innerHTML = '';
+
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = '-- Selecione um Cartão --';
+    cardSelect.appendChild(defaultOpt);
+
+    if (creditCards && creditCards.length > 0) {
+      creditCards.forEach(card => {
+        const option = document.createElement('option');
+        option.value = card.id;
+        option.textContent = `${card.holder_name} (${card.bank_name})`;
+        cardSelect.appendChild(option);
+      });
+      console.log('Cartões adicionados:', creditCards.length);
+    } else {
+      console.warn('Nenhum cartão cadastrado!');
+    }
+  }
+
+  console.log('Selects preenchidos com sucesso');
+}
 function generateCsvPreview() {
   const dateCol = document.getElementById('mapDate').value;
   const descCol = document.getElementById('mapDescription').value;
   const amountCol = document.getElementById('mapAmount').value;
-  const cardCol = document.getElementById('mapCreditCard').value;
-  
-  if (!dateCol || !descCol || !amountCol || !cardCol) {
-    alert('❌ Preencha os campos obrigatórios: Data, Descrição, Valor e Cartão');
+  const cardId = document.getElementById('mapCreditCard').value;
+
+  if (!dateCol || !descCol || !amountCol || !cardId) {
+    alert('Preencha: Data, Descrição, Valor e Cartão');
     return;
   }
 
@@ -3950,17 +3988,15 @@ function generateCsvPreview() {
     date: dateCol,
     description: descCol,
     amount: amountCol,
-    creditCard: cardCol,
-    category: document.getElementById('mapCategory').value,
-    installment: document.getElementById('mapInstallment').value
+    creditCardId: cardId,
+    category: document.getElementById('mapCategory').value || '',
+    installment: document.getElementById('mapInstallment').value || ''
   };
 
   renderCsvPreviewTable();
-  
   document.getElementById('csvMappingSection').style.display = 'none';
   document.getElementById('csvPreviewSection').style.display = 'block';
 }
-
 function renderCsvPreviewTable() {
   const container = document.getElementById('csvPreviewTable');
   document.getElementById('csvRowCount').textContent = csvData.length;
@@ -4031,12 +4067,6 @@ function renderCsvPreviewTable() {
 
   html += '</table>';
   container.innerHTML = html;
-}
-
-function toggleAllRows(checked) {
-  document.querySelectorAll('.csvRowCheckbox').forEach(checkbox => {
-    checkbox.checked = checked;
-  });
 }
 
 function formatDateForInput(dateStr) {
@@ -4194,6 +4224,24 @@ function handleCsvFileSelect() {
   reader.readAsText(file);
 }
 
+function populateMappingSelects() {
+  ['mapDate', 'mapDescription', 'mapAmount', 'mapCreditCard', 'mapCategory', 'mapInstallment'].forEach(selectId => {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    
+    const firstOption = select.querySelector('option:first-child');
+    select.innerHTML = '';
+    select.appendChild(firstOption.cloneNode(true));
+    
+    csvHeaders.forEach(header => {
+      const option = document.createElement('option');
+      option.value = header;
+      option.textContent = header;
+      select.appendChild(option);
+    });
+  });
+  console.log('Selects preenchidos');
+}
 
 function generateCsvPreview() {
   const dateCol = document.getElementById('mapDate').value;
@@ -4387,4 +4435,5 @@ async function importAllTransactions() {
   } catch (error) {
     alert('Erro: ' + error.message);
   }
+}
 }
