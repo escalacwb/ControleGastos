@@ -519,9 +519,6 @@ async function initApp() {
   }
 }
 
-let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
 
 async function importSelectedTransactions() {
   console.log('Iniciando importacao de transacoes selecionadas...');
@@ -692,6 +689,9 @@ async function importSelectedTransactions() {
   }
 }
 
+let csvData = [];
+let csvHeaders = [];
+let csvMapping = {};
 
 // ============================================
 // CORRIGIR A FUNCAO importAllTransactions
@@ -4359,10 +4359,6 @@ function syncFilters() {
 // ============================================
 }
 
-
-let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
 
 // ✅ FUNÇÃO: Detectar delimitador (vírgula ou ponto-e-vírgula)
 function detectDelimiter(csvText) {
