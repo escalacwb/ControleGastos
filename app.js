@@ -3917,27 +3917,15 @@ function handleCsvFileSelect() {
 }
 
 function populateMappingSelects() {
-  console.log('Preenchendo selects com headers do CSV');
-
-  // ✅ Apenas esses 5 campos vêm do CSV (SEM cartão nesta etapa!)
-  const csvFields = ['mapDate', 'mapDescription', 'mapAmount', 'mapCategory', 'mapInstallment'];
-
-  csvFields.forEach(selectId => {
+  const selects = ['mapDate', 'mapDescription', 'mapAmount', 'mapCreditCard', 'mapCategory', 'mapInstallment'];
+  
+  selects.forEach(selectId => {
     const select = document.getElementById(selectId);
-    if (!select) return;
-
     const firstOption = select.querySelector('option:first-child');
+    
     select.innerHTML = '';
-    if (firstOption) {
-      select.appendChild(firstOption.cloneNode(true));
-    } else {
-      const opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = '-- Selecione --';
-      select.appendChild(opt);
-    }
-
-    // Adicionar headers do CSV
+    select.appendChild(firstOption.cloneNode(true));
+    
     csvHeaders.forEach(header => {
       const option = document.createElement('option');
       option.value = header;
@@ -3945,41 +3933,34 @@ function populateMappingSelects() {
       select.appendChild(option);
     });
   });
-
-  console.log('✅ Selects preenchidos (cartão será selecionado na próxima etapa)');
 }
+
 function generateCsvPreview() {
-  console.log('generateCsvPreview() chamada');
-
-  // Capturar os valores dos selects (SEM cartão!)
-  const dateCol = document.getElementById('mapDate')?.value?.trim();
-  const descCol = document.getElementById('mapDescription')?.value?.trim();
-  const amountCol = document.getElementById('mapAmount')?.value?.trim();
-
-  console.log('Valores capturados:', { dateCol, descCol, amountCol });
-
-  // Validar se os OBRIGATÓRIOS foram selecionados
-  if (!dateCol || !descCol || !amountCol) {
-    alert('⚠️ Preencha os campos obrigatórios:\n✓ Data\n✓ Descrição\n✓ Valor');
+  const dateCol = document.getElementById('mapDate').value;
+  const descCol = document.getElementById('mapDescription').value;
+  const amountCol = document.getElementById('mapAmount').value;
+  const cardCol = document.getElementById('mapCreditCard').value;
+  
+  if (!dateCol || !descCol || !amountCol || !cardCol) {
+    alert('❌ Preencha os campos obrigatórios: Data, Descrição, Valor e Cartão');
     return;
   }
 
-  // Salvar mapeamento (sem cartão - será feito depois!)
   csvMapping = {
     date: dateCol,
     description: descCol,
     amount: amountCol,
-    creditCardId: null,  // Será preenchido na próxima etapa!
-    category: document.getElementById('mapCategory')?.value?.trim() || '',
-    installment: document.getElementById('mapInstallment')?.value?.trim() || ''
+    creditCard: cardCol,
+    category: document.getElementById('mapCategory').value,
+    installment: document.getElementById('mapInstallment').value
   };
 
-  console.log('✅ csvMapping salvo (cartão será selecionado depois):', csvMapping);
-
   renderCsvPreviewTable();
+  
   document.getElementById('csvMappingSection').style.display = 'none';
   document.getElementById('csvPreviewSection').style.display = 'block';
 }
+
 function renderCsvPreviewTable() {
   const container = document.getElementById('csvPreviewTable');
   if (!container) return;
@@ -3997,11 +3978,15 @@ function renderCsvPreviewTable() {
     </select>
   </div>
 
-  <div style="margin-bottom: 15px;">
+  <div style="margin-bottom: 15px; display: flex; gap: 20px; align-items: center;">
     <label>
       <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllRows(this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
       <strong style="margin-left: 10px; vertical-align: middle;">Selecionar Todos</strong>
     </label>
+
+    <div style="padding: 10px 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px; font-weight: bold; color: #856404;">
+      💰 Total Selecionado: <span id="csvTotalAmount" style="font-size: 16px; color: #28a745;">R$ 0.00</span>
+    </div>
   </div>
 
   <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
@@ -4036,7 +4021,7 @@ function renderCsvPreviewTable() {
 
     html += `<tr style="background: ${bgColor}; border-bottom: 1px solid #eee;">
       <td style="padding: 8px; text-align: center; border: 1px solid #eee;">
-        <input type="checkbox" class="csvRowCheckbox" data-index="${index}" checked style="width: 16px; height: 16px; cursor: pointer;">
+        <input type="checkbox" class="csvRowCheckbox" data-index="${index}" data-amount="${amount}" onchange="updateCsvTotal()" checked style="width: 16px; height: 16px; cursor: pointer;">
       </td>
       <td style="padding: 8px; border: 1px solid #eee;">
         <input type="date" value="${formatDateForInput(date)}" onchange="updateCsvRowField(${index}, 'date', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
@@ -4045,7 +4030,7 @@ function renderCsvPreviewTable() {
         <input type="text" value="${description}" onchange="updateCsvRowField(${index}, 'description', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
       </td>
       <td style="padding: 8px; border: 1px solid #eee; text-align: right;">
-        <input type="number" value="${amount}" onchange="updateCsvRowField(${index}, 'amount', this.value)" step="0.01" style="width: 95%; padding: 3px; font-size: 11px;">
+        <input type="number" value="${amount}" onchange="updateCsvRowFieldAndTotal(${index}, 'amount', this.value)" step="0.01" style="width: 95%; padding: 3px; font-size: 11px;">
       </td>
       <td style="padding: 8px; border: 1px solid #eee;">
         <select onchange="updateCsvRowField(${index}, 'category', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
@@ -4071,6 +4056,10 @@ function renderCsvPreviewTable() {
   </div>`;
 
   container.innerHTML = html;
+
+  // Calcular total inicial
+  updateCsvTotal();
+
   console.log('✅ Tabela renderizada com', csvData.length, 'linhas');
 }
 function formatDateForInput(dateStr) {
@@ -4086,6 +4075,42 @@ function formatDateForInput(dateStr) {
   }
   
   return '';
+}
+
+
+
+// ============================================
+// FUNÇÃO: Atualizar somatório de amounts
+// ============================================
+function updateCsvTotal() {
+  const checkboxes = document.querySelectorAll('.csvRowCheckbox:checked');
+  let total = 0;
+
+  checkboxes.forEach(checkbox => {
+    const amount = parseFloat(checkbox.getAttribute('data-amount')) || 0;
+    total += Math.abs(amount);  // Usar valor absoluto para não ficar negativo
+  });
+
+  // Atualizar display
+  const totalDisplay = document.getElementById('csvTotalAmount');
+  if (totalDisplay) {
+    totalDisplay.textContent = 'R$ ' + total.toFixed(2).replace('.', ',');
+    totalDisplay.style.color = total > 0 ? '#28a745' : '#dc3545';
+  }
+
+  console.log('Total atualizado:', total);
+}
+
+// ============================================
+// FUNÇÃO: Atualizar field e recalcular total
+// ============================================
+function updateCsvRowFieldAndTotal(index, field, value) {
+  updateCsvRowField(index, field, value);
+
+  // Re-renderizar para atualizar data-amount dos checkboxes
+  setTimeout(() => {
+    updateCsvTotal();
+  }, 100);
 }
 
 function updateCsvRowField(index, field, value) {
