@@ -689,9 +689,6 @@ async function importSelectedTransactions() {
   }
 }
 
-let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
 
 // ============================================
 // CORRIGIR A FUNCAO importAllTransactions
