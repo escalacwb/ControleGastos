@@ -349,7 +349,7 @@ async function loadAllData() {
 
 async function handleLogin() {
   if (!supabase) {
-    alert('❌ Supabase não está disponível');
+    alert('Supabase não está disponível');
     return;
   }
 
@@ -357,28 +357,36 @@ async function handleLogin() {
   const password = document.getElementById('loginPassword')?.value;
 
   if (!email || !password) {
-    alert('⚠️ Preencha email e senha');
+    alert('Preencha email e senha');
     return;
   }
 
   try {
-    console.log('🔐 Tentando login com:', email);
-    const { data, error } = await supabase.auth.signInWithPassword({ 
-      email, 
-      password 
+    console.log('Tentando login com', email);
+    
+    // ✅ ADICIONE ESTAS 3 LINHAS:
+    await supabase.auth.signOut();  // Limpa sessão antiga
+    await new Promise(resolve => setTimeout(resolve, 500));  // Aguarda
+    
+    // Login normal
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
     });
 
     if (error) throw error;
 
     currentUser = data.user;
-    console.log('✅ Login bem-sucedido!');
+    console.log('Login bem-sucedido!');
     showScreen('mainApp');
     loadAllData();
+
   } catch (error) {
-    console.error('❌ Erro no login:', error);
-    alert('❌ Erro no login:\n' + error.message);
+    console.error('Erro no login:', error);
+    alert('Erro no login: ' + error.message);
   }
 }
+
 
 async function handleSignup() {
   if (!supabase) {
