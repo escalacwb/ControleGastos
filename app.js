@@ -3917,27 +3917,15 @@ function handleCsvFileSelect() {
 }
 
 function populateMappingSelects() {
-  console.log('Preenchendo selects... creditCards:', creditCards);
-
-  // Apenas esses 5 campos vêm do CSV (SEM cartão!)
-  const csvFields = ['mapDate', 'mapDescription', 'mapAmount', 'mapCategory', 'mapInstallment'];
-
-  csvFields.forEach(selectId => {
+  const selects = ['mapDate', 'mapDescription', 'mapAmount', 'mapCreditCard', 'mapCategory', 'mapInstallment'];
+  
+  selects.forEach(selectId => {
     const select = document.getElementById(selectId);
-    if (!select) return;
-
     const firstOption = select.querySelector('option:first-child');
+    
     select.innerHTML = '';
-    if (firstOption) {
-      select.appendChild(firstOption.cloneNode(true));
-    } else {
-      const opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = '-- Selecione --';
-      select.appendChild(opt);
-    }
-
-    // Adicionar headers do CSV
+    select.appendChild(firstOption.cloneNode(true));
+    
     csvHeaders.forEach(header => {
       const option = document.createElement('option');
       option.value = header;
@@ -3945,29 +3933,8 @@ function populateMappingSelects() {
       select.appendChild(option);
     });
   });
-
-  // ✅ CARTÃO: APENAS cartões cadastrados (não toca em csvHeaders!)
-  const cardSelect = document.getElementById('mapCreditCard');
-  if (cardSelect) {
-    cardSelect.innerHTML = '';
-
-    const defaultOpt = document.createElement('option');
-    defaultOpt.value = '';
-    defaultOpt.textContent = '-- Selecione um Cartão --';
-    cardSelect.appendChild(defaultOpt);
-
-    // Preencher APENAS com cartões do banco, não do CSV
-    if (creditCards && creditCards.length > 0) {
-      creditCards.forEach(card => {
-        const option = document.createElement('option');
-        option.value = card.id;
-        option.textContent = `${card.holder_name} (${card.bank_name})`;
-        cardSelect.appendChild(option);
-      });
-      console.log('Cartões adicionados:', creditCards.length);
-    }
-  }
 }
+
 function generateCsvPreview() {
   const dateCol = document.getElementById('mapDate').value;
   const descCol = document.getElementById('mapDescription').value;
@@ -3996,81 +3963,74 @@ function generateCsvPreview() {
 
 function renderCsvPreviewTable() {
   const container = document.getElementById('csvPreviewTable');
-  if (!container) return;
-
-  const selectedCard = creditCards.find(c => c.id === csvMapping.creditCardId);
   document.getElementById('csvRowCount').textContent = csvData.length;
-
-  let html = `<div style="margin-bottom: 15px;">
-    <label>
-      <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllRows(this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
-      <strong style="margin-left: 10px; vertical-align: middle;">Selecionar Todos</strong>
-    </label>
-  </div>
-
-  <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-    <thead>
+  
+  let html = `
+    <table style="width: 100%; border-collapse: collapse;">
       <tr style="background: #0066cc; color: white; position: sticky; top: 0;">
-        <th style="padding: 8px; text-align: center; border: 1px solid #ccc; width: 40px;">✓</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Data</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Descrição</th>
-        <th style="padding: 10px; text-align: right; border: 1px solid #ccc;">Valor</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Categoria</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Parcelas</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">📅 Data</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">📝 Descrição</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">💰 Valor</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">🏦 Cartão</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">🏷️ Categoria</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">📦 Parcela</th>
       </tr>
-    </thead>
-    <tbody>
-    <tr style="background: #e8f4f8; font-weight: bold;">
-      <td colspan="6" style="padding: 10px; border: 1px solid #ccc;">
-        💳 Cartão: ${selectedCard.holder_name} (${selectedCard.bank_name})
-      </td>
-    </tr>`;
+  `;
 
   csvData.forEach((row, index) => {
     const bgColor = index % 2 === 0 ? '#fff' : '#f9f9f9';
-
+    
     let date = row[csvMapping.date] || '';
     let description = row[csvMapping.description] || '';
     let amount = row[csvMapping.amount] || '';
     let category = row[csvMapping.category] || '';
     let installment = row[csvMapping.installment] || '';
-
+    
     amount = amount.replace('R$', '').replace(/\s/g, '').replace(',', '.');
-
+    
+    let creditCardId = '';
+    const cardName = row[csvMapping.creditCard] || '';
+    const matchCard = creditCards.find(c => c.holder_name.includes(cardName) || cardName.includes(c.holder_name));
+    if (matchCard) creditCardId = matchCard.id;
+    
     let categoryId = '';
     if (category) {
-      const matchCat = categories.find(c => c.name.toUpperCase().includes(category.toUpperCase()));
+      const matchCat = categories.find(c => c.name.toUpperCase().includes(category.toUpperCase()) || category.toUpperCase().includes(c.name.toUpperCase()));
       if (matchCat) categoryId = matchCat.id;
     }
 
-    html += `<tr style="background: ${bgColor}; border-bottom: 1px solid #eee;">
-      <td style="padding: 8px; text-align: center; border: 1px solid #eee;">
-        <input type="checkbox" class="csvRowCheckbox" data-index="${index}" checked style="width: 16px; height: 16px; cursor: pointer;">
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <input type="date" value="${formatDateForInput(date)}" onchange="updateCsvRowField(${index}, 'date', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <input type="text" value="${description}" onchange="updateCsvRowField(${index}, 'description', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee; text-align: right;">
-        <input type="number" value="${amount}" onchange="updateCsvRowField(${index}, 'amount', this.value)" step="0.01" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <select onchange="updateCsvRowField(${index}, 'category', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
-          <option value="">-</option>
-          ${categories.map(c => `<option value="${c.id}" ${categoryId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
-        </select>
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <input type="text" value="${installment}" onchange="updateCsvRowField(${index}, 'installment', this.value)" placeholder="1 de 3" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
-    </tr>`;
+    html += `
+      <tr style="background: ${bgColor}; border-bottom: 1px solid #ddd;">
+        <td style="padding: 10px;">
+          <input type="date" value="${formatDateForInput(date)}" data-index="${index}" data-field="date" onchange="updateCsvRowField(${index}, 'date', this.value)" style="width: 100%; padding: 5px;">
+        </td>
+        <td style="padding: 10px;">
+          <input type="text" value="${description}" data-index="${index}" data-field="description" onchange="updateCsvRowField(${index}, 'description', this.value)" style="width: 100%; padding: 5px;">
+        </td>
+        <td style="padding: 10px;">
+          <input type="number" value="${amount}" data-index="${index}" data-field="amount" onchange="updateCsvRowField(${index}, 'amount', this.value)" step="0.01" style="width: 100%; padding: 5px;">
+        </td>
+        <td style="padding: 10px;">
+          <select data-index="${index}" data-field="creditCard" onchange="updateCsvRowField(${index}, 'creditCard', this.value)" style="width: 100%; padding: 5px;">
+            <option value="">Selecionar...</option>
+            ${creditCards.map(card => `<option value="${card.id}" ${creditCardId === card.id ? 'selected' : ''}>${card.holder_name} - ${card.bank_name}</option>`).join('')}
+          </select>
+        </td>
+        <td style="padding: 10px;">
+          <select data-index="${index}" data-field="category" onchange="updateCsvRowField(${index}, 'category', this.value)" style="width: 100%; padding: 5px;">
+            <option value="">Deixar em Branco</option>
+            ${categories.map(cat => `<option value="${cat.id}" ${categoryId === cat.id ? 'selected' : ''}>${cat.name}</option>`).join('')}
+          </select>
+        </td>
+        <td style="padding: 10px;">
+          <input type="text" value="${installment}" data-index="${index}" data-field="installment" onchange="updateCsvRowField(${index}, 'installment', this.value)" placeholder="Ex: 1 de 3" style="width: 100%; padding: 5px;">
+        </td>
+      </tr>
+    `;
   });
 
-  html += '</tbody></table>';
+  html += '</table>';
   container.innerHTML = html;
-  console.log('Tabela renderizada com', csvData.length, 'linhas');
 }
 
 function toggleAllRows(checked) {
@@ -4078,6 +4038,7 @@ function toggleAllRows(checked) {
     checkbox.checked = checked;
   });
 }
+
 function formatDateForInput(dateStr) {
   if (!dateStr) return '';
   
@@ -4111,35 +4072,24 @@ async function importAllTransactions() {
   try {
     let successCount = 0;
     let errorCount = 0;
+
     document.getElementById('importProgressSection').style.display = 'block';
 
-    const creditCardId = csvMapping.creditCardId;
-
-    // Coletar índices dos lançamentos selecionados
-    const selectedIndices = [];
-    document.querySelectorAll('.csvRowCheckbox:checked').forEach(checkbox => {
-      selectedIndices.push(parseInt(checkbox.getAttribute('data-index')));
-    });
-
-    if (selectedIndices.length === 0) {
-      alert('Nenhum lançamento selecionado!');
-      document.getElementById('importProgressSection').style.display = 'none';
-      return;
-    }
-
-    for (let i = 0; i < selectedIndices.length; i++) {
-      const rowIndex = selectedIndices[i];
-      const row = csvData[rowIndex];
+    for (let i = 0; i < csvData.length; i++) {
+      const row = csvData[i];
       const edited = row._edited || {};
-
+      
       const date = edited.date || row[csvMapping.date] || new Date().toISOString().split('T')[0];
       const description = edited.description || row[csvMapping.description];
       let amount = edited.amount || row[csvMapping.amount] || '0';
+      const creditCardId = edited.creditCard || creditCards.find(c => row[csvMapping.creditCard]?.includes(c.holder_name))?.id;
       const categoryId = edited.category || '';
+      const installment = edited.installment || row[csvMapping.installment] || '';
 
       amount = parseFloat(amount.toString().replace('R$', '').replace(/\s/g, '').replace(',', '.'));
 
       if (!description || amount <= 0 || !creditCardId) {
+        console.warn(`⚠️ Linha ${i + 1} com dados inválidos, pulando...`);
         errorCount++;
         continue;
       }
@@ -4161,52 +4111,89 @@ async function importAllTransactions() {
           account_id: card.account_id,
           credit_card_id: creditCardId,
           category_id: categoryId || null
-        }]);
+        }])
+        .select()
+        .single();
 
       if (error) {
+        console.error(`❌ Erro na linha ${i + 1}:`, error);
         errorCount++;
       } else {
         successCount++;
       }
 
-      const progress = ((i + 1) / selectedIndices.length) * 100;
+      const progress = ((i + 1) / csvData.length) * 100;
       document.getElementById('importProgressBar').style.width = progress + '%';
-      document.getElementById('importStatus').textContent = `${i + 1}/${selectedIndices.length} OK:${successCount} ERR:${errorCount}`;
+      document.getElementById('importStatus').textContent = `Importando: ${i + 1}/${csvData.length} - ✅ ${successCount} OK, ❌ ${errorCount} Erros`;
     }
 
+    document.getElementById('importStatus').textContent = `✅ Importação concluída! ${successCount} transações cadastradas, ${errorCount} erros.`;
+    
     await loadAllData();
-
+    
     setTimeout(() => {
       document.getElementById('csvUploadSection').style.display = 'block';
       document.getElementById('csvPreviewSection').style.display = 'none';
       document.getElementById('importProgressSection').style.display = 'none';
-      alert(`Importado: ${successCount}\nErros: ${errorCount}`);
-    }, 1500);
+      document.getElementById('csvFileInput').value = '';
+      csvData = [];
+      csvHeaders = [];
+      csvMapping = {};
+      alert(`✅ Importação finalizada!\n✅ Sucesso: ${successCount}\n❌ Erros: ${errorCount}`);
+    }, 2000);
 
   } catch (error) {
-    alert('Erro: ' + error.message);
+    console.error('❌ Erro geral na importação:', error);
+    alert('❌ Erro: ' + error.message);
   }
-}
+
+
+  let csvData = [];
+let csvHeaders = [];
+let csvMapping = {};
+
+function handleCsvFileSelect() {
+  const fileInput = document.getElementById('csvFileInput');
+  const file = fileInput.files[0];
+  
+  if (!file) {
+    alert('Selecione um arquivo CSV');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const csv = e.target.result;
+      const lines = csv.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        alert('CSV vazio');
+        return;
+      }
+
+      csvHeaders = lines[0].split(',').map(h => h.trim());
+      csvData = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim());
+        const row = {};
+        csvHeaders.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
+        return row;
+      });
+
+      console.log('CSV carregado:', csvHeaders, csvData.length);
+      populateMappingSelects();
+      document.getElementById('csvUploadSection').style.display = 'none';
+      document.getElementById('csvMappingSection').style.display = 'block';
+      
+    } catch (error) {
+      alert('Erro ao processar CSV: ' + error.message);
+    }
+  };
+  reader.readAsText(file);
 }
 
-function populateMappingSelects() {
-  ['mapDate', 'mapDescription', 'mapAmount', 'mapCreditCard', 'mapCategory', 'mapInstallment'].forEach(selectId => {
-    const select = document.getElementById(selectId);
-    if (!select) return;
-    
-    const firstOption = select.querySelector('option:first-child');
-    select.innerHTML = '';
-    select.appendChild(firstOption.cloneNode(true));
-    
-    csvHeaders.forEach(header => {
-      const option = document.createElement('option');
-      option.value = header;
-      option.textContent = header;
-      select.appendChild(option);
-    });
-  });
-  console.log('Selects preenchidos');
-}
 
 function generateCsvPreview() {
   const dateCol = document.getElementById('mapDate').value;
@@ -4400,5 +4387,4 @@ async function importAllTransactions() {
   } catch (error) {
     alert('Erro: ' + error.message);
   }
-}
 }
