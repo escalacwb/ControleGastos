@@ -334,7 +334,7 @@ async function loadAllData() {
     displayAccounts();
     displayCategories();
     displayCreditCards();
-    displayTransactions(transactions);
+    displayTransactions();
     updateDashboard();
     
     console.log('✅ Todos os dados carregados');
@@ -1147,7 +1147,7 @@ async function processCardPayment() {
     loadBillingCycles();
     displayCreditCards();
     displayAccounts();
-    displayTransactions(transactions);
+    displayTransactions();
 
   } catch (error) {
     console.error('❌ Erro completo:', error);
@@ -3831,6 +3831,8 @@ function syncFilters() {
 // ============================================
 // IMPORTADOR DE CSV - FUNÇÕES
 // ============================================
+}
+
 
 let csvData = [];
 let csvHeaders = [];
@@ -4108,6 +4110,4 @@ async function importAllTransactions() {
     console.error('❌ Erro geral na importação:', error);
     alert('❌ Erro: ' + error.message);
   }
-}
-
 }
