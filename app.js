@@ -21,6 +21,87 @@ let csvHeaders = [];
 let csvMapping = {};
 
 // ============================================
+// AUTENTICAÇÃO
+// ============================================
+
+async function handleLogin() {
+  if (!supabase) {
+    alert('❌ Supabase não está disponível');
+    return;
+  }
+
+  const email = document.getElementById('loginEmail')?.value?.trim();
+  const password = document.getElementById('loginPassword')?.value;
+
+  if (!email || !password) {
+    alert('⚠️ Preencha email e senha');
+    return;
+  }
+
+  try {
+    console.log('🔐 Tentando login com:', email);
+    const { data, error } = await supabase.auth.signInWithPassword({ 
+      email, 
+      password 
+    });
+
+    if (error) throw error;
+
+    currentUser = data.user;
+    console.log('✅ Login bem-sucedido!');
+    showScreen('mainApp');
+    loadAllData();
+  } catch (error) {
+    console.error('❌ Erro no login:', error);
+    alert('❌ Erro no login:\n' + error.message);
+  }
+}
+
+async function handleSignup() {
+  if (!supabase) {
+    alert('❌ Supabase não está disponível');
+    return;
+  }
+
+  const email = document.getElementById('signupEmail')?.value?.trim();
+  const password = document.getElementById('signupPassword')?.value;
+
+  if (!email || !password) {
+    alert('⚠️ Preencha email e senha');
+    return;
+  }
+
+  if (password.length < 6) {
+    alert('⚠️ A senha deve ter pelo menos 6 caracteres');
+    return;
+  }
+
+  try {
+    console.log('📝 Criando conta com:', email);
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password 
+    });
+
+    if (error) throw error;
+    
+    alert('✅ Conta criada! Verifique seu email para confirmar.');
+    showLogin();
+  } catch (error) {
+    console.error('❌ Erro no cadastro:', error);
+    alert('❌ Erro no cadastro:\n' + error.message);
+  }
+}
+
+async function handleLogout() {
+  if (supabase) {
+    await supabase.auth.signOut();
+  }
+  currentUser = null;
+  showScreen('loginScreen');
+}
+
+// ============================================
 // IA CATEGORY SUGGESTION - CLAUDE API
 // ============================================
 
@@ -545,86 +626,7 @@ async function loadAllData() {
   }
 }
 
-// ============================================
-// AUTENTICAÇÃO
-// ============================================
 
-async function handleLogin() {
-  if (!supabase) {
-    alert('❌ Supabase não está disponível');
-    return;
-  }
-
-  const email = document.getElementById('loginEmail')?.value?.trim();
-  const password = document.getElementById('loginPassword')?.value;
-
-  if (!email || !password) {
-    alert('⚠️ Preencha email e senha');
-    return;
-  }
-
-  try {
-    console.log('🔐 Tentando login com:', email);
-    const { data, error } = await supabase.auth.signInWithPassword({ 
-      email, 
-      password 
-    });
-
-    if (error) throw error;
-
-    currentUser = data.user;
-    console.log('✅ Login bem-sucedido!');
-    showScreen('mainApp');
-    loadAllData();
-  } catch (error) {
-    console.error('❌ Erro no login:', error);
-    alert('❌ Erro no login:\n' + error.message);
-  }
-}
-
-async function handleSignup() {
-  if (!supabase) {
-    alert('❌ Supabase não está disponível');
-    return;
-  }
-
-  const email = document.getElementById('signupEmail')?.value?.trim();
-  const password = document.getElementById('signupPassword')?.value;
-
-  if (!email || !password) {
-    alert('⚠️ Preencha email e senha');
-    return;
-  }
-
-  if (password.length < 6) {
-    alert('⚠️ A senha deve ter pelo menos 6 caracteres');
-    return;
-  }
-
-  try {
-    console.log('📝 Criando conta com:', email);
-    const { data, error } = await supabase.auth.signUp({ 
-      email, 
-      password 
-    });
-
-    if (error) throw error;
-    
-    alert('✅ Conta criada! Verifique seu email para confirmar.');
-    showLogin();
-  } catch (error) {
-    console.error('❌ Erro no cadastro:', error);
-    alert('❌ Erro no cadastro:\n' + error.message);
-  }
-}
-
-async function handleLogout() {
-  if (supabase) {
-    await supabase.auth.signOut();
-  }
-  currentUser = null;
-  showScreen('loginScreen');
-}
 
 // ============================================
 // NAVEGAÇÃO
