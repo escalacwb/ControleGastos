@@ -4380,9 +4380,7 @@ function backToMapping() {
   document.getElementById('csvMappingSection').style.display = 'block';
 }
 
-let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
+
 
 async function importSelectedTransactions() {
   console.log('Iniciando importacao de transacoes selecionadas...');
