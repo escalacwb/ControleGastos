@@ -3838,83 +3838,126 @@ let csvData = [];
 let csvHeaders = [];
 let csvMapping = {};
 
+// ✅ FUNÇÃO: Detectar delimitador (vírgula ou ponto-e-vírgula)
+function detectDelimiter(csvText) {
+  // Remover BOM UTF-8 se houver
+  if (csvText.charCodeAt(0) === 0xFEFF || csvText.charCodeAt(0) === 0xEF) {
+    csvText = csvText.substring(csvText.charCodeAt(0) === 0xFEFF ? 1 : 3);
+  }
+
+  const firstLine = csvText.split('\n')[0];
+  const commas = (firstLine.match(/,/g) || []).length;
+  const semicolons = (firstLine.match(/;/g) || []).length;
+
+  console.log('📊 Análise de delimitador:');
+  console.log('   Vírgulas: ' + commas);
+  console.log('   Pontos-vírgula: ' + semicolons);
+
+  const result = semicolons > commas ? ';' : ',';
+  console.log('✅ Delimitador detectado: ' + (result === ',' ? 'VÍRGULA (,)' : 'PONTO-E-VÍRGULA (;)'));
+
+  return result;
+}
+
+// ✅ FUNÇÃO: Parse CSV com delimitador customizável
+function parseCSVLine(line, delimiter) {
+  const result = [];
+  let current = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        current += '"';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+    } else if (char === delimiter && !insideQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  result.push(current.trim());
+  return result;
+}
+
+// ✅ FUNÇÃO: Handle CSV com suporte a ambos delimitadores
 function handleCsvFileSelect() {
   const fileInput = document.getElementById('csvFileInput');
   const file = fileInput.files[0];
-  
+
   if (!file) {
-    alert('Selecione um arquivo CSV');
+    alert('⚠️ Selecione um arquivo CSV');
     return;
   }
 
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      const csv = e.target.result;
+      let csv = e.target.result;
+
+      // ✅ PASSO 1: Remover BOM UTF-8
+      if (csv.charCodeAt(0) === 0xFEFF || csv.charCodeAt(0) === 0xEF) {
+        csv = csv.substring(csv.charCodeAt(0) === 0xFEFF ? 1 : 3);
+        console.log('🧹 BOM UTF-8 removido');
+      }
+
+      // ✅ PASSO 2: Detectar delimitador
+      const delimiter = detectDelimiter(csv);
+
+      // ✅ PASSO 3: Split por linhas
       const lines = csv.split('\n').filter(line => line.trim());
-      
+
       if (lines.length < 2) {
-        alert('CSV vazio');
+        alert('❌ CSV vazio ou mal formatado');
         return;
       }
 
-      // PARSER CSV CORRETO
-      function parseCSVLine(line) {
-        const result = [];
-        let current = '';
-        let insideQuotes = false;
-        
-        for (let i = 0; i < line.length; i++) {
-          const char = line[i];
-          const nextChar = line[i + 1];
-          
-          if (char === '"') {
-            if (insideQuotes && nextChar === '"') {
-              current += '"';
-              i++; // Skip next quote
-            } else {
-              insideQuotes = !insideQuotes;
-            }
-          } else if (char === ',' && !insideQuotes) {
-            result.push(current.trim());
-            current = '';
-          } else {
-            current += char;
-          }
-        }
-        result.push(current.trim());
-        return result;
-      }
+      // ✅ PASSO 4: Parse header com delimitador correto
+      csvHeaders = parseCSVLine(lines[0], delimiter)
+        .map(h => h.replace(/^"|"$/g, ''));
 
-      // Parse header
-      csvHeaders = parseCSVLine(lines[0]).map(h => h.replace(/^"/, '').replace(/"$/, ''));
-      
-      console.log('Headers encontrados:', csvHeaders);
-      
-      // Parse data
+      console.log('✅ Headers parseados: ' + csvHeaders.length + ' colunas');
+      console.log('   Colunas: ' + csvHeaders.join(' | '));
+
+      // ✅ PASSO 5: Parse dados com delimitador correto
       csvData = lines.slice(1).map((line, lineIndex) => {
-        const values = parseCSVLine(line);
+        const values = parseCSVLine(line, delimiter);
         const row = {};
         csvHeaders.forEach((header, index) => {
-          row[header] = (values[index] || '').replace(/^"/, '').replace(/"$/, '');
+          row[header] = (values[index] || '').replace(/^"|"$/g, '');
         });
         return row;
       });
 
-      console.log('CSV carregado:', csvData.length, 'linhas');
-      console.log('Primeira linha:', csvData[0]);
-      
+      console.log('✅ CSV CARREGADO COM SUCESSO!');
+      console.log('   Total de linhas: ' + csvData.length);
+      console.log('   Primeira linha:', csvData[0]);
+
+      // ✅ PASSO 6: Popular selects e mostrar mapeamento
       populateMappingSelects();
       document.getElementById('csvUploadSection').style.display = 'none';
       document.getElementById('csvMappingSection').style.display = 'block';
-      
+
     } catch (error) {
-      alert('Erro ao processar CSV: ' + error.message);
-      console.error(error);
+      console.error('❌ ERRO ao processar CSV:', error);
+      alert('❌ Erro ao processar CSV:\n' + error.message);
     }
   };
-  reader.readAsText(file);
+
+  reader.readAsText(file, 'UTF-8');
 }
+
+
+
+
 
 function populateMappingSelects() {
   const selects = ['mapDate', 'mapDescription', 'mapAmount', 'mapCreditCard', 'mapCategory', 'mapInstallment'];
