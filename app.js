@@ -94,6 +94,8 @@ function ensureGuideLoaded() {
 // ============================================
 
 async function suggestCategoryForCsvLine(rowIndex) {
+  console.log('Iniciando sugestao para linha:', rowIndex);
+
   const row = csvData[rowIndex];
   if (!row) {
     alert('Linha nao encontrada');
@@ -133,31 +135,87 @@ async function suggestCategoryForCsvLine(rowIndex) {
 
     const data = await response.json();
     console.log('OK Resposta IA:', data);
+    console.log('categoryName:', data.categoryName);
+    console.log('categoryId:', data.categoryId);
+    console.log('confidence:', data.confidence);
 
     if (!data.success) {
       throw new Error(data.error || 'Erro na categorizacao');
     }
 
-    // Preencher a categoria automaticamente
-    const selectId = 'categorySelect_' + rowIndex;
-    const categorySelect = document.querySelector('select[data-index="' + rowIndex + '"][data-field="category"]');
+    // PASSO 1: Encontrar TODOS os selects de categoria na tabela
+    const categorySelects = document.querySelectorAll('select[data-field="category"]');
+    console.log('Total de selects encontrados:', categorySelects.length);
 
-    if (categorySelect) {
-      // Procurar a opcao com o nome da categoria
-      for (let option of categorySelect.options) {
-        if (option.textContent.trim() === data.categoryName || option.value === data.categoryId) {
-          categorySelect.value = option.value;
-          categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
-          break;
-        }
+    if (categorySelects.length === 0) {
+      console.error('ERRO: Nenhum select de categoria encontrado!');
+      console.log('Verificando IDs no DOM...');
+      const allSelects = document.querySelectorAll('select');
+      console.log('Total de selects na pagina:', allSelects.length);
+      allSelects.forEach((select, idx) => {
+        console.log('Select ' + idx + ':', select.getAttribute('data-index'), select.getAttribute('data-field'));
+      });
+      return;
+    }
+
+    // PASSO 2: Encontrar o select correto pelo rowIndex
+    let targetSelect = null;
+    categorySelects.forEach(select => {
+      const dataIndex = select.getAttribute('data-index');
+      console.log('Comparando:', 'data-index=' + dataIndex, 'rowIndex=' + rowIndex);
+
+      if (parseInt(dataIndex) === rowIndex) {
+        targetSelect = select;
+        console.log('SELECT ENCONTRADO para linha', rowIndex);
       }
+    });
 
+    if (!targetSelect) {
+      console.error('ERRO: Select nao encontrado para rowIndex:', rowIndex);
+      console.error('Tentando metodo alternativo...');
+
+      // Metodo alternativo: pegar o primeiro select vazio (pode ser problema se tiver multiplos)
+      targetSelect = categorySelects[rowIndex];
+      if (!targetSelect) {
+        alert('ERRO: Nao consegui encontrar o select de categoria. Verifique o HTML da tabela.');
+        return;
+      }
+    }
+
+    // PASSO 3: Procurar a opcao com o nome ou ID da categoria
+    let foundOption = null;
+    console.log('Procurando opcao com nome:', data.categoryName, 'ou ID:', data.categoryId);
+
+    for (let i = 0; i < targetSelect.options.length; i++) {
+      const option = targetSelect.options[i];
+      const optionText = option.textContent.trim();
+      const optionValue = option.value;
+
+      console.log('Verificando opcao:', optionText, '=', optionValue);
+
+      if (optionText === data.categoryName || optionValue === data.categoryId) {
+        foundOption = option;
+        console.log('OPCAO ENCONTRADA:', optionText);
+        break;
+      }
+    }
+
+    if (foundOption) {
+      targetSelect.value = foundOption.value;
+      targetSelect.dispatchEvent(new Event('change', { bubbles: true }));
       console.log('OK Categoria preenchida:', data.categoryName);
-      console.log('   Confianca:', Math.round(data.confidence * 100) + '%');
-      console.log('   Motivo:', data.reason);
 
       // Mostrar toast de sucesso
-      showCsvAISuccessToast(rowIndex, data.categoryName, data.confidence);
+      showCsvAISuccessToast(rowIndex, data.categoryName, data.confidence, data.reason);
+    } else {
+      console.warn('AVISO: Opcao nao encontrada no select');
+      console.log('Opcoes disponveis:');
+      for (let i = 0; i < targetSelect.options.length; i++) {
+        console.log(' -', targetSelect.options[i].value, ':', targetSelect.options[i].textContent);
+      }
+
+      // Mesmo sem encontrar, mostrar a sugestao
+      showCsvAISuccessToast(rowIndex, data.categoryName, data.confidence, data.reason);
     }
 
   } catch (error) {
@@ -169,23 +227,42 @@ async function suggestCategoryForCsvLine(rowIndex) {
 }
 
 // ============================================
-// FUNCAO: Toast de sucesso
+// FUNCAO: Toast de sucesso com MODAL visivel
 // ============================================
-function showCsvAISuccessToast(rowIndex, categoryName, confidence) {
+function showCsvAISuccessToast(rowIndex, categoryName, confidence, reason) {
   const confidencePercent = Math.round(confidence * 100);
-  const message = 'OK ' + categoryName + ' (' + confidencePercent + '%)';
-  console.log(message);
 
-  // Toast simples
-  const toast = document.createElement('div');
-  toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #22c55e; color: white; padding: 12px 24px; border-radius: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 999; font-weight: bold;';
-  toast.textContent = message;
+  // MODAL para exibir a sugestao
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 998; display: flex; align-items: center; justify-content: center;';
 
-  document.body.appendChild(toast);
+  const content = document.createElement('div');
+  content.style.cssText = 'background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); max-width: 400px; text-align: center;';
 
+  content.innerHTML = '<h2 style="color: #22c55e; margin-top: 0;">Sugestao da IA</h2>' +
+    '<div style="font-size: 24px; font-weight: bold; color: #166534; margin: 20px 0;">' + categoryName + '</div>' +
+    '<div style="font-size: 16px; color: #16a34a; margin-bottom: 10px;">Confianca: ' + confidencePercent + '%</div>' +
+    '<div style="font-size: 14px; color: #666; margin-bottom: 20px; line-height: 1.5;">' + reason + '</div>' +
+    '<button onclick="this.parentElement.parentElement.remove()" style="padding: 10px 20px; background: #22c55e; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">OK, Entendi</button>';
+
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+
+  // Remover modal ao clicar fora
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+
+  // Auto-remover depois de 5 segundos
   setTimeout(function() {
-    toast.remove();
-  }, 3000);
+    if (modal.parentElement) {
+      modal.remove();
+    }
+  }, 5000);
+
+  console.log('Modal de sugestao exibido');
 }
 
 /**
