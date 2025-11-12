@@ -1623,4 +1623,92 @@ textarea.form-control {
   background: rgba(255, 255, 255, 0.4);
 }
 
+/* ============================================ */
+/* Views Visibility */
+/* ============================================ */
+
+.view {
+  display: none;
+  padding: 20px;
+  min-height: 300px;
+}
+
+.view.active {
+  display: block;
+}
+
+/* CSV Import Specific */
+#importCsvView {
+  width: 100%;
+}
+
+#csvUploadSection,
+#csvMappingSection,
+#csvPreviewSection {
+  margin: 20px 0;
+}
+
+#csvUploadSection input[type="file"] {
+  padding: 10px;
+  margin: 10px 0;
+}
+
+#csvMappingSection table,
+#csvPreviewTable table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 15px 0;
+}
+
+#csvMappingSection table th,
+#csvMappingSection table td,
+#csvPreviewTable table th,
+#csvPreviewTable table td {
+  padding: 10px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+#csvMappingSection table th,
+#csvPreviewTable table th {
+  background-color: #0066cc;
+  color: white;
+}
+
+#csvMappingSection select,
+#csvPreviewTable select,
+#csvPreviewTable input {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+button[onclick*="Csv"],
+button[onclick*="csv"] {
+  padding: 10px 20px;
+  margin: 5px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  color: white;
+}
+
+button[onclick="handleCsvFileSelect()"] {
+  background: #0066cc;
+}
+
+button[onclick="generateCsvPreview()"],
+button[onclick="importAllTransactions()"] {
+  background: #28a745;
+}
+
+button[onclick="backToMapping()"] {
+  background: #6c757d;
+}
+
+#importProgressBar {
+  background: #28a745;
+}
+
 }
