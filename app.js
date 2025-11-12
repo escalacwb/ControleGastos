@@ -3843,46 +3843,76 @@ function handleCsvFileSelect() {
   const file = fileInput.files[0];
   
   if (!file) {
-    alert('❌ Selecione um arquivo CSV');
+    alert('Selecione um arquivo CSV');
     return;
   }
 
   const reader = new FileReader();
-  
   reader.onload = function(e) {
     try {
       const csv = e.target.result;
       const lines = csv.split('\n').filter(line => line.trim());
       
       if (lines.length < 2) {
-        alert('❌ CSV vazio ou inválido');
+        alert('CSV vazio');
         return;
       }
 
-      csvHeaders = lines[0].split(',').map(h => h.trim().replace(/^\uFEFF/, ''));
+      // PARSER CSV CORRETO
+      function parseCSVLine(line) {
+        const result = [];
+        let current = '';
+        let insideQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          const nextChar = line[i + 1];
+          
+          if (char === '"') {
+            if (insideQuotes && nextChar === '"') {
+              current += '"';
+              i++; // Skip next quote
+            } else {
+              insideQuotes = !insideQuotes;
+            }
+          } else if (char === ',' && !insideQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      }
+
+      // Parse header
+      csvHeaders = parseCSVLine(lines[0]).map(h => h.replace(/^"/, '').replace(/"$/, ''));
       
-      csvData = lines.slice(1).map(line => {
-        const values = line.split(',').map(v => v.trim());
+      console.log('Headers encontrados:', csvHeaders);
+      
+      // Parse data
+      csvData = lines.slice(1).map((line, lineIndex) => {
+        const values = parseCSVLine(line);
         const row = {};
         csvHeaders.forEach((header, index) => {
-          row[header] = values[index] || '';
+          row[header] = (values[index] || '').replace(/^"/, '').replace(/"$/, '');
         });
         return row;
       });
 
-      console.log('✅ CSV carregado:', csvHeaders, csvData.length, 'linhas');
+      console.log('CSV carregado:', csvData.length, 'linhas');
+      console.log('Primeira linha:', csvData[0]);
       
       populateMappingSelects();
-      
       document.getElementById('csvUploadSection').style.display = 'none';
       document.getElementById('csvMappingSection').style.display = 'block';
       
     } catch (error) {
-      console.error('❌ Erro ao ler CSV:', error);
-      alert('❌ Erro ao processar CSV: ' + error.message);
+      alert('Erro ao processar CSV: ' + error.message);
+      console.error(error);
     }
   };
-  
   reader.readAsText(file);
 }
 
