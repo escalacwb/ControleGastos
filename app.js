@@ -3917,12 +3917,12 @@ function handleCsvFileSelect() {
 }
 
 function populateMappingSelects() {
-  const selects = ['mapDate', 'mapDescription', 'mapAmount', 'mapCreditCard', 'mapCategory', 'mapInstallment'];
-  
-  selects.forEach(selectId => {
+  // Apenas esses campos vêm do CSV
+  ['mapDate', 'mapDescription', 'mapAmount', 'mapCategory', 'mapInstallment'].forEach(selectId => {
     const select = document.getElementById(selectId);
-    const firstOption = select.querySelector('option:first-child');
+    if (!select) return;
     
+    const firstOption = select.querySelector('option:first-child');
     select.innerHTML = '';
     select.appendChild(firstOption.cloneNode(true));
     
@@ -3933,16 +3933,30 @@ function populateMappingSelects() {
       select.appendChild(option);
     });
   });
+  
+  // Cartão é preenchido pela lista de cartões (não do CSV)
+  const cardSelect = document.getElementById('mapCreditCard');
+  if (cardSelect) {
+    cardSelect.innerHTML = '<option value="">-- Selecione Cartão --</option>';
+    creditCards.forEach(card => {
+      const option = document.createElement('option');
+      option.value = card.id;
+      option.textContent = `${card.holder_name} (${card.bank_name})`;
+      cardSelect.appendChild(option);
+    });
+  }
+  
+  console.log('Selects preenchidos');
 }
 
 function generateCsvPreview() {
   const dateCol = document.getElementById('mapDate').value;
   const descCol = document.getElementById('mapDescription').value;
   const amountCol = document.getElementById('mapAmount').value;
-  const cardCol = document.getElementById('mapCreditCard').value;
+  const cardId = document.getElementById('mapCreditCard').value; // AGORA vem do select!
   
-  if (!dateCol || !descCol || !amountCol || !cardCol) {
-    alert('❌ Preencha os campos obrigatórios: Data, Descrição, Valor e Cartão');
+  if (!dateCol || !descCol || !amountCol || !cardId) {
+    alert('Preencha: Data, Descrição, Valor e Cartão');
     return;
   }
 
@@ -3950,32 +3964,44 @@ function generateCsvPreview() {
     date: dateCol,
     description: descCol,
     amount: amountCol,
-    creditCard: cardCol,
-    category: document.getElementById('mapCategory').value,
-    installment: document.getElementById('mapInstallment').value
+    creditCardId: cardId, // Já é o ID!
+    category: document.getElementById('mapCategory').value || '',
+    installment: document.getElementById('mapInstallment').value || ''
   };
 
   renderCsvPreviewTable();
-  
   document.getElementById('csvMappingSection').style.display = 'none';
   document.getElementById('csvPreviewSection').style.display = 'block';
 }
 
 function renderCsvPreviewTable() {
   const container = document.getElementById('csvPreviewTable');
+  
+  if (!container) {
+    console.error('Elemento csvPreviewTable nao encontrado');
+    return;
+  }
+
   document.getElementById('csvRowCount').textContent = csvData.length;
   
-  let html = `
-    <table style="width: 100%; border-collapse: collapse;">
+  const selectedCard = creditCards.find(c => c.id === csvMapping.creditCardId);
+  
+  let html = `<table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+    <thead>
       <tr style="background: #0066cc; color: white; position: sticky; top: 0;">
-        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">📅 Data</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">📝 Descrição</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">💰 Valor</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">🏦 Cartão</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">🏷️ Categoria</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">📦 Parcela</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Data</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Descrição</th>
+        <th style="padding: 10px; text-align: right; border: 1px solid #ccc;">Valor</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Categoria</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Parcelas</th>
       </tr>
-  `;
+    </thead>
+    <tbody>
+    <tr style="background: #e8f4f8; font-weight: bold;">
+      <td colspan="5" style="padding: 10px; border: 1px solid #ccc;">
+        💳 Cartão: ${selectedCard.holder_name} (${selectedCard.bank_name})
+      </td>
+    </tr>`;
 
   csvData.forEach((row, index) => {
     const bgColor = index % 2 === 0 ? '#fff' : '#f9f9f9';
@@ -3988,49 +4014,37 @@ function renderCsvPreviewTable() {
     
     amount = amount.replace('R$', '').replace(/\s/g, '').replace(',', '.');
     
-    let creditCardId = '';
-    const cardName = row[csvMapping.creditCard] || '';
-    const matchCard = creditCards.find(c => c.holder_name.includes(cardName) || cardName.includes(c.holder_name));
-    if (matchCard) creditCardId = matchCard.id;
-    
     let categoryId = '';
     if (category) {
-      const matchCat = categories.find(c => c.name.toUpperCase().includes(category.toUpperCase()) || category.toUpperCase().includes(c.name.toUpperCase()));
+      const matchCat = categories.find(c => c.name.toUpperCase().includes(category.toUpperCase()));
       if (matchCat) categoryId = matchCat.id;
     }
 
-    html += `
-      <tr style="background: ${bgColor}; border-bottom: 1px solid #ddd;">
-        <td style="padding: 10px;">
-          <input type="date" value="${formatDateForInput(date)}" data-index="${index}" data-field="date" onchange="updateCsvRowField(${index}, 'date', this.value)" style="width: 100%; padding: 5px;">
-        </td>
-        <td style="padding: 10px;">
-          <input type="text" value="${description}" data-index="${index}" data-field="description" onchange="updateCsvRowField(${index}, 'description', this.value)" style="width: 100%; padding: 5px;">
-        </td>
-        <td style="padding: 10px;">
-          <input type="number" value="${amount}" data-index="${index}" data-field="amount" onchange="updateCsvRowField(${index}, 'amount', this.value)" step="0.01" style="width: 100%; padding: 5px;">
-        </td>
-        <td style="padding: 10px;">
-          <select data-index="${index}" data-field="creditCard" onchange="updateCsvRowField(${index}, 'creditCard', this.value)" style="width: 100%; padding: 5px;">
-            <option value="">Selecionar...</option>
-            ${creditCards.map(card => `<option value="${card.id}" ${creditCardId === card.id ? 'selected' : ''}>${card.holder_name} - ${card.bank_name}</option>`).join('')}
-          </select>
-        </td>
-        <td style="padding: 10px;">
-          <select data-index="${index}" data-field="category" onchange="updateCsvRowField(${index}, 'category', this.value)" style="width: 100%; padding: 5px;">
-            <option value="">Deixar em Branco</option>
-            ${categories.map(cat => `<option value="${cat.id}" ${categoryId === cat.id ? 'selected' : ''}>${cat.name}</option>`).join('')}
-          </select>
-        </td>
-        <td style="padding: 10px;">
-          <input type="text" value="${installment}" data-index="${index}" data-field="installment" onchange="updateCsvRowField(${index}, 'installment', this.value)" placeholder="Ex: 1 de 3" style="width: 100%; padding: 5px;">
-        </td>
-      </tr>
-    `;
+    html += `<tr style="background: ${bgColor}; border-bottom: 1px solid #eee;">
+      <td style="padding: 8px; border: 1px solid #eee;">
+        <input type="date" value="${formatDateForInput(date)}" onchange="updateCsvRowField(${index}, 'date', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
+      </td>
+      <td style="padding: 8px; border: 1px solid #eee;">
+        <input type="text" value="${description}" onchange="updateCsvRowField(${index}, 'description', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
+      </td>
+      <td style="padding: 8px; border: 1px solid #eee; text-align: right;">
+        <input type="number" value="${amount}" onchange="updateCsvRowField(${index}, 'amount', this.value)" step="0.01" style="width: 95%; padding: 3px; font-size: 11px;">
+      </td>
+      <td style="padding: 8px; border: 1px solid #eee;">
+        <select onchange="updateCsvRowField(${index}, 'category', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
+          <option value="">-</option>
+          ${categories.map(c => `<option value="${c.id}" ${categoryId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+        </select>
+      </td>
+      <td style="padding: 8px; border: 1px solid #eee;">
+        <input type="text" value="${installment}" onchange="updateCsvRowField(${index}, 'installment', this.value)" placeholder="1 de 3" style="width: 95%; padding: 3px; font-size: 11px;">
+      </td>
+    </tr>`;
   });
 
-  html += '</table>';
+  html += '</tbody></table>';
   container.innerHTML = html;
+  console.log('Tabela renderizada com', csvData.length, 'linhas');
 }
 
 function formatDateForInput(dateStr) {
@@ -4066,8 +4080,9 @@ async function importAllTransactions() {
   try {
     let successCount = 0;
     let errorCount = 0;
-
     document.getElementById('importProgressSection').style.display = 'block';
+
+    const creditCardId = csvMapping.creditCardId; // Cartão fixo!
 
     for (let i = 0; i < csvData.length; i++) {
       const row = csvData[i];
@@ -4076,14 +4091,11 @@ async function importAllTransactions() {
       const date = edited.date || row[csvMapping.date] || new Date().toISOString().split('T')[0];
       const description = edited.description || row[csvMapping.description];
       let amount = edited.amount || row[csvMapping.amount] || '0';
-      const creditCardId = edited.creditCard || creditCards.find(c => row[csvMapping.creditCard]?.includes(c.holder_name))?.id;
       const categoryId = edited.category || '';
-      const installment = edited.installment || row[csvMapping.installment] || '';
 
       amount = parseFloat(amount.toString().replace('R$', '').replace(/\s/g, '').replace(',', '.'));
 
       if (!description || amount <= 0 || !creditCardId) {
-        console.warn(`⚠️ Linha ${i + 1} com dados inválidos, pulando...`);
         errorCount++;
         continue;
       }
@@ -4105,12 +4117,9 @@ async function importAllTransactions() {
           account_id: card.account_id,
           credit_card_id: creditCardId,
           category_id: categoryId || null
-        }])
-        .select()
-        .single();
+        }]);
 
       if (error) {
-        console.error(`❌ Erro na linha ${i + 1}:`, error);
         errorCount++;
       } else {
         successCount++;
@@ -4118,28 +4127,22 @@ async function importAllTransactions() {
 
       const progress = ((i + 1) / csvData.length) * 100;
       document.getElementById('importProgressBar').style.width = progress + '%';
-      document.getElementById('importStatus').textContent = `Importando: ${i + 1}/${csvData.length} - ✅ ${successCount} OK, ❌ ${errorCount} Erros`;
+      document.getElementById('importStatus').textContent = `${i + 1}/${csvData.length} OK:${successCount} ERR:${errorCount}`;
     }
 
-    document.getElementById('importStatus').textContent = `✅ Importação concluída! ${successCount} transações cadastradas, ${errorCount} erros.`;
-    
     await loadAllData();
     
     setTimeout(() => {
       document.getElementById('csvUploadSection').style.display = 'block';
       document.getElementById('csvPreviewSection').style.display = 'none';
       document.getElementById('importProgressSection').style.display = 'none';
-      document.getElementById('csvFileInput').value = '';
-      csvData = [];
-      csvHeaders = [];
-      csvMapping = {};
-      alert(`✅ Importação finalizada!\n✅ Sucesso: ${successCount}\n❌ Erros: ${errorCount}`);
-    }, 2000);
+      alert(`Importado: ${successCount}\nErros: ${errorCount}`);
+    }, 1500);
 
   } catch (error) {
-    console.error('❌ Erro geral na importação:', error);
-    alert('❌ Erro: ' + error.message);
+    alert('Erro: ' + error.message);
   }
+}
 
 
   let csvData = [];
