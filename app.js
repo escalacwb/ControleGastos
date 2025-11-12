@@ -88,6 +88,106 @@ function ensureGuideLoaded() {
   });
 }
 
+// ============================================
+// SUGERIR CATEGORIA COM IA (Na tabela preview do CSV)
+// Ao clicar, analisa a DESCRIÇÃO daquela linha específica
+// ============================================
+
+async function suggestCategoryForCsvLine(rowIndex) {
+  const row = csvData[rowIndex];
+  if (!row) {
+    alert('Linha nao encontrada');
+    return;
+  }
+
+  const description = row[csvMapping.description];
+
+  if (!description || !description.trim()) {
+    alert('Descricao vazia para esta linha');
+    return;
+  }
+
+  // Mostrar indicador de carregamento
+  const loadingId = 'csvAILoading_' + rowIndex;
+  const loadingEl = document.getElementById(loadingId);
+  if (loadingEl) loadingEl.style.display = 'block';
+
+  try {
+    console.log('AI Analisando descricao:', description);
+
+    // Chamar Supabase Edge Function
+    const supabaseUrl = 'https://gbvjdntklbggxycmfyhg.supabase.co/functions/v1/categorizer';
+
+    const response = await fetch(supabaseUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ description })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Erro na resposta');
+    }
+
+    const data = await response.json();
+    console.log('OK Resposta IA:', data);
+
+    if (!data.success) {
+      throw new Error(data.error || 'Erro na categorizacao');
+    }
+
+    // Preencher a categoria automaticamente
+    const selectId = 'categorySelect_' + rowIndex;
+    const categorySelect = document.querySelector('select[data-index="' + rowIndex + '"][data-field="category"]');
+
+    if (categorySelect) {
+      // Procurar a opcao com o nome da categoria
+      for (let option of categorySelect.options) {
+        if (option.textContent.trim() === data.categoryName || option.value === data.categoryId) {
+          categorySelect.value = option.value;
+          categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+          break;
+        }
+      }
+
+      console.log('OK Categoria preenchida:', data.categoryName);
+      console.log('   Confianca:', Math.round(data.confidence * 100) + '%');
+      console.log('   Motivo:', data.reason);
+
+      // Mostrar toast de sucesso
+      showCsvAISuccessToast(rowIndex, data.categoryName, data.confidence);
+    }
+
+  } catch (error) {
+    console.error('ERRO:', error);
+    alert('Erro ao sugerir categoria: ' + error.message);
+  } finally {
+    if (loadingEl) loadingEl.style.display = 'none';
+  }
+}
+
+// ============================================
+// FUNCAO: Toast de sucesso
+// ============================================
+function showCsvAISuccessToast(rowIndex, categoryName, confidence) {
+  const confidencePercent = Math.round(confidence * 100);
+  const message = 'OK ' + categoryName + ' (' + confidencePercent + '%)';
+  console.log(message);
+
+  // Toast simples
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #22c55e; color: white; padding: 12px 24px; border-radius: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 999; font-weight: bold;';
+  toast.textContent = message;
+
+  document.body.appendChild(toast);
+
+  setTimeout(function() {
+    toast.remove();
+  }, 3000);
+}
+
 /**
  * Sugere categoria usando Supabase Edge Function COM AUTENTICAÇÃO
  */
@@ -4069,9 +4169,18 @@ function renderCsvPreviewTable() {
       <td style="padding: 8px; border: 1px solid #eee;">
         <input type="date" value="${formatDateForInput(date)}" onchange="updateCsvRowField(${index}, 'date', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
       </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <input type="text" value="${description}" onchange="updateCsvRowField(${index}, 'description', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
+      <td style="padding: 8px; border: 1px solid #eee; display: flex; gap: 4px; align-items: center;">
+  <input type="text" value="${description}" onchange="updateCsvRowField(${index}, 'description', this.value)" style="flex: 1; padding: 3px; font-size: 11px;">
+  <button 
+    type="button"
+    onclick="suggestCategoryForCsvLine(${index})" 
+    title="Sugerir categoria com IA"
+    style="padding: 3px 6px; background: #0369a1; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; white-space: nowrap; flex-shrink: 0;"
+  >
+    IA
+  </button>
+  <div id="csvAILoading_${index}" style="display: none; font-size: 10px; color: #0369a1;">...</div>
+</td>
       <td style="padding: 8px; border: 1px solid #eee; text-align: right;">
         <input type="number" value="${amount}" onchange="updateCsvRowFieldAndTotal(${index}, 'amount', this.value)" step="0.01" style="width: 95%; padding: 3px; font-size: 11px;">
       </td>
@@ -4389,9 +4498,18 @@ function renderCsvPreviewTable() {
       <td style="padding: 8px; border: 1px solid #eee;">
         <input type="date" value="${formatDateForInput(date)}" onchange="updateCsvRowField(${index}, 'date', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
       </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <input type="text" value="${description}" onchange="updateCsvRowField(${index}, 'description', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
+      <td style="padding: 8px; border: 1px solid #eee; display: flex; gap: 4px; align-items: center;">
+  <input type="text" value="${description}" onchange="updateCsvRowField(${index}, 'description', this.value)" style="flex: 1; padding: 3px; font-size: 11px;">
+  <button 
+    type="button"
+    onclick="suggestCategoryForCsvLine(${index})" 
+    title="Sugerir categoria com IA"
+    style="padding: 3px 6px; background: #0369a1; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; white-space: nowrap; flex-shrink: 0;"
+  >
+    IA
+  </button>
+  <div id="csvAILoading_${index}" style="display: none; font-size: 10px; color: #0369a1;">...</div>
+</td>
       <td style="padding: 8px; border: 1px solid #eee; text-align: right;">
         <input type="number" value="${amount}" onchange="updateCsvRowField(${index}, 'amount', this.value)" step="0.01" style="width: 95%; padding: 3px; font-size: 11px;">
       </td>
