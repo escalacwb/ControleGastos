@@ -94,7 +94,7 @@ function ensureGuideLoaded() {
 // ============================================
 
 async function suggestCategoryForCsvLine(rowIndex) {
-  console.log('Iniciando sugestao para linha:', rowIndex);
+  console.log('=== INICIO: Sugestao para linha', rowIndex);
 
   const row = csvData[rowIndex];
   if (!row) {
@@ -112,10 +112,13 @@ async function suggestCategoryForCsvLine(rowIndex) {
   // Mostrar indicador de carregamento
   const loadingId = 'csvAILoading_' + rowIndex;
   const loadingEl = document.getElementById(loadingId);
-  if (loadingEl) loadingEl.style.display = 'block';
+  if (loadingEl) {
+    loadingEl.style.display = 'block';
+    loadingEl.textContent = '...';
+  }
 
   try {
-    console.log('AI Analisando descricao:', description);
+    console.log('Analisando descricao:', description);
 
     // Chamar Supabase Edge Function
     const supabaseUrl = 'https://gbvjdntklbggxycmfyhg.supabase.co/functions/v1/categorizer';
@@ -134,87 +137,94 @@ async function suggestCategoryForCsvLine(rowIndex) {
     }
 
     const data = await response.json();
-    console.log('OK Resposta IA:', data);
-    console.log('categoryName:', data.categoryName);
-    console.log('categoryId:', data.categoryId);
-    console.log('confidence:', data.confidence);
+    console.log('Resposta IA:', data);
 
     if (!data.success) {
       throw new Error(data.error || 'Erro na categorizacao');
     }
 
-    // PASSO 1: Encontrar TODOS os selects de categoria na tabela
-    const categorySelects = document.querySelectorAll('select[data-field="category"]');
-    console.log('Total de selects encontrados:', categorySelects.length);
+    // METODO 1: Procurar por ID numérico da linha na tabela
+    console.log('METODO 1: Procurando select por data-index ou proximidade');
 
-    if (categorySelects.length === 0) {
-      console.error('ERRO: Nenhum select de categoria encontrado!');
-      console.log('Verificando IDs no DOM...');
-      const allSelects = document.querySelectorAll('select');
-      console.log('Total de selects na pagina:', allSelects.length);
-      allSelects.forEach((select, idx) => {
-        console.log('Select ' + idx + ':', select.getAttribute('data-index'), select.getAttribute('data-field'));
-      });
+    const allRows = document.querySelectorAll('#csvPreviewTable tbody tr');
+    console.log('Total de linhas na tabela:', allRows.length);
+
+    if (allRows.length === 0) {
+      console.error('ERRO: Nenhuma linha encontrada na tabela!');
+      showCsvAISuccessToast(rowIndex, data.categoryName, data.confidence, data.reason);
       return;
     }
 
-    // PASSO 2: Encontrar o select correto pelo rowIndex
-    let targetSelect = null;
-    categorySelects.forEach(select => {
-      const dataIndex = select.getAttribute('data-index');
-      console.log('Comparando:', 'data-index=' + dataIndex, 'rowIndex=' + rowIndex);
-
-      if (parseInt(dataIndex) === rowIndex) {
-        targetSelect = select;
-        console.log('SELECT ENCONTRADO para linha', rowIndex);
-      }
-    });
-
-    if (!targetSelect) {
-      console.error('ERRO: Select nao encontrado para rowIndex:', rowIndex);
-      console.error('Tentando metodo alternativo...');
-
-      // Metodo alternativo: pegar o primeiro select vazio (pode ser problema se tiver multiplos)
-      targetSelect = categorySelects[rowIndex];
-      if (!targetSelect) {
-        alert('ERRO: Nao consegui encontrar o select de categoria. Verifique o HTML da tabela.');
-        return;
-      }
+    // Encontrar a linha específica
+    const targetRow = allRows[rowIndex];
+    if (!targetRow) {
+      console.error('ERRO: Linha', rowIndex, 'nao existe na tabela. Total de linhas:', allRows.length);
+      showCsvAISuccessToast(rowIndex, data.categoryName, data.confidence, data.reason);
+      return;
     }
 
-    // PASSO 3: Procurar a opcao com o nome ou ID da categoria
-    let foundOption = null;
-    console.log('Procurando opcao com nome:', data.categoryName, 'ou ID:', data.categoryId);
+    // METODO 2: Procurar o select dentro dessa linha
+    console.log('METODO 2: Procurando select dentro da linha');
+    const selectInRow = targetRow.querySelector('select');
 
-    for (let i = 0; i < targetSelect.options.length; i++) {
-      const option = targetSelect.options[i];
+    if (!selectInRow) {
+      console.error('ERRO: Nenhum select encontrado na linha', rowIndex);
+      console.log('HTML da linha:', targetRow.innerHTML);
+      showCsvAISuccessToast(rowIndex, data.categoryName, data.confidence, data.reason);
+      return;
+    }
+
+    console.log('SELECT ENCONTRADO na linha', rowIndex);
+    console.log('Select tagName:', selectInRow.tagName);
+    console.log('Select className:', selectInRow.className);
+
+    // METODO 3: Procurar a opcao com o nome ou ID da categoria
+    console.log('METODO 3: Procurando opcao com nome:', data.categoryName, 'ou ID:', data.categoryId);
+
+    let foundOption = null;
+    let foundByName = false;
+    let foundById = false;
+
+    for (let i = 0; i < selectInRow.options.length; i++) {
+      const option = selectInRow.options[i];
       const optionText = option.textContent.trim();
       const optionValue = option.value;
 
-      console.log('Verificando opcao:', optionText, '=', optionValue);
+      // Debug: mostrar todas as opcoes
+      console.log('  Opcao', i, ':', optionValue, '===', optionText);
 
-      if (optionText === data.categoryName || optionValue === data.categoryId) {
+      // Verificar nome exato
+      if (optionText === data.categoryName) {
         foundOption = option;
-        console.log('OPCAO ENCONTRADA:', optionText);
+        foundByName = true;
+        console.log('  --> MATCH POR NOME!');
+        break;
+      }
+
+      // Verificar por ID
+      if (optionValue === data.categoryId) {
+        foundOption = option;
+        foundById = true;
+        console.log('  --> MATCH POR ID!');
         break;
       }
     }
 
     if (foundOption) {
-      targetSelect.value = foundOption.value;
-      targetSelect.dispatchEvent(new Event('change', { bubbles: true }));
-      console.log('OK Categoria preenchida:', data.categoryName);
+      selectInRow.value = foundOption.value;
+      selectInRow.dispatchEvent(new Event('change', { bubbles: true }));
+      console.log('SUCESSO! Categoria preenchida:', data.categoryName);
 
-      // Mostrar toast de sucesso
+      // Mostrar modal de sucesso
       showCsvAISuccessToast(rowIndex, data.categoryName, data.confidence, data.reason);
     } else {
       console.warn('AVISO: Opcao nao encontrada no select');
-      console.log('Opcoes disponveis:');
-      for (let i = 0; i < targetSelect.options.length; i++) {
-        console.log(' -', targetSelect.options[i].value, ':', targetSelect.options[i].textContent);
+      console.log('Opcoes disponveis no select:');
+      for (let i = 0; i < selectInRow.options.length; i++) {
+        console.log(' -', selectInRow.options[i].value, ':', selectInRow.options[i].textContent);
       }
 
-      // Mesmo sem encontrar, mostrar a sugestao
+      // Mesmo sem encontrar, mostrar a sugestao (o usuario pode copiar manualmente)
       showCsvAISuccessToast(rowIndex, data.categoryName, data.confidence, data.reason);
     }
 
@@ -227,23 +237,35 @@ async function suggestCategoryForCsvLine(rowIndex) {
 }
 
 // ============================================
-// FUNCAO: Toast de sucesso com MODAL visivel
+// FUNCAO: Modal de sucesso com SUGESTAO VISIVEL
 // ============================================
 function showCsvAISuccessToast(rowIndex, categoryName, confidence, reason) {
-  const confidencePercent = Math.round(confidence * 100);
+  const confidencePercent = confidence === 'alta' ? '95%' : confidence === 'media' ? '70%' : '50%';
+
+  if (typeof confidencePercent === 'string' && confidencePercent.includes('%')) {
+    // Já vem em formato string como "95%"
+  } else {
+    const conf = Math.round(confidence * 100);
+    confidencePercent = conf + '%';
+  }
 
   // MODAL para exibir a sugestao
   const modal = document.createElement('div');
   modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 998; display: flex; align-items: center; justify-content: center;';
 
   const content = document.createElement('div');
-  content.style.cssText = 'background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); max-width: 400px; text-align: center;';
+  content.style.cssText = 'background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); max-width: 500px; text-align: center;';
 
-  content.innerHTML = '<h2 style="color: #22c55e; margin-top: 0;">Sugestao da IA</h2>' +
-    '<div style="font-size: 24px; font-weight: bold; color: #166534; margin: 20px 0;">' + categoryName + '</div>' +
-    '<div style="font-size: 16px; color: #16a34a; margin-bottom: 10px;">Confianca: ' + confidencePercent + '%</div>' +
-    '<div style="font-size: 14px; color: #666; margin-bottom: 20px; line-height: 1.5;">' + reason + '</div>' +
-    '<button onclick="this.parentElement.parentElement.remove()" style="padding: 10px 20px; background: #22c55e; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">OK, Entendi</button>';
+  content.innerHTML = '<h2 style="color: #22c55e; margin-top: 0; font-size: 24px;">Sugestao da IA</h2>' +
+    '<div style="font-size: 32px; font-weight: bold; color: #166534; margin: 20px 0;">' + categoryName + '</div>' +
+    '<div style="display: flex; justify-content: center; gap: 30px; margin-bottom: 20px;">' +
+      '<div>' +
+        '<div style="font-size: 14px; color: #666;">Confianca</div>' +
+        '<div style="font-size: 20px; font-weight: bold; color: #16a34a;">' + confidencePercent + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="font-size: 14px; color: #666; margin-bottom: 20px; line-height: 1.6; background: #f5f5f5; padding: 15px; border-radius: 5px; text-align: left;">' + reason + '</div>' +
+    '<button onclick="this.parentElement.parentElement.remove()" style="padding: 12px 30px; background: #22c55e; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px;">OK, Perfeito</button>';
 
   modal.appendChild(content);
   document.body.appendChild(modal);
@@ -262,7 +284,7 @@ function showCsvAISuccessToast(rowIndex, categoryName, confidence, reason) {
     }
   }, 5000);
 
-  console.log('Modal de sugestao exibido');
+  console.log('MODAL exibido com sugestao');
 }
 
 /**
