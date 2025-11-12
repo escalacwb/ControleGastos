@@ -3956,6 +3956,7 @@ function generateCsvPreview() {
   };
 
   renderCsvPreviewTable();
+  showDetectedDelimiter();
   
   document.getElementById('csvMappingSection').style.display = 'none';
   document.getElementById('csvPreviewSection').style.display = 'block';
