@@ -3956,6 +3956,7 @@ function generateCsvPreview() {
   };
 
   renderCsvPreviewTable();
+  showDetectedDelimiter();
   
   document.getElementById('csvMappingSection').style.display = 'none';
   document.getElementById('csvPreviewSection').style.display = 'block';
@@ -3963,105 +3964,76 @@ function generateCsvPreview() {
 
 function renderCsvPreviewTable() {
   const container = document.getElementById('csvPreviewTable');
-  if (!container) return;
-
   document.getElementById('csvRowCount').textContent = csvData.length;
-
+  
   let html = `
-  <div style="margin-bottom: 20px; padding: 15px; background: #e8f4f8; border-radius: 8px;">
-    <label style="display: block; margin-bottom: 10px; font-weight: bold;">
-      💳 Selecione o Cartão de Crédito:
-    </label>
-    <select id="csvPreviewCardSelect" onchange="replicateCardToAllRows(this.value)" style="width: 100%; padding: 10px; font-size: 14px; border: 2px solid #0066cc; border-radius: 5px;">
-      <option value="">-- Selecione um Cartão --</option>
-      ${creditCards.map(c => `<option value="${c.id}">${c.holder_name} (${c.bank_name})</option>`).join('')}
-    </select>
-  </div>
-
-  <div style="margin-bottom: 15px; display: flex; gap: 20px; align-items: center;">
-    <label>
-      <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllRows(this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
-      <strong style="margin-left: 10px; vertical-align: middle;">Selecionar Todos</strong>
-    </label>
-
-    <div style="padding: 10px 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px; font-weight: bold; color: #856404;">
-      💰 Total Selecionado: <span id="csvTotalAmount" style="font-size: 16px; color: #28a745;">R$ 0.00</span>
-    </div>
-  </div>
-
-  <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-    <thead>
+    <table style="width: 100%; border-collapse: collapse;">
       <tr style="background: #0066cc; color: white; position: sticky; top: 0;">
-        <th style="padding: 8px; text-align: center; border: 1px solid #ccc; width: 40px;">✓</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Data</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Descrição</th>
-        <th style="padding: 10px; text-align: right; border: 1px solid #ccc;">Valor</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Categoria</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Parcelas</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">📅 Data</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">📝 Descrição</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">💰 Valor</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">🏦 Cartão</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">🏷️ Categoria</th>
+        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">📦 Parcela</th>
       </tr>
-    </thead>
-    <tbody>`;
+  `;
 
   csvData.forEach((row, index) => {
     const bgColor = index % 2 === 0 ? '#fff' : '#f9f9f9';
-
+    
     let date = row[csvMapping.date] || '';
     let description = row[csvMapping.description] || '';
     let amount = row[csvMapping.amount] || '';
     let category = row[csvMapping.category] || '';
     let installment = row[csvMapping.installment] || '';
-
+    
     amount = amount.replace('R$', '').replace(/\s/g, '').replace(',', '.');
-
+    
+    let creditCardId = '';
+    const cardName = row[csvMapping.creditCard] || '';
+    const matchCard = creditCards.find(c => c.holder_name.includes(cardName) || cardName.includes(c.holder_name));
+    if (matchCard) creditCardId = matchCard.id;
+    
     let categoryId = '';
     if (category) {
-      const matchCat = categories.find(c => c.name.toUpperCase().includes(category.toUpperCase()));
+      const matchCat = categories.find(c => c.name.toUpperCase().includes(category.toUpperCase()) || category.toUpperCase().includes(c.name.toUpperCase()));
       if (matchCat) categoryId = matchCat.id;
     }
 
-    html += `<tr style="background: ${bgColor}; border-bottom: 1px solid #eee;">
-      <td style="padding: 8px; text-align: center; border: 1px solid #eee;">
-        <input type="checkbox" class="csvRowCheckbox" data-index="${index}" data-amount="${amount}" onchange="updateCsvTotal()" checked style="width: 16px; height: 16px; cursor: pointer;">
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <input type="date" value="${formatDateForInput(date)}" onchange="updateCsvRowField(${index}, 'date', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <input type="text" value="${description}" onchange="updateCsvRowField(${index}, 'description', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee; text-align: right;">
-        <input type="number" value="${amount}" onchange="updateCsvRowFieldAndTotal(${index}, 'amount', this.value)" step="0.01" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <select onchange="updateCsvRowField(${index}, 'category', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
-          <option value="">-</option>
-          ${categories.map(c => `<option value="${c.id}" ${categoryId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
-        </select>
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <input type="text" value="${installment}" onchange="updateCsvRowField(${index}, 'installment', this.value)" placeholder="1 de 3" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
-    </tr>`;
+    html += `
+      <tr style="background: ${bgColor}; border-bottom: 1px solid #ddd;">
+        <td style="padding: 10px;">
+          <input type="date" value="${formatDateForInput(date)}" data-index="${index}" data-field="date" onchange="updateCsvRowField(${index}, 'date', this.value)" style="width: 100%; padding: 5px;">
+        </td>
+        <td style="padding: 10px;">
+          <input type="text" value="${description}" data-index="${index}" data-field="description" onchange="updateCsvRowField(${index}, 'description', this.value)" style="width: 100%; padding: 5px;">
+        </td>
+        <td style="padding: 10px;">
+          <input type="number" value="${amount}" data-index="${index}" data-field="amount" onchange="updateCsvRowField(${index}, 'amount', this.value)" step="0.01" style="width: 100%; padding: 5px;">
+        </td>
+        <td style="padding: 10px;">
+          <select data-index="${index}" data-field="creditCard" onchange="updateCsvRowField(${index}, 'creditCard', this.value)" style="width: 100%; padding: 5px;">
+            <option value="">Selecionar...</option>
+            ${creditCards.map(card => `<option value="${card.id}" ${creditCardId === card.id ? 'selected' : ''}>${card.holder_name} - ${card.bank_name}</option>`).join('')}
+          </select>
+        </td>
+        <td style="padding: 10px;">
+          <select data-index="${index}" data-field="category" onchange="updateCsvRowField(${index}, 'category', this.value)" style="width: 100%; padding: 5px;">
+            <option value="">Deixar em Branco</option>
+            ${categories.map(cat => `<option value="${cat.id}" ${categoryId === cat.id ? 'selected' : ''}>${cat.name}</option>`).join('')}
+          </select>
+        </td>
+        <td style="padding: 10px;">
+          <input type="text" value="${installment}" data-index="${index}" data-field="installment" onchange="updateCsvRowField(${index}, 'installment', this.value)" placeholder="Ex: 1 de 3" style="width: 100%; padding: 5px;">
+        </td>
+      </tr>
+    `;
   });
 
-  html += `</tbody></table>
-
-  <div style="margin-top: 15px; display: flex; gap: 10px;">
-    <button onclick="goBackToCsvMapping()" style="padding: 12px 24px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
-      ← Voltar
-    </button>
-    <button onclick="importSelectedTransactions()" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
-      ✅ Importar Selecionados
-    </button>
-  </div>`;
-
+  html += '</table>';
   container.innerHTML = html;
-
-  // Calcular total inicial
-  updateCsvTotal();
-
-  console.log('✅ Tabela renderizada com', csvData.length, 'linhas');
 }
+
 function formatDateForInput(dateStr) {
   if (!dateStr) return '';
   
@@ -4075,42 +4047,6 @@ function formatDateForInput(dateStr) {
   }
   
   return '';
-}
-
-
-
-// ============================================
-// FUNÇÃO: Atualizar somatório de amounts
-// ============================================
-function updateCsvTotal() {
-  const checkboxes = document.querySelectorAll('.csvRowCheckbox:checked');
-  let total = 0;
-
-  checkboxes.forEach(checkbox => {
-    const amount = parseFloat(checkbox.getAttribute('data-amount')) || 0;
-    total += Math.abs(amount);  // Usar valor absoluto para não ficar negativo
-  });
-
-  // Atualizar display
-  const totalDisplay = document.getElementById('csvTotalAmount');
-  if (totalDisplay) {
-    totalDisplay.textContent = 'R$ ' + total.toFixed(2).replace('.', ',');
-    totalDisplay.style.color = total > 0 ? '#28a745' : '#dc3545';
-  }
-
-  console.log('Total atualizado:', total);
-}
-
-// ============================================
-// FUNÇÃO: Atualizar field e recalcular total
-// ============================================
-function updateCsvRowFieldAndTotal(index, field, value) {
-  updateCsvRowField(index, field, value);
-
-  // Re-renderizar para atualizar data-amount dos checkboxes
-  setTimeout(() => {
-    updateCsvTotal();
-  }, 100);
 }
 
 function updateCsvRowField(index, field, value) {
