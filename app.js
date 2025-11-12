@@ -17,6 +17,9 @@ let filterType = 'all';      // 'all', 'income', 'expense', 'transfer'
 let filterAccount = 'all';   // 'all' ou ID da conta
 let filterDateStart = null;  // Data inicial (YYYY-MM-DD)
 let filterDateEnd = null;    // Data final (YYYY-MM-DD)
+let csvData = [];
+let csvHeaders = [];
+let csvMapping = {};
 
 // ============================================
 // IA CATEGORY SUGGESTION - CLAUDE API
