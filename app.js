@@ -4792,9 +4792,6 @@ function generateCsvPreview() {
   document.getElementById('csvPreviewSection').style.display = 'block';
 }
 
-let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
 
 
 function renderCsvPreviewTable() {
