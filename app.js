@@ -4034,9 +4034,6 @@ function syncFilters() {
 }
 
 
-let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
 
 // ✅ FUNÇÃO: Detectar delimitador (vírgula ou ponto-e-vírgula)
 function detectDelimiter(csvText) {
@@ -4203,6 +4200,13 @@ function generateCsvPreview() {
   document.getElementById('csvMappingSection').style.display = 'none';
   document.getElementById('csvPreviewSection').style.display = 'block';
 }
+
+// =========================================
+// CSV VARIABLES
+// =========================================
+var csvData = [];
+var csvHeaders = [];
+var csvMapping = {};
 
 function renderCsvPreviewTable() {
   const container = document.getElementById('csvPreviewTable');
@@ -4379,28 +4383,243 @@ function backToMapping() {
   document.getElementById('csvMappingSection').style.display = 'block';
 }
 
-async function importAllTransactions() {
+async function importSelectedTransactions() {
+  console.log('Iniciando importacao de transacoes selecionadas...');
+  console.log('Total de linhas no CSV:', csvData.length);
+
+  // Validar dados
+  if (!csvData || csvData.length === 0) {
+    alert('Nenhum dado para importar');
+    return;
+  }
+
+  // Pegar checkboxes marcadas
+  const checkboxes = document.querySelectorAll('.csvRowCheckbox:checked');
+  console.log('Checkboxes selecionadas:', checkboxes.length);
+
+  if (checkboxes.length === 0) {
+    alert('Selecione pelo menos uma transacao para importar');
+    return;
+  }
+
   try {
     let successCount = 0;
     let errorCount = 0;
 
-    document.getElementById('importProgressSection').style.display = 'block';
+    // Mostrar progresso
+    const progressSection = document.getElementById('importProgressSection');
+    if (progressSection) {
+      progressSection.style.display = 'block';
+    }
 
+    // Iterar sobre cada checkbox selecionada
+    checkboxes.forEach(async (checkbox, idx) => {
+      const rowIndex = parseInt(checkbox.getAttribute('data-index'));
+      console.log('Processando linha:', rowIndex);
+
+      if (!csvData[rowIndex]) {
+        console.error('Linha nao encontrada:', rowIndex);
+        errorCount++;
+        return;
+      }
+
+      const row = csvData[rowIndex];
+      const edited = row.edited || {};
+
+      // Pegar dados
+      const date = (edited.date || row[csvMapping.date] || new Date().toISOString().split('T')[0]);
+      const description = (edited.description || row[csvMapping.description] || '');
+      let amount = (edited.amount || row[csvMapping.amount] || 0);
+      const categoryId = (edited.category || row[csvMapping.category] || null);
+
+      // Limpar amount
+      amount = parseFloat(
+        amount
+          .toString()
+          .replace('R', '')
+          .replace(/\./g, '')
+          .replace(',', '.')
+      );
+
+      // Validar dados minimos
+      if (!description || amount <= 0) {
+        console.warn('Linha com dados invalidos:', description, amount);
+        errorCount++;
+        return;
+      }
+
+      // Encontrar carto
+      const cardNameOrId = edited.creditCard || row[csvMapping.creditCard];
+      let creditCardId = null;
+
+      if (cardNameOrId) {
+        const card = creditCards.find(c => 
+          c.id === cardNameOrId || 
+          c.holderName?.includes(cardNameOrId) || 
+          c.bankname?.includes(cardNameOrId)
+        );
+
+        if (card) {
+          creditCardId = card.id;
+        }
+      }
+
+      if (!creditCardId) {
+        console.error('Carto nao encontrado para linha:', rowIndex);
+        errorCount++;
+        return;
+      }
+
+      const card = creditCards.find(c => c.id === creditCardId);
+      if (!card) {
+        console.error('Carto invalido');
+        errorCount++;
+        return;
+      }
+
+      try {
+        // Inserir transacao
+        const { data, error } = await supabase
+          .from('transactions')
+          .insert({
+            userid: currentUser.id,
+            type: 'expense',
+            date: date,
+            description: description,
+            amount: amount,
+            accountid: card.accountid,
+            creditcardid: creditCardId,
+            categoryid: categoryId || null
+          })
+          .select()
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        console.log('Transacao inserida com sucesso:', data.id);
+        successCount++;
+
+      } catch (error) {
+        console.error('Erro ao inserir transacao:', error);
+        errorCount++;
+      }
+
+      // Atualizar progresso
+      const progress = ((idx + 1) / checkboxes.length) * 100;
+      const progressBar = document.getElementById('importProgressBar');
+      const progressStatus = document.getElementById('importStatus');
+
+      if (progressBar) {
+        progressBar.style.width = progress + '%';
+      }
+      if (progressStatus) {
+        progressStatus.textContent = 'Importando ' + (idx + 1) + '/' + checkboxes.length + ' - OK: ' + successCount + ', Erros: ' + errorCount;
+      }
+    });
+
+    // Aguardar todas as operacoes completarem
+    setTimeout(() => {
+      if (progressSection) {
+        progressSection.style.display = 'none';
+      }
+
+      alert('Importacao finalizada! Sucesso: ' + successCount + ' | Erros: ' + errorCount);
+
+      // Recarregar dados
+      loadAllData();
+
+      // Limpar CSV
+      csvData = [];
+      csvHeaders = [];
+      csvMapping = {};
+
+      // Voltar para upload
+      const uploadSection = document.getElementById('csvUploadSection');
+      const previewSection = document.getElementById('csvPreviewSection');
+      const fileInput = document.getElementById('csvFileInput');
+
+      if (uploadSection) uploadSection.style.display = 'block';
+      if (previewSection) previewSection.style.display = 'none';
+      if (fileInput) fileInput.value = '';
+
+    }, 1000 * checkboxes.length + 500);
+
+  } catch (error) {
+    console.error('Erro geral na importacao:', error);
+    alert('Erro: ' + error.message);
+  }
+}
+
+
+// ============================================
+// CORRIGIR A FUNCAO importAllTransactions
+// ============================================
+
+async function importAllTransactions() {
+  console.log('Iniciando importacao de TODAS as transacoes...');
+  console.log('Total de linhas:', csvData.length);
+
+  if (!csvData || csvData.length === 0) {
+    alert('Nenhum dado para importar');
+    return;
+  }
+
+  try {
+    let successCount = 0;
+    let errorCount = 0;
+
+    const progressSection = document.getElementById('importProgressSection');
+    if (progressSection) {
+      progressSection.style.display = 'block';
+    }
+
+    // Iterar sobre TODAS as linhas
     for (let i = 0; i < csvData.length; i++) {
       const row = csvData[i];
-      const edited = row._edited || {};
-      
-      const date = edited.date || row[csvMapping.date] || new Date().toISOString().split('T')[0];
-      const description = edited.description || row[csvMapping.description];
-      let amount = edited.amount || row[csvMapping.amount] || '0';
-      const creditCardId = edited.creditCard || creditCards.find(c => row[csvMapping.creditCard]?.includes(c.holder_name))?.id;
-      const categoryId = edited.category || '';
-      const installment = edited.installment || row[csvMapping.installment] || '';
+      const edited = row.edited || {};
 
-      amount = parseFloat(amount.toString().replace('R$', '').replace(/\s/g, '').replace(',', '.'));
+      // Pegar dados
+      const date = (edited.date || row[csvMapping.date] || new Date().toISOString().split('T')[0]);
+      const description = (edited.description || row[csvMapping.description] || '');
+      let amount = (edited.amount || row[csvMapping.amount] || 0);
+      const categoryId = (edited.category || null);
 
-      if (!description || amount <= 0 || !creditCardId) {
-        console.warn(`⚠️ Linha ${i + 1} com dados inválidos, pulando...`);
+      // Limpar amount
+      amount = parseFloat(
+        amount
+          .toString()
+          .replace('R', '')
+          .replace(/\./g, '')
+          .replace(',', '.')
+      );
+
+      // Validar dados
+      if (!description || amount <= 0) {
+        console.warn('Pulando linha invalida:', i + 1);
+        errorCount++;
+        continue;
+      }
+
+      // Encontrar carto
+      const cardNameOrId = edited.creditCard || row[csvMapping.creditCard];
+      let creditCardId = null;
+
+      if (cardNameOrId) {
+        const card = creditCards.find(c => 
+          c.id === cardNameOrId || 
+          c.holderName?.includes(cardNameOrId) || 
+          c.bankname?.includes(cardNameOrId)
+        );
+
+        if (card) {
+          creditCardId = card.id;
+        }
+      }
+
+      if (!creditCardId) {
+        console.warn('Carto nao encontrado para linha:', i + 1);
         errorCount++;
         continue;
       }
@@ -4411,57 +4630,81 @@ async function importAllTransactions() {
         continue;
       }
 
-      const { error } = await supabase
-        .from('transactions')
-        .insert([{
-          user_id: currentUser.id,
-          type: 'expense',
-          date: date,
-          description: description,
-          amount: amount,
-          account_id: card.account_id,
-          credit_card_id: creditCardId,
-          category_id: categoryId || null
-        }])
-        .select()
-        .single();
+      try {
+        // Inserir
+        const { data, error } = await supabase
+          .from('transactions')
+          .insert({
+            userid: currentUser.id,
+            type: 'expense',
+            date: date,
+            description: description,
+            amount: amount,
+            accountid: card.accountid,
+            creditcardid: creditCardId,
+            categoryid: categoryId || null
+          })
+          .select()
+          .single();
 
-      if (error) {
-        console.error(`❌ Erro na linha ${i + 1}:`, error);
-        errorCount++;
-      } else {
+        if (error) throw error;
+
+        console.log('OK linha ' + (i + 1));
         successCount++;
+
+      } catch (error) {
+        console.error('Erro na linha ' + (i + 1) + ':', error);
+        errorCount++;
       }
 
+      // Atualizar progresso
       const progress = ((i + 1) / csvData.length) * 100;
-      document.getElementById('importProgressBar').style.width = progress + '%';
-      document.getElementById('importStatus').textContent = `Importando: ${i + 1}/${csvData.length} - ✅ ${successCount} OK, ❌ ${errorCount} Erros`;
+      const progressBar = document.getElementById('importProgressBar');
+      const progressStatus = document.getElementById('importStatus');
+
+      if (progressBar) {
+        progressBar.style.width = progress + '%';
+      }
+      if (progressStatus) {
+        progressStatus.textContent = 'Importando ' + (i + 1) + '/' + csvData.length + ' - OK: ' + successCount + ', Erros: ' + errorCount;
+      }
+
+      // Pequena pausa para nao sobrecarregar
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    document.getElementById('importStatus').textContent = `✅ Importação concluída! ${successCount} transações cadastradas, ${errorCount} erros.`;
-    
+    // Finalizar
+    if (progressSection) {
+      progressSection.style.display = 'none';
+    }
+
+    alert('Importacao completa! Sucesso: ' + successCount + ' | Erros: ' + errorCount);
+
+    // Recarregar dados
     await loadAllData();
-    
-    setTimeout(() => {
-      document.getElementById('csvUploadSection').style.display = 'block';
-      document.getElementById('csvPreviewSection').style.display = 'none';
-      document.getElementById('importProgressSection').style.display = 'none';
-      document.getElementById('csvFileInput').value = '';
-      csvData = [];
-      csvHeaders = [];
-      csvMapping = {};
-      alert(`✅ Importação finalizada!\n✅ Sucesso: ${successCount}\n❌ Erros: ${errorCount}`);
-    }, 2000);
+
+    // Limpar
+    csvData = [];
+    csvHeaders = [];
+    csvMapping = {};
+
+    // Voltar
+    const uploadSection = document.getElementById('csvUploadSection');
+    const previewSection = document.getElementById('csvPreviewSection');
+    const fileInput = document.getElementById('csvFileInput');
+
+    if (uploadSection) uploadSection.style.display = 'block';
+    if (previewSection) previewSection.style.display = 'none';
+    if (fileInput) fileInput.value = '';
 
   } catch (error) {
-    console.error('❌ Erro geral na importação:', error);
-    alert('❌ Erro: ' + error.message);
+    console.error('Erro:', error);
+    alert('Erro: ' + error.message);
   }
+}
 
 
-  let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
+
 
 function handleCsvFileSelect() {
   const fileInput = document.getElementById('csvFileInput');
@@ -4548,6 +4791,11 @@ function generateCsvPreview() {
   document.getElementById('csvMappingSection').style.display = 'none';
   document.getElementById('csvPreviewSection').style.display = 'block';
 }
+
+let csvData = [];
+let csvHeaders = [];
+let csvMapping = {};
+
 
 function renderCsvPreviewTable() {
   const container = document.getElementById('csvPreviewTable');
