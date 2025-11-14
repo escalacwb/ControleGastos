@@ -4028,7 +4028,15 @@ function syncFilters() {
   
   applyFilters();
 
+// ============================================
+// IMPORTADOR DE CSV - FUNÇÕES
+// ============================================
+}
 
+
+let csvData = [];
+let csvHeaders = [];
+let csvMapping = {};
 
 // ✅ FUNÇÃO: Detectar delimitador (vírgula ou ponto-e-vírgula)
 function detectDelimiter(csvText) {
