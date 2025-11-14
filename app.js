@@ -4028,10 +4028,9 @@ function syncFilters() {
   
   applyFilters();
 
-// ============================================
+  // ============================================
 // IMPORTADOR DE CSV - FUNÇÕES
 // ============================================
-}
 
 
 let csvData = [];
@@ -4156,18 +4155,19 @@ function handleCsvFileSelect() {
 }
 
 
-
-
-
 function populateMappingSelects() {
   const selects = ['mapDate', 'mapDescription', 'mapAmount', 'mapCreditCard', 'mapCategory', 'mapInstallment'];
   
   selects.forEach(selectId => {
     const select = document.getElementById(selectId);
+    if (!select) return; // Adiciona verificação
+    
     const firstOption = select.querySelector('option:first-child');
     
     select.innerHTML = '';
-    select.appendChild(firstOption.cloneNode(true));
+    if (firstOption) { // Adiciona verificação
+        select.appendChild(firstOption.cloneNode(true));
+    }
     
     csvHeaders.forEach(header => {
       const option = document.createElement('option');
@@ -4213,17 +4213,17 @@ function renderCsvPreviewTable() {
   let html = `
   <div style="margin-bottom: 20px; padding: 15px; background: #e8f4f8; border-radius: 8px;">
     <label style="display: block; margin-bottom: 10px; font-weight: bold;">
-      💳 Selecione o Cartão de Crédito:
+      💳 Selecione o Cartão de Crédito de Destino:
     </label>
     <select id="csvPreviewCardSelect" onchange="replicateCardToAllRows(this.value)" style="width: 100%; padding: 10px; font-size: 14px; border: 2px solid #0066cc; border-radius: 5px;">
       <option value="">-- Selecione um Cartão --</option>
-      ${creditCards.map(c => `<option value="${c.id}">${c.holder_name} (${c.bank_name})</option>`).join('')}
+      ${creditCards.map(c => `<option value="${c.id}">${c.holder_name} (${c.bank_name} - ${c.last_four_digits})</option>`).join('')}
     </select>
   </div>
 
   <div style="margin-bottom: 15px; display: flex; gap: 20px; align-items: center;">
     <label>
-      <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllRows(this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
+      <input type="checkbox" id="selectAllCheckbox" onchange="toggleAllRows(this.checked)" style="width: 18px; height: 18px; cursor: pointer;" checked>
       <strong style="margin-left: 10px; vertical-align: middle;">Selecionar Todos</strong>
     </label>
 
@@ -4254,7 +4254,12 @@ function renderCsvPreviewTable() {
     let category = row[csvMapping.category] || '';
     let installment = row[csvMapping.installment] || '';
 
+    // Limpa o valor (remove R$, espaços, e troca vírgula por ponto)
     amount = amount.replace('R$', '').replace(/\s/g, '').replace(',', '.');
+    // Se o valor for negativo (comum em faturas), torna positivo
+    if (amount.startsWith('-')) {
+        amount = amount.substring(1);
+    }
 
     let categoryId = '';
     if (category) {
@@ -4270,17 +4275,17 @@ function renderCsvPreviewTable() {
         <input type="date" value="${formatDateForInput(date)}" onchange="updateCsvRowField(${index}, 'date', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
       </td>
       <td style="padding: 8px; border: 1px solid #eee; display: flex; gap: 4px; align-items: center;">
-  <input type="text" value="${description}" onchange="updateCsvRowField(${index}, 'description', this.value)" style="flex: 1; padding: 3px; font-size: 11px;">
-  <button 
-    type="button"
-    onclick="suggestCategoryForCsvLine(${index})" 
-    title="Sugerir categoria com IA"
-    style="padding: 3px 6px; background: #0369a1; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; white-space: nowrap; flex-shrink: 0;"
-  >
-    IA
-  </button>
-  <div id="csvAILoading_${index}" style="display: none; font-size: 10px; color: #0369a1;">...</div>
-</td>
+        <input type="text" value="${description}" onchange="updateCsvRowField(${index}, 'description', this.value)" style="flex: 1; padding: 3px; font-size: 11px;">
+        <button 
+          type="button"
+          onclick="suggestCategoryForCsvLine(${index})" 
+          title="Sugerir categoria com IA"
+          style="padding: 3px 6px; background: #0369a1; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; white-space: nowrap; flex-shrink: 0;"
+        >
+          IA
+        </button>
+        <div id="csvAILoading_${index}" style="display: none; font-size: 10px; color: #0369a1;">...</div>
+      </td>
       <td style="padding: 8px; border: 1px solid #eee; text-align: right;">
         <input type="number" value="${amount}" onchange="updateCsvRowFieldAndTotal(${index}, 'amount', this.value)" step="0.01" style="width: 95%; padding: 3px; font-size: 11px;">
       </td>
@@ -4299,7 +4304,7 @@ function renderCsvPreviewTable() {
   html += `</tbody></table>
 
   <div style="margin-top: 15px; display: flex; gap: 10px;">
-    <button onclick="goBackToCsvMapping()" style="padding: 12px 24px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+    <button onclick="backToMapping()" style="padding: 12px 24px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
       ← Voltar
     </button>
     <button onclick="importSelectedTransactions()" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
@@ -4314,22 +4319,28 @@ function renderCsvPreviewTable() {
 
   console.log('✅ Tabela renderizada com', csvData.length, 'linhas');
 }
+
 function formatDateForInput(dateStr) {
   if (!dateStr) return '';
   
+  // Tenta formato DD/MM/AAAA
   if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
     const [day, month, year] = dateStr.split('/');
     return `${year}-${month}-${day}`;
   }
   
+  // Tenta formato AAAA-MM-DD
   if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
     return dateStr;
   }
   
-  return '';
+  // Tenta converter data genérica (pode falhar)
+  try {
+    return new Date(dateStr).toISOString().split('T')[0];
+  } catch (e) {
+    return ''; // Retorna vazio se falhar
+  }
 }
-
-
 
 // ============================================
 // FUNÇÃO: Atualizar somatório de amounts
@@ -4339,8 +4350,12 @@ function updateCsvTotal() {
   let total = 0;
 
   checkboxes.forEach(checkbox => {
-    const amount = parseFloat(checkbox.getAttribute('data-amount')) || 0;
-    total += Math.abs(amount);  // Usar valor absoluto para não ficar negativo
+    // Pega o valor do input da *mesma linha*
+    const row = checkbox.closest('tr');
+    const amountInput = row.querySelector('input[type="number"]');
+    const amount = parseFloat(amountInput.value) || 0;
+    
+    total += Math.abs(amount); // Usar valor absoluto
   });
 
   // Atualizar display
@@ -4358,11 +4373,8 @@ function updateCsvTotal() {
 // ============================================
 function updateCsvRowFieldAndTotal(index, field, value) {
   updateCsvRowField(index, field, value);
-
-  // Re-renderizar para atualizar data-amount dos checkboxes
-  setTimeout(() => {
-    updateCsvTotal();
-  }, 100);
+  // Recalcula o total sempre que o valor é alterado
+  updateCsvTotal();
 }
 
 function updateCsvRowField(index, field, value) {
@@ -4374,73 +4386,164 @@ function updateCsvRowField(index, field, value) {
   console.log(`✏️ Atualizado [${index}] ${field}:`, value);
 }
 
-function backToMapping() {
-  document.getElementById('csvPreviewSection').style.display = 'none';
-  document.getElementById('csvMappingSection').style.display = 'block';
+// ============================================
+// ***** INÍCIO DAS NOVAS FUNÇÕES *****
+// ============================================
+
+/**
+ * ✅ FUNÇÃO: Marcar/Desmarcar todos os checkboxes
+ * (Adicionada - estava faltando)
+ */
+function toggleAllRows(checked) {
+  console.log('Toggling all rows:', checked);
+  const checkboxes = document.querySelectorAll('.csvRowCheckbox');
+  checkboxes.forEach(cb => {
+    cb.checked = checked;
+  });
+  updateCsvTotal();
 }
 
-async function importAllTransactions() {
+/**
+ * ✅ FUNÇÃO: Replicar cartão para todas as linhas
+ * (Adicionada - estava faltando)
+ */
+function replicateCardToAllRows(cardId) {
+  console.log('Card ID selecionado para todas as linhas:', cardId);
+  // Esta função é chamada pelo <select> principal.
+  // A lógica de importação (importSelectedTransactions)
+  // vai ler o valor deste select principal.
+  // Não é necessário fazer mais nada aqui.
+}
+
+/**
+ * ✅ FUNÇÃO: Importar transações selecionadas
+ * (Adicionada - esta era a função que não fazia nada)
+ */
+async function importSelectedTransactions() {
+  const selectedCheckboxes = document.querySelectorAll('.csvRowCheckbox:checked');
+  const totalToImport = selectedCheckboxes.length;
+  
+  if (totalToImport === 0) {
+    alert('⚠️ Nenhuma transação selecionada para importar.');
+    return;
+  }
+
+  // 1. Pegar o cartão de crédito de destino do dropdown principal
+  const targetCardId = document.getElementById('csvPreviewCardSelect')?.value;
+  if (!targetCardId) {
+    alert('❌ Por favor, selecione o Cartão de Crédito de destino no topo da tabela.');
+    return;
+  }
+
+  const card = creditCards.find(c => c.id === targetCardId);
+  if (!card) {
+    alert('❌ Cartão de crédito selecionado não encontrado.');
+    return;
+  }
+  
+  console.log(`Importando ${totalToImport} transações para o cartão: ${card.bank_name}`);
+
   try {
     let successCount = 0;
     let errorCount = 0;
-
+    let totalAmountImported = 0; // Para atualizar o saldo do cartão
+    
     document.getElementById('importProgressSection').style.display = 'block';
 
-    for (let i = 0; i < csvData.length; i++) {
-      const row = csvData[i];
-      const edited = row._edited || {};
+    // Lista para guardar as transações a serem inseridas
+    const transactionsToInsert = [];
+
+    // 2. Loop para coletar dados
+    for (let i = 0; i < selectedCheckboxes.length; i++) {
+      const checkbox = selectedCheckboxes[i];
+      const index = parseInt(checkbox.dataset.index);
+      const rowElement = checkbox.closest('tr');
+      const rowData = csvData[index];
       
-      const date = edited.date || row[csvMapping.date] || new Date().toISOString().split('T')[0];
-      const description = edited.description || row[csvMapping.description];
-      let amount = edited.amount || row[csvMapping.amount] || '0';
-      const creditCardId = edited.creditCard || creditCards.find(c => row[csvMapping.creditCard]?.includes(c.holder_name))?.id;
-      const categoryId = edited.category || '';
-      const installment = edited.installment || row[csvMapping.installment] || '';
+      // 3. Coletar dados da linha (lendo dos inputs, que podem estar editados)
+      const date = rowElement.querySelector('input[type="date"]').value;
+      const description = rowElement.querySelector('input[type="text"]').value;
+      const amountStr = rowElement.querySelector('input[type="number"]').value;
+      const categoryId = rowElement.querySelector('select').value;
+      
+      // 4. Limpar e validar valor
+      let amount = parseFloat(amountStr.toString().replace('R$', '').replace(/\s/g, '').replace(',', '.'));
+      
+      if (amount < 0) {
+        amount = Math.abs(amount); // Garante que é positivo
+      }
 
-      amount = parseFloat(amount.toString().replace('R$', '').replace(/\s/g, '').replace(',', '.'));
-
-      if (!description || amount <= 0 || !creditCardId) {
-        console.warn(`⚠️ Linha ${i + 1} com dados inválidos, pulando...`);
+      if (!description || !amount || amount <= 0 || !date) {
+        console.warn(`⚠️ Linha ${index + 1} (${description}) com dados inválidos, pulando...`);
         errorCount++;
         continue;
       }
-
-      const card = creditCards.find(c => c.id === creditCardId);
-      if (!card) {
-        errorCount++;
-        continue;
-      }
-
-      const { error } = await supabase
-        .from('transactions')
-        .insert([{
-          user_id: currentUser.id,
-          type: 'expense',
-          date: date,
-          description: description,
-          amount: amount,
-          account_id: card.account_id,
-          credit_card_id: creditCardId,
-          category_id: categoryId || null
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        console.error(`❌ Erro na linha ${i + 1}:`, error);
-        errorCount++;
-      } else {
-        successCount++;
-      }
-
-      const progress = ((i + 1) / csvData.length) * 100;
+      
+      // 5. Adicionar à lista de inserção
+      transactionsToInsert.push({
+        user_id: currentUser.id,
+        type: 'expense',
+        date: date,
+        description: description,
+        amount: amount,
+        account_id: card.account_id, // Conta vinculada ao cartão
+        credit_card_id: card.id,       // ID do cartão de destino
+        category_id: categoryId || null
+      });
+      
+      totalAmountImported += amount;
+      successCount++; // Presume sucesso por enquanto, o insert em lote validará
+      
+      // 6. Atualizar UI de progresso
+      const progress = ((i + 1) / totalToImport) * 100;
       document.getElementById('importProgressBar').style.width = progress + '%';
-      document.getElementById('importStatus').textContent = `Importando: ${i + 1}/${csvData.length} - ✅ ${successCount} OK, ❌ ${errorCount} Erros`;
+      document.getElementById('importStatus').textContent = `Preparando: ${i + 1}/${totalToImport}...`;
+    }
+    
+    // 7. Inserir todas as transações de uma vez (Bulk Insert)
+    if (transactionsToInsert.length > 0) {
+        console.log(`Enviando ${transactionsToInsert.length} transações para o Supabase...`);
+        document.getElementById('importStatus').textContent = `Salvando ${transactionsToInsert.length} transações...`;
+        
+        const { error } = await supabase
+            .from('transactions')
+            .insert(transactionsToInsert);
+
+        if (error) {
+            // Se o bulk insert falhar, reverte contagem e mostra erro
+            console.error('❌ Erro no bulk insert:', error);
+            errorCount += transactionsToInsert.length;
+            successCount = 0;
+            totalAmountImported = 0;
+            throw new Error('Erro ao salvar transações: ' + error.message);
+        }
     }
 
+    // 8. Atualizar saldo do cartão (APENAS se tiver sucesso)
+    if (totalAmountImported > 0) {
+        console.log(`Atualizando saldo do cartão ${card.id} com +${totalAmountImported}`);
+        const { data: currentCard, error: fetchError } = await supabase
+          .from('credit_cards')
+          .select('balance')
+          .eq('id', card.id)
+          .single();
+        
+        if (fetchError) {
+          console.error('Erro ao buscar saldo do cartão:', fetchError);
+        } else {
+          const newBalance = (currentCard.balance || 0) + totalAmountImported;
+          await supabase
+            .from('credit_cards')
+            .update({ balance: newBalance })
+            .eq('id', card.id);
+          console.log(`Saldo do cartão atualizado para: R$ ${newBalance}`);
+        }
+    }
+
+    // 9. Finalizar
     document.getElementById('importStatus').textContent = `✅ Importação concluída! ${successCount} transações cadastradas, ${errorCount} erros.`;
     
-    await loadAllData();
+    await loadAllData(); // Recarregar tudo
     
     setTimeout(() => {
       document.getElementById('csvUploadSection').style.display = 'block';
@@ -4451,279 +4554,33 @@ async function importAllTransactions() {
       csvHeaders = [];
       csvMapping = {};
       alert(`✅ Importação finalizada!\n✅ Sucesso: ${successCount}\n❌ Erros: ${errorCount}`);
+      showView('transactions'); // Mudar para a tela de transações
     }, 2000);
 
   } catch (error) {
     console.error('❌ Erro geral na importação:', error);
     alert('❌ Erro: ' + error.message);
+    document.getElementById('importProgressSection').style.display = 'none';
   }
-
-
-  let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
-
-function handleCsvFileSelect() {
-  const fileInput = document.getElementById('csvFileInput');
-  const file = fileInput.files[0];
-  
-  if (!file) {
-    alert('Selecione um arquivo CSV');
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const csv = e.target.result;
-      const lines = csv.split('\n').filter(line => line.trim());
-      
-      if (lines.length < 2) {
-        alert('CSV vazio');
-        return;
-      }
-
-      csvHeaders = lines[0].split(',').map(h => h.trim());
-      csvData = lines.slice(1).map(line => {
-        const values = line.split(',').map(v => v.trim());
-        const row = {};
-        csvHeaders.forEach((header, index) => {
-          row[header] = values[index] || '';
-        });
-        return row;
-      });
-
-      console.log('CSV carregado:', csvHeaders, csvData.length);
-      populateMappingSelects();
-      document.getElementById('csvUploadSection').style.display = 'none';
-      document.getElementById('csvMappingSection').style.display = 'block';
-      
-    } catch (error) {
-      alert('Erro ao processar CSV: ' + error.message);
-    }
-  };
-  reader.readAsText(file);
 }
 
-function populateMappingSelects() {
-  ['mapDate', 'mapDescription', 'mapAmount', 'mapCreditCard', 'mapCategory', 'mapInstallment'].forEach(selectId => {
-    const select = document.getElementById(selectId);
-    if (!select) return;
-    
-    const firstOption = select.querySelector('option:first-child');
-    select.innerHTML = '';
-    select.appendChild(firstOption.cloneNode(true));
-    
-    csvHeaders.forEach(header => {
-      const option = document.createElement('option');
-      option.value = header;
-      option.textContent = header;
-      select.appendChild(option);
-    });
-  });
-  console.log('Selects preenchidos');
-}
-
-function generateCsvPreview() {
-  const dateCol = document.getElementById('mapDate').value;
-  const descCol = document.getElementById('mapDescription').value;
-  const amountCol = document.getElementById('mapAmount').value;
-  const cardCol = document.getElementById('mapCreditCard').value;
-  
-  if (!dateCol || !descCol || !amountCol || !cardCol) {
-    alert('Preencha: Data, Descrição, Valor e Cartão');
-    return;
-  }
-
-  csvMapping = {
-    date: dateCol,
-    description: descCol,
-    amount: amountCol,
-    creditCard: cardCol,
-    category: document.getElementById('mapCategory').value || '',
-    installment: document.getElementById('mapInstallment').value || ''
-  };
-
-  renderCsvPreviewTable();
-  document.getElementById('csvMappingSection').style.display = 'none';
-  document.getElementById('csvPreviewSection').style.display = 'block';
-}
-
-function renderCsvPreviewTable() {
-  const container = document.getElementById('csvPreviewTable');
-  
-  if (!container) {
-    console.error('Elemento csvPreviewTable nao encontrado');
-    return;
-  }
-
-  document.getElementById('csvRowCount').textContent = csvData.length;
-  
-  let html = `<table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-    <thead>
-      <tr style="background: #0066cc; color: white; position: sticky; top: 0;">
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Data</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Descrição</th>
-        <th style="padding: 10px; text-align: right; border: 1px solid #ccc;">Valor</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Cartão</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Categoria</th>
-        <th style="padding: 10px; text-align: left; border: 1px solid #ccc;">Parcelas</th>
-      </tr>
-    </thead>
-    <tbody>`;
-
-  csvData.forEach((row, index) => {
-    const bgColor = index % 2 === 0 ? '#fff' : '#f9f9f9';
-    
-    let date = row[csvMapping.date] || '';
-    let description = row[csvMapping.description] || '';
-    let amount = row[csvMapping.amount] || '';
-    let category = row[csvMapping.category] || '';
-    let installment = row[csvMapping.installment] || '';
-    
-    amount = amount.replace('R$', '').replace(/\s/g, '').replace(',', '.');
-    
-    let creditCardId = '';
-    const cardName = row[csvMapping.creditCard] || '';
-    const matchCard = creditCards.find(c => c.holder_name.includes(cardName) || cardName.includes(c.holder_name));
-    if (matchCard) creditCardId = matchCard.id;
-    
-    let categoryId = '';
-    if (category) {
-      const matchCat = categories.find(c => c.name.toUpperCase().includes(category.toUpperCase()));
-      if (matchCat) categoryId = matchCat.id;
-    }
-
-    html += `<tr style="background: ${bgColor}; border-bottom: 1px solid #eee;">
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <input type="date" value="${formatDateForInput(date)}" onchange="updateCsvRowField(${index}, 'date', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee; display: flex; gap: 4px; align-items: center;">
-  <input type="text" value="${description}" onchange="updateCsvRowField(${index}, 'description', this.value)" style="flex: 1; padding: 3px; font-size: 11px;">
-  <button 
-    type="button"
-    onclick="suggestCategoryForCsvLine(${index})" 
-    title="Sugerir categoria com IA"
-    style="padding: 3px 6px; background: #0369a1; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; white-space: nowrap; flex-shrink: 0;"
-  >
-    IA
-  </button>
-  <div id="csvAILoading_${index}" style="display: none; font-size: 10px; color: #0369a1;">...</div>
-</td>
-      <td style="padding: 8px; border: 1px solid #eee; text-align: right;">
-        <input type="number" value="${amount}" onchange="updateCsvRowField(${index}, 'amount', this.value)" step="0.01" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <select onchange="updateCsvRowField(${index}, 'creditCard', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
-          <option value="">Selecionar</option>
-          ${creditCards.map(c => `<option value="${c.id}" ${creditCardId === c.id ? 'selected' : ''}>${c.holder_name}</option>`).join('')}
-        </select>
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <select onchange="updateCsvRowField(${index}, 'category', this.value)" style="width: 95%; padding: 3px; font-size: 11px;">
-          <option value="">-</option>
-          ${categories.map(c => `<option value="${c.id}" ${categoryId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
-        </select>
-      </td>
-      <td style="padding: 8px; border: 1px solid #eee;">
-        <input type="text" value="${installment}" onchange="updateCsvRowField(${index}, 'installment', this.value)" placeholder="1 de 3" style="width: 95%; padding: 3px; font-size: 11px;">
-      </td>
-    </tr>`;
-  });
-
-  html += '</tbody></table>';
-  container.innerHTML = html;
-  console.log('Tabela renderizada com', csvData.length, 'linhas');
-}
-
-function formatDateForInput(dateStr) {
-  if (!dateStr) return '';
-  if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-    const [day, month, year] = dateStr.split('/');
-    return `${year}-${month}-${day}`;
-  }
-  if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    return dateStr;
-  }
-  return '';
-}
-
-function updateCsvRowField(index, field, value) {
-  if (!csvData[index]) return;
-  if (!csvData[index]._edited) csvData[index]._edited = {};
-  csvData[index]._edited[field] = value;
-  console.log('Atualizado linha', index, field, '=', value);
-}
+// ============================================
+// ***** FIM DAS NOVAS FUNÇÕES *****
+// ============================================
 
 function backToMapping() {
   document.getElementById('csvPreviewSection').style.display = 'none';
   document.getElementById('csvMappingSection').style.display = 'block';
+  document.getElementById('importProgressSection').style.display = 'none';
+  // Limpar dados para evitar confusão se o usuário voltar e carregar outro arquivo
+  csvData = [];
+  csvHeaders = [];
+  csvMapping = {};
+  document.getElementById('csvFileInput').value = '';
 }
 
-async function importAllTransactions() {
-  try {
-    let successCount = 0;
-    let errorCount = 0;
-    document.getElementById('importProgressSection').style.display = 'block';
+// ============================================
+// FIM DO ARQUIVO
+// ============================================
 
-    for (let i = 0; i < csvData.length; i++) {
-      const row = csvData[i];
-      const edited = row._edited || {};
-      
-      const date = edited.date || row[csvMapping.date] || new Date().toISOString().split('T')[0];
-      const description = edited.description || row[csvMapping.description];
-      let amount = edited.amount || row[csvMapping.amount] || '0';
-      const creditCardId = edited.creditCard || creditCards.find(c => row[csvMapping.creditCard]?.includes(c.holder_name))?.id;
-      const categoryId = edited.category || '';
-
-      amount = parseFloat(amount.toString().replace('R$', '').replace(/\s/g, '').replace(',', '.'));
-
-      if (!description || amount <= 0 || !creditCardId) {
-        errorCount++;
-        continue;
-      }
-
-      const card = creditCards.find(c => c.id === creditCardId);
-      if (!card) {
-        errorCount++;
-        continue;
-      }
-
-      const { error } = await supabase
-        .from('transactions')
-        .insert([{
-          user_id: currentUser.id,
-          type: 'expense',
-          date: date,
-          description: description,
-          amount: amount,
-          account_id: card.account_id,
-          credit_card_id: creditCardId,
-          category_id: categoryId || null
-        }]);
-
-      if (error) {
-        errorCount++;
-      } else {
-        successCount++;
-      }
-
-      const progress = ((i + 1) / csvData.length) * 100;
-      document.getElementById('importProgressBar').style.width = progress + '%';
-      document.getElementById('importStatus').textContent = `${i + 1}/${csvData.length} OK:${successCount} ERR:${errorCount}`;
-    }
-
-    await loadAllData();
-    
-    setTimeout(() => {
-      document.getElementById('csvUploadSection').style.display = 'block';
-      document.getElementById('csvPreviewSection').style.display = 'none';
-      document.getElementById('importProgressSection').style.display = 'none';
-      alert(`Importado: ${successCount}\nErros: ${errorCount}`);
-    }, 1500);
-
-  } catch (error) {
-    alert('Erro: ' + error.message);
-  }
-}
 }
