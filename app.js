@@ -4603,10 +4603,7 @@ async function importSelectedTransactions() {
   }
 }
 
-  let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
-
+ 
 function handleCsvFileSelect() {
   const fileInput = document.getElementById('csvFileInput');
   const file = fileInput.files[0];
