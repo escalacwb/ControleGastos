@@ -4379,231 +4379,7 @@ function backToMapping() {
   document.getElementById('csvMappingSection').style.display = 'block';
 }
 
-// ============================================
-// FUNÇÃO: IMPORTAR TODAS AS TRANSAÇÕES (CORRIGIDA)
-// ============================================
-async function importAllTransactions() {
-  console.log('Iniciando importação de TODAS as transações...');
 
-  // 1. Pegar o CARTÃO DE CRÉDITO selecionado no dropdown principal
-  const globalCardSelect = document.getElementById('csvPreviewCardSelect');
-  const creditCardId = globalCardSelect ? globalCardSelect.value : '';
-
-  if (!creditCardId) {
-    alert('❌ Selecione um Cartão de Crédito no dropdown "Selecione o Cartão" para associar a esta fatura!');
-    return;
-  }
-
-  const card = creditCards.find(c => c.id === creditCardId);
-  if (!card) {
-    alert('❌ Cartão de crédito selecionado não encontrado.');
-    return;
-  }
-
-  console.log(`Importando ${csvData.length} transações para o cartão: ${card.bank_name}`);
-
-  // 2. Iniciar processo de importação
-  try {
-    let successCount = 0;
-    let errorCount = 0;
-    const totalToImport = csvData.length;
-
-    document.getElementById('importProgressSection').style.display = 'block';
-
-    for (let i = 0; i < totalToImport; i++) {
-      const row = csvData[i];
-      const edited = row._edited || {}; // Pega dados editados
-
-      // 3. Ler dados da linha
-      const date = edited.date || formatDateForInput(row[csvMapping.date]) || new Date().toISOString().split('T')[0];
-      const description = edited.description || row[csvMapping.description];
-      let amount = edited.amount || row[csvMapping.amount] || '0';
-      const categoryId = edited.category || ''; // Categoria da linha
-
-      amount = parseFloat(amount.toString().replace('R$', '').replace(/\s/g, '').replace(',', '.'));
-
-      // 4. Validar dados
-      if (!description || !amount || amount <= 0) {
-        console.warn(`⚠️ Linha ${i + 1} (${description}) com dados inválidos, pulando...`);
-        errorCount++;
-        continue;
-      }
-
-      // 5. Inserir no Supabase
-      const { error } = await supabase
-        .from('transactions')
-        .insert([{
-          user_id: currentUser.id,
-          type: 'expense',
-          date: date,
-          description: description,
-          amount: Math.abs(amount),
-          account_id: card.account_id, // Conta associada ao cartão
-          credit_card_id: creditCardId,  // ID do cartão selecionado
-          category_id: categoryId || null
-        }]);
-
-      if (error) {
-        console.error(`❌ Erro na linha ${i + 1} (${description}):`, error);
-        errorCount++;
-      } else {
-        successCount++;
-        
-        // Atualizar saldo do cartão
-        const newBalance = (card.balance || 0) + Math.abs(amount);
-        supabase.from('credit_cards').update({ balance: newBalance }).eq('id', card.id).then();
-        card.balance = newBalance;
-      }
-
-      // 6. Atualizar progresso
-      const progress = ((i + 1) / totalToImport) * 100;
-      document.getElementById('importProgressBar').style.width = progress + '%';
-      document.getElementById('importStatus').textContent = `Importando: ${i + 1}/${totalToImport} - ✅ ${successCount} OK, ❌ ${errorCount} Erros`;
-    }
-
-    // 7. Finalizar (mesma lógica da outra função)
-    document.getElementById('importStatus').textContent = `✅ Importação concluída! ${successCount} transações cadastradas, ${errorCount} erros.`;
-    
-    await loadAllData();
-    
-    setTimeout(() => {
-      document.getElementById('csvUploadSection').style.display = 'block';
-      document.getElementById('csvPreviewSection').style.display = 'none';
-      document.getElementById('importProgressSection').style.display = 'none';
-      document.getElementById('csvFileInput').value = '';
-      csvData = [];
-      csvHeaders = [];
-      csvMapping = {};
-      alert(`✅ Importação finalizada!\n✅ Sucesso: ${successCount}\n❌ Erros: ${errorCount}`);
-      showView('transactions');
-    }, 2000);
-
-  } catch (error) {
-    console.error('❌ Erro geral na importação:', error);
-    alert('❌ Erro fatal na importação: ' + error.message);
-  }
-}
-
-  // ============================================
-// FUNÇÃO: IMPORTAR TRANSAÇÕES SELECIONADAS (NOVA)
-// ============================================
-async function importSelectedTransactions() {
-  console.log('Iniciando importação de transações SELECIONADAS...');
-
-  // 1. Pegar checkboxes marcados
-  const checkboxes = document.querySelectorAll('.csvRowCheckbox:checked');
-  if (checkboxes.length === 0) {
-    alert('⚠️ Nenhuma transação selecionada para importar!');
-    return;
-  }
-
-  // 2. Pegar o CARTÃO DE CRÉDITO selecionado no dropdown principal
-  const globalCardSelect = document.getElementById('csvPreviewCardSelect');
-  const creditCardId = globalCardSelect ? globalCardSelect.value : '';
-
-  if (!creditCardId) {
-    alert('❌ Selecione um Cartão de Crédito no dropdown "Selecione o Cartão" para associar a esta fatura!');
-    return;
-  }
-
-  const card = creditCards.find(c => c.id === creditCardId);
-  if (!card) {
-    alert('❌ Cartão de crédito selecionado não encontrado.');
-    return;
-  }
-
-  console.log(`Importando ${checkboxes.length} transações para o cartão: ${card.bank_name}`);
-
-  // 3. Iniciar processo de importação
-  try {
-    let successCount = 0;
-    let errorCount = 0;
-    const totalToImport = checkboxes.length;
-
-    document.getElementById('importProgressSection').style.display = 'block';
-
-    for (let i = 0; i < totalToImport; i++) {
-      const checkbox = checkboxes[i];
-      const index = parseInt(checkbox.dataset.index); // Pega o índice original da linha
-      const row = csvData[index];
-      const edited = row._edited || {};
-
-      // 4. Ler dados da linha (com prioridade para dados editados)
-      //    Usamos formatDateForInput para garantir que datas (ex: 31/10/2025) sejam convertidas
-      const date = edited.date || formatDateForInput(row[csvMapping.date]) || new Date().toISOString().split('T')[0];
-      const description = edited.description || row[csvMapping.description];
-      let amount = edited.amount || row[csvMapping.amount] || '0';
-      const categoryId = edited.category || ''; // Categoria vem da linha
-
-      // Limpar e converter valor
-      amount = parseFloat(amount.toString().replace('R$', '').replace(/\s/g, '').replace(',', '.'));
-
-      // 5. Validar dados
-      if (!description || !amount || amount <= 0) {
-        console.warn(`⚠️ Linha ${index + 1} (${description}) com dados inválidos (valor R$ ${amount}), pulando...`);
-        errorCount++;
-        continue;
-      }
-      
-      // 6. Inserir no Supabase
-      const { error } = await supabase
-        .from('transactions')
-        .insert([{
-          user_id: currentUser.id,
-          type: 'expense', // Faturas de cartão são sempre despesas
-          date: date,
-          description: description,
-          amount: Math.abs(amount), // Garantir que o valor é positivo
-          account_id: card.account_id, // Conta associada ao cartão
-          credit_card_id: creditCardId,  // ID do cartão selecionado
-          category_id: categoryId || null // Categoria da linha (ou null)
-        }]);
-
-      if (error) {
-        console.error(`❌ Erro na linha ${index + 1} (${description}):`, error);
-        errorCount++;
-      } else {
-        successCount++;
-        
-        // Atualizar saldo do cartão (opcional, mas recomendado)
-        // Esta é uma operação "sem await" para não travar o loop
-        const newBalance = (card.balance || 0) + Math.abs(amount);
-        supabase.from('credit_cards').update({ balance: newBalance }).eq('id', card.id).then();
-        card.balance = newBalance; // Atualiza o cache local
-      }
-
-      // 7. Atualizar progresso
-      const progress = ((i + 1) / totalToImport) * 100;
-      document.getElementById('importProgressBar').style.width = progress + '%';
-      document.getElementById('importStatus').textContent = `Importando: ${i + 1}/${totalToImport} - ✅ ${successCount} OK, ❌ ${errorCount} Erros`;
-    }
-
-    // 8. Finalizar
-    document.getElementById('importStatus').textContent = `✅ Importação concluída! ${successCount} transações cadastradas, ${errorCount} erros.`;
-    
-    // Recarregar todos os dados da aplicação
-    await loadAllData(); 
-    
-    // Limpar e voltar para a primeira etapa
-    setTimeout(() => {
-      document.getElementById('csvUploadSection').style.display = 'block';
-      document.getElementById('csvPreviewSection').style.display = 'none';
-      document.getElementById('importProgressSection').style.display = 'none';
-      document.getElementById('csvFileInput').value = '';
-      csvData = [];
-      csvHeaders = [];
-      csvMapping = {};
-      alert(`✅ Importação finalizada!\n✅ Sucesso: ${successCount}\n❌ Erros: ${errorCount}`);
-      showView('transactions'); // Mudar para a tela de transações
-    }, 2000);
-
-  } catch (error) {
-    console.error('❌ Erro geral na importação:', error);
-    alert('❌ Erro fatal na importação: ' + error.message);
-  }
-}
-
- 
 function handleCsvFileSelect() {
   const fileInput = document.getElementById('csvFileInput');
   const file = fileInput.files[0];
@@ -4801,5 +4577,70 @@ function backToMapping() {
   document.getElementById('csvMappingSection').style.display = 'block';
 }
 
+async function importAllTransactions() {
+  try {
+    let successCount = 0;
+    let errorCount = 0;
+    document.getElementById('importProgressSection').style.display = 'block';
 
+    for (let i = 0; i < csvData.length; i++) {
+      const row = csvData[i];
+      const edited = row._edited || {};
+      
+      const date = edited.date || row[csvMapping.date] || new Date().toISOString().split('T')[0];
+      const description = edited.description || row[csvMapping.description];
+      let amount = edited.amount || row[csvMapping.amount] || '0';
+      const creditCardId = edited.creditCard || creditCards.find(c => row[csvMapping.creditCard]?.includes(c.holder_name))?.id;
+      const categoryId = edited.category || '';
+
+      amount = parseFloat(amount.toString().replace('R$', '').replace(/\s/g, '').replace(',', '.'));
+
+      if (!description || amount <= 0 || !creditCardId) {
+        errorCount++;
+        continue;
+      }
+
+      const card = creditCards.find(c => c.id === creditCardId);
+      if (!card) {
+        errorCount++;
+        continue;
+      }
+
+      const { error } = await supabase
+        .from('transactions')
+        .insert([{
+          user_id: currentUser.id,
+          type: 'expense',
+          date: date,
+          description: description,
+          amount: amount,
+          account_id: card.account_id,
+          credit_card_id: creditCardId,
+          category_id: categoryId || null
+        }]);
+
+      if (error) {
+        errorCount++;
+      } else {
+        successCount++;
+      }
+
+      const progress = ((i + 1) / csvData.length) * 100;
+      document.getElementById('importProgressBar').style.width = progress + '%';
+      document.getElementById('importStatus').textContent = `${i + 1}/${csvData.length} OK:${successCount} ERR:${errorCount}`;
+    }
+
+    await loadAllData();
+    
+    setTimeout(() => {
+      document.getElementById('csvUploadSection').style.display = 'block';
+      document.getElementById('csvPreviewSection').style.display = 'none';
+      document.getElementById('importProgressSection').style.display = 'none';
+      alert(`Importado: ${successCount}\nErros: ${errorCount}`);
+    }, 1500);
+
+  } catch (error) {
+    alert('Erro: ' + error.message);
+  }
+}
 }
