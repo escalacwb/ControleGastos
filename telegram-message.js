@@ -1,6 +1,6 @@
 // api/telegram-message.js
-import axios from 'axios';
-import { createClient } from '@supabase/supabase-js';
+const axios = require('axios');
+const { createClient } = require('@supabase/supabase-js');
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY;
@@ -9,7 +9,15 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
@@ -18,14 +26,14 @@ export default async function handler(req, res) {
     const { message } = req.body;
 
     if (!message || !message.text) {
-      return res.status(400).json({ error: 'Nenhuma mensagem de texto' });
+      return res.status(400).json({ error: 'Nenhuma mensagem de texto recebida' });
     }
 
     const userId = message.from.id;
     const userName = message.from.first_name || 'Usuário';
     const messageText = message.text;
 
-    console.log(`[Telegram] ${userName}: ${messageText}`);
+    console.log(`[Telegram] ${userName} (${userId}): ${messageText}`);
 
     // Extrair dados com Claude
     const extractedData = await extractTransactionFromAI(messageText);
@@ -42,7 +50,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: validation.errors });
     }
 
-    // Salvar em pending_transactions
+    // Salvar em pending_transactions (sem user_id porque não sabemos qual usuário)
     const { data: insertedTrans, error: insertError } = await supabase
       .from('pending_transactions')
       .insert([
@@ -57,57 +65,64 @@ export default async function handler(req, res) {
       ])
       .select();
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      console.error('Erro ao inserir:', insertError);
+      await sendTelegramMessage(userId, `❌ Erro ao salvar: ${insertError.message}`);
+      return res.status(500).json({ error: insertError.message });
+    }
 
     // Enviar confirmação para Telegram
     await sendTelegramMessage(
       userId,
       `✅ Transação recebida!\n\n` +
       `Tipo: ${extractedData.data.type}\n` +
-      `Valor: R$ ${extractedData.data.amount}\n` +
+      `Valor: R$ ${extractedData.data.amount.toFixed(2)}\n` +
       `Categoria: ${extractedData.data.category}\n` +
-      `Conta: ${extractedData.data.account}\n\n` +
-      `Por favor, revise no painel web.`
+      `Conta: ${extractedData.data.account}\n` +
+      `Data: ${new Date(extractedData.data.date).toLocaleDateString('pt-BR')}\n\n` +
+      `Por favor, revise no painel web antes de confirmar.`
     );
 
+    console.log('✅ Transação salva:', insertedTrans[0].id);
     return res.status(200).json({
       success: true,
-      message: 'Transação recebida',
-      transaction: insertedTrans[0]
+      message: 'Transação recebida com sucesso',
+      transaction_id: insertedTrans[0].id
     });
 
   } catch (error) {
-    console.error('Erro:', error);
+    console.error('[ERRO]', error);
     return res.status(500).json({ error: error.message });
   }
-}
+};
 
 async function extractTransactionFromAI(messageText) {
   try {
     const prompt = `
-Você é um assistente de análise financeira. Analise a mensagem e extraia uma transação.
+Você é um assistente de análise financeira. Analise a mensagem abaixo e extraia os dados da transação.
 
-RESPONDA APENAS COM JSON, sem explicações.
+IMPORTANTE: Responda APENAS com um JSON válido, sem nenhuma explicação adicional.
 
 Regras:
-1. "type": "receita" | "despesa" | "transferencia"
-2. "amount": número decimal
-3. "category": nome da categoria
-4. "account": banco ou cartão
-5. "payment_method": "banco" | "cartao"
-6. "date": YYYY-MM-DD (hoje se não mencionado)
-7. "description": resumo breve
+1. "type": pode ser "receita", "despesa" ou "transferencia"
+2. "amount": número decimal (ex: 150.50)
+3. "category": nome da categoria (ex: "Alimentação", "Combustível", "Habitação")
+4. "account": pode ser um banco (ex: "Nubank", "Bradesco", "Itaú") ou um cartão (ex: "Cartão C6")
+5. "payment_method": "banco" ou "cartao"
+6. "date": data em formato YYYY-MM-DD (se não mencionado, use: ${new Date().toISOString().split('T')[0]})
+7. "description": um resumo breve da transação
 
-Mensagem: "${messageText}"
+Mensagem a analisar:
+"${messageText}"
 
-JSON:
+Responda com APENAS este JSON (sem explicações):
 {
-  "type": "",
+  "type": "despesa",
   "amount": 0,
   "category": "",
   "account": "",
-  "payment_method": "",
-  "date": "",
+  "payment_method": "banco",
+  "date": "YYYY-MM-DD",
   "description": ""
 }
     `;
@@ -117,7 +132,12 @@ JSON:
       {
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: 500,
-        messages: [{ role: 'user', content: prompt }]
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ]
       },
       {
         headers: {
@@ -129,44 +149,63 @@ JSON:
     );
 
     const content = response.data.content[0].text;
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    console.log('[Claude Response]', content);
 
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('JSON inválido na resposta');
+      throw new Error('Resposta da IA não contém JSON válido');
     }
 
-    const data = JSON.parse(jsonMatch[0]);
-    return { success: true, data };
+    const extractedData = JSON.parse(jsonMatch[0]);
+    return { success: true, data: extractedData };
 
   } catch (error) {
+    console.error('[Claude Error]', error.response?.data || error.message);
     return { success: false, error: error.message };
   }
 }
 
 function validateExtractedData(data) {
   const errors = [];
-  if (!['receita', 'despesa', 'transferencia'].includes(data.type)) {
-    errors.push('Tipo inválido');
+
+  if (!data.type || !['receita', 'despesa', 'transferencia'].includes(data.type)) {
+    errors.push('Tipo de transação inválido');
   }
-  if (!data.amount || data.amount <= 0) {
+
+  if (!data.amount || isNaN(data.amount) || data.amount <= 0) {
     errors.push('Valor inválido');
   }
-  if (!data.category) {
-    errors.push('Categoria não encontrada');
+
+  if (!data.category || data.category.trim() === '') {
+    errors.push('Categoria não identificada');
   }
-  if (!data.account) {
-    errors.push('Conta não encontrada');
+
+  if (!data.account || data.account.trim() === '') {
+    errors.push('Conta/banco não identificado');
   }
-  return { valid: errors.length === 0, errors };
+
+  if (!data.date || !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
+    errors.push('Data inválida');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors: errors
+  };
 }
 
 async function sendTelegramMessage(chatId, text) {
   try {
     await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-      { chat_id: chatId, text }
+      {
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML'
+      }
     );
+    console.log(`✅ Mensagem enviada para ${chatId}`);
   } catch (error) {
-    console.error('Erro ao enviar Telegram:', error);
+    console.error('❌ Erro ao enviar Telegram:', error.response?.data || error.message);
   }
 }
