@@ -528,7 +528,8 @@ async function loadAllData() {
       loadTransactions(),
       loadCreditCards(),
       loadBillingCycles(),  // ← NOVO
-      loadInvestments()
+      loadInvestments(),
+      loadPendingTransactions()
     ]);
     
     displayAccounts();
@@ -4579,8 +4580,202 @@ function backToMapping() {
   document.getElementById('csvFileInput').value = '';
 }
 
-// ============================================
-// FIM DO ARQUIVO
-// ============================================
+// ==================== TRANSAÇÕES PENDENTES DO TELEGRAM ====================
+
+// Carregar transações pendentes do Supabase
+async function loadPendingTransactions() {
+  if (!supabase) {
+    console.warn('Supabase não disponível');
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('pending_transactions')
+      .select('*')
+      .in('status', ['pending_review', 'approved'])
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    window.pendingTransactions = data || [];
+    console.log('Transações pendentes carregadas:', window.pendingTransactions.length);
+    displayPendingTransactions();
+
+  } catch (error) {
+    console.error('Erro ao carregar transações pendentes:', error);
+  }
+}
+
+// Exibir transações pendentes na interface
+function displayPendingTransactions() {
+  const list = document.getElementById('pendingTransactionsList');
+  if (!list) return;
+
+  if (!window.pendingTransactions || window.pendingTransactions.length === 0) {
+    list.innerHTML = `
+      <div style="text-align: center; padding: 40px; color: #999;">
+        <p>Nenhuma transação pendente</p>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = window.pendingTransactions.map((transaction, index) => {
+    const data = transaction.extracted_data;
+    const createdAt = new Date(transaction.created_at).toLocaleDateString('pt-BR');
+
+    return `
+      <div class="pending-transaction-card">
+        <div class="pending-header">
+          <div>
+            <strong>${data.description}</strong>
+            <span class="pending-source" style="margin-left: 10px; font-size: 12px; color: #666;">
+              De: ${transaction.telegram_user_name}
+            </span>
+          </div>
+          <span class="pending-date">${createdAt}</span>
+        </div>
+
+        <div class="pending-body">
+          <div class="pending-row">
+            <span class="pending-label">Tipo:</span>
+            <span class="pending-value">${data.type}</span>
+          </div>
+          <div class="pending-row">
+            <span class="pending-label">Valor:</span>
+            <span class="pending-value" style="color: ${data.type === 'despesa' ? '#ef4444' : '#10b981'};">
+              ${data.type === 'despesa' ? '-' : '+'}R$ ${parseFloat(data.amount).toFixed(2)}
+            </span>
+          </div>
+          <div class="pending-row">
+            <span class="pending-label">Categoria:</span>
+            <span class="pending-value">${data.category}</span>
+          </div>
+          <div class="pending-row">
+            <span class="pending-label">Conta/Banco:</span>
+            <span class="pending-value">${data.account}</span>
+          </div>
+          <div class="pending-row">
+            <span class="pending-label">Data:</span>
+            <span class="pending-value">${new Date(data.date).toLocaleDateString('pt-BR')}</span>
+          </div>
+          <div class="pending-row">
+            <span class="pending-label">Mensagem original:</span>
+            <span class="pending-value" style="font-size: 12px; color: #666;">
+              "${transaction.raw_message}"
+            </span>
+          </div>
+        </div>
+
+        <div class="pending-actions">
+          <button class="btn btn--sm btn--primary" onclick="approvePendingTransaction('${transaction.id}', ${index})">
+            ✅ Aprovar
+          </button>
+          <button class="btn btn--sm btn--outline" style="color: #ef4444;" onclick="rejectPendingTransaction('${transaction.id}')">
+            ❌ Rejeitar
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Aprovar transação pendente e criar no registro definitivo
+async function approvePendingTransaction(pendingId, index) {
+  if (!confirm('Deseja confirmar esta transação?')) return;
+
+  try {
+    const pendingTrans = window.pendingTransactions[index];
+    const data = pendingTrans.extracted_data;
+
+    // Encontrar categoria
+    const category = categories.find(c => 
+      c.name.toLowerCase().includes(data.category.toLowerCase())
+    );
+
+    if (!category) {
+      alert('❌ Categoria não encontrada: ' + data.category + '\nCategorias disponíveis: ' + categories.map(c => c.name).join(', '));
+      return;
+    }
+
+    // Encontrar conta/banco
+    const account = accounts.find(a => 
+      a.name.toLowerCase().includes(data.account.toLowerCase())
+    );
+
+    if (!account) {
+      alert('❌ Conta/Banco não encontrado: ' + data.account + '\nContas disponíveis: ' + accounts.map(a => a.name).join(', '));
+      return;
+    }
+
+    // Criar transação no banco definitivo
+    const transactionPayload = {
+      user_id: currentUser.id,
+      type: data.type,
+      amount: parseFloat(data.amount),
+      description: data.description,
+      category_id: category.id,
+      date: data.date,
+      account_id: account.id
+    };
+
+    const { data: createdTrans, error: transError } = await supabase
+      .from('transactions')
+      .insert([transactionPayload])
+      .select()
+      .single();
+
+    if (transError) throw transError;
+
+    // Atualizar saldo da conta
+    if (data.type === 'despesa') {
+      await supabase
+        .from('accounts')
+        .update({ balance: account.balance - parseFloat(data.amount) })
+        .eq('id', account.id);
+    } else if (data.type === 'receita') {
+      await supabase
+        .from('accounts')
+        .update({ balance: account.balance + parseFloat(data.amount) })
+        .eq('id', account.id);
+    }
+
+    // Marcar pendente como aprovado
+    await supabase
+      .from('pending_transactions')
+      .update({ status: 'approved' })
+      .eq('id', pendingId);
+
+    alert('✅ Transação aprovada e lançada com sucesso!');
+    loadPendingTransactions();
+    loadTransactions();
+    loadAccounts();
+
+  } catch (error) {
+    console.error('Erro ao aprovar:', error);
+    alert('❌ Erro ao aprovar transação: ' + error.message);
+  }
+}
+
+// Rejeitar transação pendente
+async function rejectPendingTransaction(pendingId) {
+  if (!confirm('Tem certeza que deseja rejeitar?')) return;
+
+  try {
+    await supabase
+      .from('pending_transactions')
+      .update({ status: 'rejected' })
+      .eq('id', pendingId);
+
+    alert('❌ Transação rejeitada');
+    loadPendingTransactions();
+
+  } catch (error) {
+    alert('Erro ao rejeitar: ' + error.message);
+  }
+}
+
+
 
 }
