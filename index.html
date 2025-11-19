@@ -200,6 +200,10 @@ function updateReloadIndicator(enabled) {
         <span class="nav-icon">📥</span>
         <span class="nav-label">Importar Fatura</span>
       </button>
+      <button class="nav-item" data-view="pendingTransactions" onclick="showView('pendingTransactions')">
+        <span class="nav-icon">📱</span>
+        <span class="nav-label">Pendentes Telegram</span>
+      </button>
     </nav>
 
     <!-- Main Content -->
@@ -698,6 +702,21 @@ function initializeFilters() {
             <p id="importStatus" style="margin-top: 10px; font-size: 14px;">Aguardando...</p>
           </div>
         </div>
+      </div>
+      <!-- Pending Transactions View -->
+      <div id="pendingTransactionsView" class="view">
+        <div class="view-header">
+          <h2>📱 Transações Pendentes do Telegram</h2>
+          <button class="btn btn--primary btn--sm" onclick="loadPendingTransactions()">
+            🔄 Atualizar
+          </button>
+        </div>
+
+        <div class="pending-transactions-container">
+          <div id="pendingTransactionsList" class="pending-transactions-list">
+            <!-- Preenchido via JavaScript -->
+          </div>
+       </div>
       </div>
     </main>
   </div>
