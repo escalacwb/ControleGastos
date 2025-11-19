@@ -1711,4 +1711,172 @@ button[onclick="backToMapping()"] {
   background: #28a745;
 }
 
+/* Transações Pendentes do Telegram */
+.pending-transactions-container {
+  padding: var(--space-16);
+}
+
+.pending-transactions-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: var(--space-16);
+}
+
+.pending-transaction-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-16);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.pending-transaction-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.pending-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-12);
+  padding-bottom: var(--space-12);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pending-header strong {
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+  max-width: 70%;
+}
+
+.pending-source {
+  background: var(--color-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-left: 8px;
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.pending-date {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.pending-body {
+  margin: var(--space-12) 0;
+}
+
+.pending-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-8) 0;
+  font-size: var(--font-size-base);
+  border-bottom: 1px solid var(--color-card-border-inner);
+}
+
+.pending-row:last-child {
+  border-bottom: none;
+}
+
+.pending-label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  min-width: 100px;
+}
+
+.pending-value {
+  color: var(--color-text);
+  text-align: right;
+  flex: 1;
+  margin-left: var(--space-8);
+  word-break: break-word;
+}
+
+.pending-value.amount-expense {
+  color: var(--color-error);
+  font-weight: var(--font-weight-medium);
+}
+
+.pending-value.amount-income {
+  color: var(--color-success);
+  font-weight: var(--font-weight-medium);
+}
+
+.pending-actions {
+  display: flex;
+  gap: var(--space-8);
+  margin-top: var(--space-16);
+  padding-top: var(--space-12);
+  border-top: 1px solid var(--color-border);
+}
+
+.pending-actions button {
+  flex: 1;
+  font-size: var(--font-size-sm);
+}
+
+.pending-empty {
+  text-align: center;
+  padding: var(--space-32);
+  color: var(--color-text-secondary);
+}
+
+.pending-empty p {
+  font-size: var(--font-size-lg);
+  margin: 0;
+}
+
+/* Status Badge */
+.pending-status-badge {
+  display: inline-block;
+  padding: 2px 12px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.pending-status-pending {
+  background: rgba(var(--color-warning-rgb), 0.1);
+  color: var(--color-warning);
+  border: 1px solid rgba(var(--color-warning-rgb), 0.3);
+}
+
+.pending-status-approved {
+  background: rgba(var(--color-success-rgb), 0.1);
+  color: var(--color-success);
+  border: 1px solid rgba(var(--color-success-rgb), 0.3);
+}
+
+.pending-status-rejected {
+  background: rgba(var(--color-error-rgb), 0.1);
+  color: var(--color-error);
+  border: 1px solid rgba(var(--color-error-rgb), 0.3);
+}
+
+@media (max-width: 768px) {
+  .pending-transactions-list {
+    grid-template-columns: 1fr;
+  }
+
+  .pending-actions {
+    flex-direction: column;
+  }
+
+  .pending-header {
+    flex-direction: column;
+  }
+
+  .pending-date {
+    margin-top: var(--space-8);
+  }
+}
+
+   
 }
