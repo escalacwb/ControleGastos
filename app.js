@@ -3116,7 +3116,23 @@ async function deleteTransaction(transactionId) {
   });
 
   // Iniciar app
-  initApp();
+  // Aguardar window.supabase estar disponível antes de iniciar
+  const waitForSupabase = setInterval(() => {
+    if (typeof window.supabase !== 'undefined' && window.supabase) {
+      clearInterval(waitForSupabase);
+      console.log('✅ window.supabase disponível, iniciando app...');
+      initApp();
+    }
+  }, 100);
+
+  // Timeout para não ficar esperando forever
+  setTimeout(() => {
+    if (!window.supabase) {
+      console.error('❌ Timeout aguardando window.supabase');
+      clearInterval(waitForSupabase);
+      initApp(); // Tenta mesmo assim, mas fará erro tratado
+    }
+  }, 5000);
   
   // ============================================
   // INICIALIZAR GUIA DE CATEGORIZAÇÃO
