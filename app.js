@@ -3,7 +3,7 @@
 // VARIÁVEIS GLOBAIS
 // ============================================
 
-let supabase = null;
+let supabaseClient = null;
 let currentUser = null;
 let accounts = [];
 let categories = [];
@@ -307,7 +307,7 @@ async function suggestCategoryWithAI() {
     console.log('🔄 Enviando para Supabase Edge Function...');
     
     // Obter token de autenticação
-    const session = await supabase.auth.getSession();
+    const session = await supabaseClient.auth.getSession();
     const token = session?.data?.session?.access_token;
 
     if (!token) {
@@ -487,11 +487,11 @@ async function initApp() {
     
     // Inicializar Supabase com credenciais embutidas
     console.log('🔌 Conectando ao Supabase...');
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    supabase = window.supabaseClient.createClient(SUPABASE_URL, SUPABASE_KEY);
     console.log('✅ Supabase inicializado com sucesso!');
 
     // Verificar sessão
-    const { data, error } = await supabase.auth.getSession();
+    const { data, error } = await supabaseClient.auth.getSession();
     
     if (error) {
       console.error('❌ Erro ao verificar sessão:', error);
@@ -549,7 +549,7 @@ async function loadAllData() {
 // ============================================
 
 async function handleLogin() {
-  if (!supabase) {
+  if (!supabaseClient) {
     alert('❌ Supabase não está disponível');
     return;
   }
@@ -564,7 +564,7 @@ async function handleLogin() {
 
   try {
     console.log('🔐 Tentando login com:', email);
-    const { data, error } = await supabase.auth.signInWithPassword({ 
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ 
       email, 
       password 
     });
@@ -582,7 +582,7 @@ async function handleLogin() {
 }
 
 async function handleSignup() {
-  if (!supabase) {
+  if (!supabaseClient) {
     alert('❌ Supabase não está disponível');
     return;
   }
@@ -602,7 +602,7 @@ async function handleSignup() {
 
   try {
     console.log('📝 Criando conta com:', email);
-    const { data, error } = await supabase.auth.signUp({ 
+    const { data, error } = await supabaseClient.auth.signUp({ 
       email, 
       password 
     });
@@ -618,8 +618,8 @@ async function handleSignup() {
 }
 
 async function handleLogout() {
-  if (supabase) {
-    await supabase.auth.signOut();
+  if (supabaseClient) {
+    await supabaseClient.auth.signOut();
   }
   currentUser = null;
   showScreen('loginScreen');
@@ -705,13 +705,13 @@ window.addEventListener('click', (e) => {
 // ============================================
 
 async function loadCreditCards() {
-  if (!supabase || !currentUser) {
+  if (!supabaseClient || !currentUser) {
     console.warn('⚠️ Supabase não disponível');
     return;
   }
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('credit_cards')
       .select('*')
       .eq('user_id', currentUser.id)
@@ -728,10 +728,10 @@ async function loadCreditCards() {
 }
 
 async function loadBillingCycles() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('billing_cycles')
       .select('*')
       .eq('user_id', currentUser.id)
@@ -746,11 +746,11 @@ async function loadBillingCycles() {
 }
 
 async function ensureBillingCycleExists(creditCardId) {
-  if (!supabase || !currentUser) return null;
+  if (!supabaseClient || !currentUser) return null;
 
   try {
     // Verificar se já existe ciclo aberto
-    const { data: existingCycle } = await supabase
+    const { data: existingCycle } = await supabaseClient
       .from('billing_cycles')
       .select('*')
       .eq('credit_card_id', creditCardId)
@@ -776,7 +776,7 @@ async function ensureBillingCycleExists(creditCardId) {
     const dueDate = new Date(cycleEnd);
     dueDate.setDate(card.due_day);
 
-    const { data: newCycle, error } = await supabase
+    const { data: newCycle, error } = await supabaseClient
       .from('billing_cycles')
       .insert([{
         user_id: currentUser.id,
@@ -803,14 +803,14 @@ async function ensureBillingCycleExists(creditCardId) {
 }
 
 async function closeBillingCycleAndCreateNew(creditCardId) {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   try {
     const card = creditCards.find(c => c.id === creditCardId);
     if (!card) return;
 
     // Procurar ciclo aberto
-    const { data: openCycle } = await supabase
+    const { data: openCycle } = await supabaseClient
       .from('billing_cycles')
       .select('*')
       .eq('credit_card_id', creditCardId)
@@ -820,7 +820,7 @@ async function closeBillingCycleAndCreateNew(creditCardId) {
     if (!openCycle) return;
 
     // FECHAR ciclo atual
-    await supabase
+    await supabaseClient
       .from('billing_cycles')
       .update({ status: 'closed' })
       .eq('id', openCycle.id);
@@ -836,7 +836,7 @@ async function closeBillingCycleAndCreateNew(creditCardId) {
     const newDueDate = new Date(newCycleEnd);
     newDueDate.setDate(card.due_day);
 
-    await supabase
+    await supabaseClient
       .from('billing_cycles')
       .insert([{
         user_id: currentUser.id,
@@ -858,7 +858,7 @@ async function closeBillingCycleAndCreateNew(creditCardId) {
 
 async function addCreditCard(cardData) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('credit_cards')
       .insert([{
         user_id: currentUser.id,
@@ -996,7 +996,7 @@ function showAddCreditCardModal() {
 }
 
 async function saveCreditCard() {
-  if (!supabase || !currentUser) {
+  if (!supabaseClient || !currentUser) {
     alert('❌ Erro: Supabase não está disponível');
     return;
   }
@@ -1017,7 +1017,7 @@ async function saveCreditCard() {
   };
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('credit_cards')
       .insert([data]);
 
@@ -1037,7 +1037,7 @@ async function showCreditCardDetail(cardId) {
 
   try {
     // ✅ CORREÇÃO 1: Buscar por credit_card_id
-    const { data: cardTransactions, error } = await supabase
+    const { data: cardTransactions, error } = await supabaseClient
       .from('transactions')
       .select('*')
       .eq('credit_card_id', cardId)
@@ -1049,7 +1049,7 @@ async function showCreditCardDetail(cardId) {
     const expenseTransactions = (cardTransactions || []).filter(t => t.type === 'expense');
 
     // ✅ CORREÇÃO 3: Filtrar ciclos fechados
-    const { data: allCycles } = await supabase
+    const { data: allCycles } = await supabaseClient
       .from('billing_cycles')
       .select('*')
       .eq('credit_card_id', cardId);
@@ -1058,7 +1058,7 @@ async function showCreditCardDetail(cardId) {
       .filter(cycle => cycle.status === 'closed')
       .map(cycle => cycle.id);
 
-    const { data: closedTransactionIds } = await supabase
+    const { data: closedTransactionIds } = await supabaseClient
       .from('card_payments')
       .select('transaction_id')
       .in('billing_cycle_id', closedCycleIds.length > 0 ? closedCycleIds : [null]);
@@ -1195,7 +1195,7 @@ function updatePaymentFields() {
 
 // CORRIGIDA: Processar pagamento com suporte a conta diferente
 async function processCardPayment() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   const cardId = document.getElementById('payCardModal').dataset.cardId;
   const card = creditCards.find(c => c.id === cardId);
@@ -1233,7 +1233,7 @@ async function processCardPayment() {
 
   try {
     // PASSO 1: Procurar ou criar billing_cycle
-    const { data: billingCycles, error: cycleError } = await supabase
+    const { data: billingCycles, error: cycleError } = await supabaseClient
       .from('billing_cycles')
       .select('*')
       .eq('credit_card_id', cardId)
@@ -1260,7 +1260,7 @@ async function processCardPayment() {
 
     // PASSO 2: Criar transação de transferência
     // ⚠️ IMPORTANTE: Criar transferência da conta escolhida para a conta vinculada ao cartão
-    const { data: transferTransaction, error: transError } = await supabase
+    const { data: transferTransaction, error: transError } = await supabaseClient
       .from('transactions')
       .insert([{
         user_id: currentUser.id,
@@ -1277,7 +1277,7 @@ async function processCardPayment() {
     if (transError) throw transError;
 
     // PASSO 3: Registrar em card_payments
-    const { error: paymentError } = await supabase
+    const { error: paymentError } = await supabaseClient
       .from('card_payments')
       .insert([{
         user_id: currentUser.id,
@@ -1296,7 +1296,7 @@ async function processCardPayment() {
 
     // PASSO 4: Atualizar saldo da conta de ORIGEM (reduzir)
     const newFromBalance = fromAccount.balance - amount;
-    await supabase
+    await supabaseClient
       .from('accounts')
       .update({ balance: newFromBalance })
       .eq('id', fromAccountId);
@@ -1305,7 +1305,7 @@ async function processCardPayment() {
     const linkedAccount = accounts.find(a => a.id === card.account_id);
     if (linkedAccount) {
       const newLinkedBalance = linkedAccount.balance + amount;
-      await supabase
+      await supabaseClient
         .from('accounts')
         .update({ balance: newLinkedBalance })
         .eq('id', card.account_id);
@@ -1313,7 +1313,7 @@ async function processCardPayment() {
 
     // PASSO 6: Reduzir balance do cartão
     const newCardBalance = Math.max(0, (card.balance || 0) - amount);
-    await supabase
+    await supabaseClient
       .from('credit_cards')
       .update({ balance: newCardBalance })
       .eq('id', cardId);
@@ -1323,7 +1323,7 @@ async function processCardPayment() {
       const newTotalPaid = (currentCycle.total_paid || 0) + amount;
       const newStatus = newCardBalance === 0 ? 'paid' : 'partial_payment';
 
-      await supabase
+      await supabaseClient
         .from('billing_cycles')
         .update({
           total_paid: newTotalPaid,
@@ -1360,7 +1360,7 @@ async function deleteCreditCard(cardId) {
   if (!confirm('Tem certeza que deseja deletar este cartão?')) return;
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('credit_cards')
       .delete()
       .eq('id', cardId);
@@ -1482,10 +1482,10 @@ function saveCard() {
 // ============================================
 
 async function loadAccounts() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('accounts')
       .select('*')
       .eq('user_id', currentUser.id)
@@ -1571,7 +1571,7 @@ function showAddAccountModal() {
 }
 
 async function saveAccount() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   const data = {
     user_id: currentUser.id,
@@ -1581,7 +1581,7 @@ async function saveAccount() {
   };
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('accounts')
       .insert([data]);
 
@@ -1599,7 +1599,7 @@ async function deleteAccount(accountId) {
   if (!confirm('Tem certeza?')) return;
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('accounts')
       .delete()
       .eq('id', accountId);
@@ -1616,10 +1616,10 @@ async function deleteAccount(accountId) {
 // ============================================
 
 async function loadCategories() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('categories')
       .select('*')
       .eq('user_id', currentUser.id)
@@ -1692,7 +1692,7 @@ function showAddCategoryModal() {
 }
 
 async function saveCategory() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   const data = {
     user_id: currentUser.id,
@@ -1704,7 +1704,7 @@ async function saveCategory() {
   };
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('categories')
       .insert([data]);
 
@@ -1722,7 +1722,7 @@ async function deleteCategory(categoryId) {
   if (!confirm('Tem certeza?')) return;
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('categories')
       .delete()
       .eq('id', categoryId);
@@ -1739,10 +1739,10 @@ async function deleteCategory(categoryId) {
 // ============================================
 
 async function loadTransactions() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('transactions')
       .select('*')
       .eq('user_id', currentUser.id)
@@ -1758,13 +1758,13 @@ async function loadTransactions() {
 }
 
 async function recalculateAccountBalances() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   console.log('🔄 Recalculando saldos das contas...');
 
   for (const account of accounts) {
     // Buscar todas as transações da conta
-    const { data: trans, error } = await supabase
+    const { data: trans, error } = await supabaseClient
       .from('transactions')
       .select('*')
       .eq('account_id', account.id);
@@ -1789,7 +1789,7 @@ async function recalculateAccountBalances() {
     });
 
     // Somar transferências recebidas (onde esta conta é destino)
-    const { data: receivedTransfers } = await supabase
+    const { data: receivedTransfers } = await supabaseClient
       .from('transactions')
       .select('*')
       .eq('transfer_to_account_id', account.id)
@@ -1800,7 +1800,7 @@ async function recalculateAccountBalances() {
     });
 
     // Atualizar no Supabase
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseClient
       .from('accounts')
       .update({ balance: balance })
       .eq('id', account.id);
@@ -2037,7 +2037,7 @@ function showAddTransactionModal() {
 }
 
 async function saveTransaction() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   const type = document.getElementById('transactionType').value;
   const accountType = document.querySelector('input[name="accountType"]:checked')?.value;
@@ -2093,7 +2093,7 @@ async function saveTransaction() {
         const installmentAmount = amount / installmentCount;
         
         // 1. Criar transação principal
-        const { data: mainTransaction, error: mainError } = await supabase
+        const { data: mainTransaction, error: mainError } = await supabaseClient
           .from('transactions')
           .insert([{
             user_id: currentUser.id,
@@ -2115,7 +2115,7 @@ async function saveTransaction() {
           const installmentDate = new Date(date);
           installmentDate.setMonth(installmentDate.getMonth() + (i - 1));
 
-          const { error: installError } = await supabase
+          const { error: installError } = await supabaseClient
             .from('installments')
             .insert([{
               user_id: currentUser.id,
@@ -2133,7 +2133,7 @@ async function saveTransaction() {
         }
 
         // 3. Atualizar billing cycle com total gasto
-        await supabase
+        await supabaseClient
           .from('billing_cycles')
           .update({
             total_spent: (cycle.total_spent || 0) + amount
@@ -2141,7 +2141,7 @@ async function saveTransaction() {
           .eq('id', cycle.id);
 
         // 4. Incrementar saldo do cartão
-        await supabase
+        await supabaseClient
           .from('credit_cards')
           .update({ balance: (card.balance || 0) + amount })
           .eq('id', creditCardId);
@@ -2151,7 +2151,7 @@ async function saveTransaction() {
       
       // ===== À VISTA =====
       else {
-        const { error: transError } = await supabase
+        const { error: transError } = await supabaseClient
           .from('transactions')
           .insert([{
             user_id: currentUser.id,
@@ -2167,7 +2167,7 @@ async function saveTransaction() {
         if (transError) throw transError;
 
         // Atualizar billing cycle
-        await supabase
+        await supabaseClient
           .from('billing_cycles')
           .update({
             total_spent: (cycle.total_spent || 0) + amount
@@ -2175,7 +2175,7 @@ async function saveTransaction() {
           .eq('id', cycle.id);
 
         // Incrementar saldo do cartão
-        await supabase
+        await supabaseClient
           .from('credit_cards')
           .update({ balance: (card.balance || 0) + amount })
           .eq('id', creditCardId);
@@ -2190,7 +2190,7 @@ async function saveTransaction() {
     else if (type === 'expense' && accountType === 'bank_account') {
       accountId = document.getElementById('transactionBankAccount').value;
 
-      const { error: transError } = await supabase
+      const { error: transError } = await supabaseClient
         .from('transactions')
         .insert([{
           user_id: currentUser.id,
@@ -2207,7 +2207,7 @@ async function saveTransaction() {
       // Atualizar saldo da conta
       const account = accounts.find(a => a.id === accountId);
       if (account) {
-        await supabase
+        await supabaseClient
           .from('accounts')
           .update({ balance: account.balance - amount })
           .eq('id', accountId);
@@ -2222,7 +2222,7 @@ async function saveTransaction() {
     else if (type === 'income') {
       accountId = document.getElementById('transactionBankAccount').value;
 
-      const { error: transError } = await supabase
+      const { error: transError } = await supabaseClient
         .from('transactions')
         .insert([{
           user_id: currentUser.id,
@@ -2239,7 +2239,7 @@ async function saveTransaction() {
       // Atualizar saldo da conta
       const account = accounts.find(a => a.id === accountId);
       if (account) {
-        await supabase
+        await supabaseClient
           .from('accounts')
           .update({ balance: account.balance + amount })
           .eq('id', accountId);
@@ -2255,7 +2255,7 @@ async function saveTransaction() {
       accountId = document.getElementById('transactionBankAccount').value;
       const transferToId = document.getElementById('transactionTransferTo').value;
 
-      const { error: transError } = await supabase
+      const { error: transError } = await supabaseClient
         .from('transactions')
         .insert([{
           user_id: currentUser.id,
@@ -2274,14 +2274,14 @@ async function saveTransaction() {
       const toAccount = accounts.find(a => a.id === transferToId);
 
       if (fromAccount) {
-        await supabase
+        await supabaseClient
           .from('accounts')
           .update({ balance: fromAccount.balance - amount })
           .eq('id', accountId);
       }
 
       if (toAccount) {
-        await supabase
+        await supabaseClient
           .from('accounts')
           .update({ balance: toAccount.balance + amount })
           .eq('id', transferToId);
@@ -2308,10 +2308,10 @@ async function saveTransaction() {
 // ============================================
 
 async function loadInvestments() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('investments')
       .select('*')
       .eq('user_id', currentUser.id)
@@ -2412,7 +2412,7 @@ function showAddInvestmentModal() {
 }
 
 async function saveInvestment() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   const data = {
     user_id: currentUser.id,
@@ -2427,7 +2427,7 @@ async function saveInvestment() {
   };
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('investments')
       .insert([data]);
 
@@ -2464,7 +2464,7 @@ async function deleteInvestment(investmentId) {
   if (!confirm('Tem certeza?')) return;
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('investments')
       .delete()
       .eq('id', investmentId);
@@ -2497,7 +2497,7 @@ async function saveInvestmentTransaction() {
   const investmentId = document.getElementById('investmentDetailModal').dataset.investmentId;
   const inv = investments.find(i => i.id === investmentId);
 
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
 
   const data = {
     user_id: currentUser.id,
@@ -2510,7 +2510,7 @@ async function saveInvestmentTransaction() {
   };
 
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('investment_transactions')
       .insert([data]);
 
@@ -2523,7 +2523,7 @@ async function saveInvestmentTransaction() {
       newValue -= data.amount;
     }
 
-    await supabase
+    await supabaseClient
       .from('investments')
       .update({ current_value: newValue })
       .eq('id', investmentId);
@@ -2551,8 +2551,8 @@ function updateElement(id, value) {
 }
 
 async function updateTransaction(transactionId) {
-  if (!supabase || !currentUser) {
-    console.error('❌ Supabase não inicializado');
+  if (!supabaseClient || !currentUser) {
+    console.error('❌ supabaseClient não inicializado');
     return;
   }
 
@@ -2608,7 +2608,7 @@ async function updateTransaction(transactionId) {
     console.log('📝 Dados a atualizar:', updateData);
 
     // ✅ ATUALIZAR - Agora com valores válidos
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('transactions')
       .update(updateData)
       .eq('id', transactionId)
@@ -2826,7 +2826,7 @@ function resetTransactionModal() {
 }
 
 async function updateTransaction(transactionId) {
-  if (!supabase || !currentUser) {
+  if (!supabaseClient || !currentUser) {
     console.error('❌ Supabase não inicializado');
     return;
   }
@@ -2856,7 +2856,7 @@ async function updateTransaction(transactionId) {
     console.log('📝 Dados a atualizar:', updateData);
 
     // Atualizar transação
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('transactions')
       .update(updateData)
       .eq('id', transactionId)
@@ -2891,7 +2891,7 @@ async function updateTransaction(transactionId) {
         if (transaction.type === 'expense') novoSaldoAntiga += transaction.amount;
         if (transaction.type === 'income') novoSaldoAntiga -= transaction.amount;
 
-        const { error: accError1 } = await supabase
+        const { error: accError1 } = await supabaseClient
           .from('accounts')
           .update({ balance: novoSaldoAntiga })
           .eq('id', transaction.account_id)
@@ -2912,7 +2912,7 @@ async function updateTransaction(transactionId) {
         if (updateData.type === 'expense') novoSaldoNova -= updateData.amount;
         if (updateData.type === 'income') novoSaldoNova += updateData.amount;
 
-        const { error: accError2 } = await supabase
+        const { error: accError2 } = await supabaseClient
           .from('accounts')
           .update({ balance: novoSaldoNova })
           .eq('id', novaContaId)
@@ -2931,7 +2931,7 @@ async function updateTransaction(transactionId) {
         if (account) {
           const novoSaldo = account.balance - diferenca;
           
-          const { error: accError } = await supabase
+          const { error: accError } = await supabaseClient
             .from('accounts')
             .update({ balance: novoSaldo })
             .eq('id', transaction.account_id)
@@ -2957,7 +2957,7 @@ async function updateTransaction(transactionId) {
           const cardAntiga = creditCards.find(c => c.account_id === transaction.account_id);
           if (cardAntiga) {
             novoSaldoCard = (cardAntiga.balance || 0) - transaction.amount;
-            await supabase
+            await supabaseClient
               .from('credit_cards')
               .update({ balance: novoSaldoCard })
               .eq('id', cardAntiga.id);
@@ -2966,7 +2966,7 @@ async function updateTransaction(transactionId) {
         
         // Adicionar à nova conta
         novoSaldoCard = (card.balance || 0) + updateData.amount;
-        await supabase
+        await supabaseClient
           .from('credit_cards')
           .update({ balance: novoSaldoCard })
           .eq('id', card.id);
@@ -3030,7 +3030,7 @@ async function deleteTransaction(transactionId) {
       if (transaction.type === 'income') novoSaldo -= transaction.amount;
       if (transaction.type === 'transfer') novoSaldo += transaction.amount;
 
-      await supabase
+      await supabaseClient
         .from('accounts')
         .update({ balance: novoSaldo })
         .eq('id', transaction.account_id);
@@ -3041,7 +3041,7 @@ async function deleteTransaction(transactionId) {
       if (transaction.type === 'transfer' && transaction.transfer_to_account_id) {
         const targetAccount = accounts.find(a => a.id === transaction.transfer_to_account_id);
         if (targetAccount) {
-          await supabase
+          await supabaseClient
             .from('accounts')
             .update({ balance: targetAccount.balance - transaction.amount })
             .eq('id', transaction.transfer_to_account_id);
@@ -3053,7 +3053,7 @@ async function deleteTransaction(transactionId) {
     if (transaction.type === 'expense') {
       const card = creditCards.find(c => c.account_id === transaction.account_id);
       if (card) {
-        await supabase
+        await supabaseClient
           .from('credit_cards')
           .update({ balance: Math.max(0, (card.balance || 0) - transaction.amount) })
           .eq('id', card.id);
@@ -3062,7 +3062,7 @@ async function deleteTransaction(transactionId) {
     }
 
     // Deletar transação
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('transactions')
       .delete()
       .eq('id', transactionId);
@@ -4506,7 +4506,7 @@ async function importSelectedTransactions() {
         console.log(`Enviando ${transactionsToInsert.length} transações para o Supabase...`);
         document.getElementById('importStatus').textContent = `Salvando ${transactionsToInsert.length} transações...`;
         
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('transactions')
             .insert(transactionsToInsert);
 
@@ -4523,7 +4523,7 @@ async function importSelectedTransactions() {
     // 8. Atualizar saldo do cartão (APENAS se tiver sucesso)
     if (totalAmountImported > 0) {
         console.log(`Atualizando saldo do cartão ${card.id} com +${totalAmountImported}`);
-        const { data: currentCard, error: fetchError } = await supabase
+        const { data: currentCard, error: fetchError } = await supabaseClient
           .from('credit_cards')
           .select('balance')
           .eq('id', card.id)
@@ -4533,7 +4533,7 @@ async function importSelectedTransactions() {
           console.error('Erro ao buscar saldo do cartão:', fetchError);
         } else {
           const newBalance = (currentCard.balance || 0) + totalAmountImported;
-          await supabase
+          await supabaseClient
             .from('credit_cards')
             .update({ balance: newBalance })
             .eq('id', card.id);
@@ -4584,13 +4584,13 @@ function backToMapping() {
 
 // Carregar transações pendentes do Supabase
 async function loadPendingTransactions() {
-  if (!supabase) {
+  if (!supabaseClient) {
     console.warn('Supabase não disponível');
     return;
   }
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('pending_transactions')
       .select('*')
       .in('status', ['pending_review', 'approved'])
@@ -4720,7 +4720,7 @@ async function approvePendingTransaction(pendingId, index) {
       account_id: account.id
     };
 
-    const { data: createdTrans, error: transError } = await supabase
+    const { data: createdTrans, error: transError } = await supabaseClient
       .from('transactions')
       .insert([transactionPayload])
       .select()
@@ -4730,19 +4730,19 @@ async function approvePendingTransaction(pendingId, index) {
 
     // Atualizar saldo da conta
     if (data.type === 'despesa') {
-      await supabase
+      await supabaseClient
         .from('accounts')
         .update({ balance: account.balance - parseFloat(data.amount) })
         .eq('id', account.id);
     } else if (data.type === 'receita') {
-      await supabase
+      await supabaseClient
         .from('accounts')
         .update({ balance: account.balance + parseFloat(data.amount) })
         .eq('id', account.id);
     }
 
     // Marcar pendente como aprovado
-    await supabase
+    await supabaseClient
       .from('pending_transactions')
       .update({ status: 'approved' })
       .eq('id', pendingId);
@@ -4763,7 +4763,7 @@ async function rejectPendingTransaction(pendingId) {
   if (!confirm('Tem certeza que deseja rejeitar?')) return;
 
   try {
-    await supabase
+    await supabaseClient
       .from('pending_transactions')
       .update({ status: 'rejected' })
       .eq('id', pendingId);
