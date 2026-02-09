@@ -5,6 +5,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Controle Financeiro Familiar</title>
+  <script>
+    window.APP_CONFIG = window.APP_CONFIG || {
+      SUPABASE_URL: 'https://gbvjdntklbggxycmfyhg.supabase.co',
+      SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdidmpkbnRrbGJnZ3h5Y21meWhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1MzUyMzYsImV4cCI6MjA3ODExMTIzNn0.aNVzAIJFavtrBsYwkuXUfrbwBU2gO3xXuePIpTkNpdQ'
+    };
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -154,7 +160,7 @@ async function reloadNow() {
 
 // Mostrar/ocultar status do auto-reload
 function updateReloadIndicator(enabled) {
-  const indicator = document.getElementById('reloadIndicator');
+  const indicator = document.getElementById('autoReloadIndicator');
   const status = document.getElementById('reloadStatus');
   const text = document.getElementById('reloadText');
   

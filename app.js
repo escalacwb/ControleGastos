@@ -3,31 +3,36 @@
 // VARIÁVEIS GLOBAIS
 // ============================================
 
-let supabase = null;
-let currentUser = null;
-let accounts = [];
-let categories = [];
-let transactions = [];
-let investments = [];
-let creditCards = [];
-let currentView = 'dashboard';
-let charts = {};
-let filterCategory = 'all';  // 'all' ou ID da categoria
-let filterType = 'all';      // 'all', 'income', 'expense', 'transfer'
-let filterAccount = 'all';   // 'all' ou ID da conta
-let filterDateStart = null;  // Data inicial (YYYY-MM-DD)
-let filterDateEnd = null;    // Data final (YYYY-MM-DD)
+var supabase = null;
+var currentUser = null;
+var accounts = [];
+var categories = [];
+var transactions = [];
+var investments = [];
+var creditCards = [];
+var currentView = 'dashboard';
+var charts = {};
+var filterCategory = 'all';  // 'all' ou ID da categoria
+var filterType = 'all';      // 'all', 'income', 'expense', 'transfer'
+var filterAccount = 'all';   // 'all' ou ID da conta
+var filterDateStart = null;  // Data inicial (YYYY-MM-DD)
+var filterDateEnd = null;    // Data final (YYYY-MM-DD)
+
+var APP_CONFIG = window.APP_CONFIG || {};
+
+function getAppConfigValue(key) {
+  return APP_CONFIG[key] || localStorage.getItem(key) || '';
+}
 
 // ============================================
 // IA CATEGORY SUGGESTION - CLAUDE API
 // ============================================
 
 // Configuração da API
-const CLAUDE_API_KEY = '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';
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+var CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 
 // Mapeamento de categorias para IDs
-const categoryMap = {
+var categoryMap = {
   'HABITAÇÃO': 'categoria_id_da_sua_categoria_habitacao',
   'ALIMENTAÇÃO': 'categoria_id_da_sua_categoria_alimentacao',
   'SAÚDE': 'categoria_id_da_sua_categoria_saude',
@@ -44,7 +49,7 @@ const categoryMap = {
 };
 
 // Variável para armazenar guia
-let CATEGORIZATION_GUIDE = null;
+var CATEGORIZATION_GUIDE = null;
 
 /**
  * Carrega guia de categorização do arquivo JSON
@@ -52,6 +57,12 @@ let CATEGORIZATION_GUIDE = null;
 async function loadCategorizationGuide() {
   try {
     console.log('📚 Carregando guia de categorização...');
+
+    if (window.location && window.location.protocol === 'file:') {
+      console.warn('⚠️ Guia não carregado via file://');
+      alert('⚠️ Para carregar o guia, execute o app via servidor HTTP (ex: Live Server).');
+      return;
+    }
     
     const response = await fetch('./categorization-guide.json');
     
@@ -122,7 +133,7 @@ async function suggestCategoryForCsvLine(rowIndex) {
     console.log('Analisando descricao:', description);
 
     // Chamar Supabase Edge Function
-    const supabaseUrl = 'https://gbvjdntklbggxycmfyhg.supabase.co/functions/v1/categorizer';
+    const supabaseUrl = `${SUPABASE_URL}/functions/v1/categorizer`;
 
     const response = await fetch(supabaseUrl, {
       method: 'POST',
@@ -316,7 +327,7 @@ async function suggestCategoryWithAI() {
 
     // SUBSTITUA "gbvjdntklbggxycmfyhg" pelo seu ID real do Supabase!
     // Encontre em: Dashboard → Settings → General → Project ID
-    const supabaseUrl = 'https://gbvjdntklbggxycmfyhg.supabase.co/functions/v1/categorizer';
+    const supabaseUrl = `${SUPABASE_URL}/functions/v1/categorizer`;
     
     const response = await fetch(supabaseUrl, {
       method: 'POST',
@@ -474,8 +485,8 @@ function showAISuggestion(categoryName, categoryId, confidence, reason) {
 // CONFIGURAÇÃO DO SUPABASE (EMBUTIDA)
 // ============================================
 
-const SUPABASE_URL = 'https://gbvjdntklbggxycmfyhg.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdidmpkbnRrbGJnZ3h5Y21meWhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1MzUyMzYsImV4cCI6MjA3ODExMTIzNn0.aNVzAIJFavtrBsYwkuXUfrbwBU2gO3xXuePIpTkNpdQ';
+var SUPABASE_URL = getAppConfigValue('SUPABASE_URL');
+var SUPABASE_KEY = getAppConfigValue('SUPABASE_KEY');
 
 // ============================================
 // INICIALIZAÇÃO
@@ -484,6 +495,12 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 async function initApp() {
   try {
     console.log('🚀 Iniciando aplicação...');
+
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      alert('❌ Configuração do Supabase ausente. Defina SUPABASE_URL e SUPABASE_KEY.');
+      showScreen('loginScreen');
+      return;
+    }
     
     // Inicializar Supabase com credenciais embutidas
     console.log('🔌 Conectando ao Supabase...');
@@ -661,7 +678,8 @@ function showView(viewName) {
     'accounts': 'accountsView',
     'categories': 'categoriesView',
     'investments': 'investmentsView',
-    'importCsv': 'importCsvView'
+    'importCsv': 'importCsvView',
+    'pendingTransactions': 'pendingTransactionsView'
   };
 
   const viewId = viewMap[viewName];
@@ -1935,12 +1953,12 @@ function filterTransactions() {
   
   // Filtro por conta
   if (accountFilter !== 'all') {
-    filtered = filtered.filter(t => t.accountid === accountFilter);
+    filtered = filtered.filter(t => t.account_id === accountFilter);
   }
   
   // Filtro por categoria
   if (categoryFilter !== 'all') {
-    filtered = filtered.filter(t => t.categoryid === categoryFilter);
+    filtered = filtered.filter(t => t.category_id === categoryFilter);
   }
   
   // Filtro por data inicial
@@ -2550,94 +2568,6 @@ function updateElement(id, value) {
   }
 }
 
-async function updateTransaction(transactionId) {
-  if (!supabase || !currentUser) {
-    console.error('❌ Supabase não inicializado');
-    return;
-  }
-
-  const transaction = transactions.find(t => t.id === transactionId);
-  if (!transaction) {
-    console.error('❌ Transação não encontrada');
-    return;
-  }
-
-  try {
-    console.log('💾 Atualizando transação...');
-
-    // ✅ VALIDAR CAMPOS ANTES
-    const accountId = document.getElementById('transactionAccount')?.value;
-    const categoryId = document.getElementById('transactionCategory')?.value;
-    const creditCardId = document.getElementById('transactionCreditCard')?.value;
-    const amount = parseFloat(document.getElementById('transactionAmount').value);
-    const date = document.getElementById('transactionDate').value;
-    const description = document.getElementById('transactionDescription').value;
-    const type = document.getElementById('transactionType').value;
-
-    // ❌ VALIDAÇÕES CRÍTICAS
-    if (!accountId || accountId === '') {
-      alert('❌ Selecione uma conta!');
-      console.error('❌ account_id vazio');
-      return;
-    }
-
-    if (!categoryId || categoryId === '') {
-      alert('❌ Selecione uma categoria!');
-      console.error('❌ category_id vazio');
-      return;
-    }
-
-    if (!amount || amount <= 0) {
-      alert('❌ Valor inválido');
-      return;
-    }
-
-    console.log('✅ Todas as validações passaram');
-
-    // ✅ PREPARAR DADOS COM VALORES VÁLIDOS
-    const updateData = {
-      type: type,
-      amount: amount,
-      date: date,
-      description: description,
-      account_id: accountId,  // ← UUID válido
-      category_id: categoryId || null,  // ← UUID ou null, NUNCA ""
-      credit_card_id: creditCardId || null
-    };
-
-    console.log('📝 Dados a atualizar:', updateData);
-
-    // ✅ ATUALIZAR - Agora com valores válidos
-    const { error } = await supabase
-      .from('transactions')
-      .update(updateData)
-      .eq('id', transactionId)
-      .eq('user_id', currentUser.id);
-
-    if (error) {
-      console.error('❌ Erro do Supabase:', error);
-      throw error;
-    }
-
-    console.log('✅ Transação atualizada com sucesso!');
-    alert('✅ Transação atualizada com sucesso!');
-    closeModal('transactionModal');
-    resetTransactionModal();
-    isEditingTransaction = false;
-
-    // Recarregar dados
-    await loadTransactions();
-    await loadAccounts();
-    await loadCreditCards();
-    updateDashboard();
-
-  } catch (error) {
-    console.error('❌ Erro ao atualizar:', error);
-    alert('❌ Erro ao atualizar transação: ' + error.message);
-    isEditingTransaction = false;
-  }
-}
-
 function updateCharts() {
   // Implementar gráficos com Chart.js se necessário
 }
@@ -2840,17 +2770,45 @@ async function updateTransaction(transactionId) {
   try {
     console.log('💾 Atualizando transação...');
 
+    const accountId = document.getElementById('transactionAccount')?.value;
+    const categoryId = document.getElementById('transactionCategory')?.value;
+    const creditCardId = document.getElementById('transactionCreditCard')?.value || null;
+    const transferToAccountId = document.getElementById('transactionTransferTo')?.value || null;
+    const amount = parseFloat(document.getElementById('transactionAmount').value);
+    const date = document.getElementById('transactionDate').value;
+    const description = document.getElementById('transactionDescription').value;
+    const type = document.getElementById('transactionType').value;
+
+    if (!accountId) {
+      alert('❌ Selecione uma conta!');
+      return;
+    }
+
+    if (type !== 'transfer' && !categoryId) {
+      alert('❌ Selecione uma categoria!');
+      return;
+    }
+
+    if (!amount || amount <= 0) {
+      alert('❌ Valor inválido');
+      return;
+    }
+
+    if (type === 'transfer' && !transferToAccountId) {
+      alert('❌ Selecione a conta de destino!');
+      return;
+    }
+
     // Obter dados do formulário
     const updateData = {
-      type: document.getElementById('transactionType').value,
-      amount: parseFloat(document.getElementById('transactionAmount').value),
-      date: document.getElementById('transactionDate').value,
-      description: document.getElementById('transactionDescription').value,
-      // ⚠️ IMPORTANTE: Incluir account_id na atualização
-      account_id: document.getElementById('transactionAccount').value,
-      category_id: document.getElementById('transactionType').value === 'transfer' 
-        ? null 
-        : (document.getElementById('transactionCategory').value || null),
+      type: type,
+      amount: amount,
+      date: date,
+      description: description,
+      account_id: accountId,
+      category_id: type === 'transfer' ? null : (categoryId || null),
+      credit_card_id: creditCardId,
+      transfer_to_account_id: type === 'transfer' ? transferToAccountId : null
     };
 
     console.log('📝 Dados a atualizar:', updateData);
@@ -3130,7 +3088,7 @@ async function deleteTransaction(transactionId) {
     if (!window.supabase) {
       console.error('❌ Timeout aguardando window.supabase');
       clearInterval(waitForSupabase);
-      initApp(); // Tenta mesmo assim, mas fará erro tratado
+      alert('❌ SDK do Supabase não carregou. Use um servidor HTTP (ex: Live Server) e recarregue.');
     }
   }, 5000);
   
@@ -3172,7 +3130,7 @@ async function deleteTransaction(transactionId) {
   console.log('✅ AI Module Inicializado');
 
   // Iniciar auto-reload
-let autoReloadInterval = null;
+var autoReloadInterval = null;
 
 function startAutoReload(intervalSeconds = 30) {
   if (autoReloadInterval) clearInterval(autoReloadInterval);
@@ -4050,9 +4008,9 @@ function syncFilters() {
 // ============================================
 
 
-let csvData = [];
-let csvHeaders = [];
-let csvMapping = {};
+var csvData = [];
+var csvHeaders = [];
+var csvMapping = {};
 
 // ✅ FUNÇÃO: Detectar delimitador (vírgula ou ponto-e-vírgula)
 function detectDelimiter(csvText) {
