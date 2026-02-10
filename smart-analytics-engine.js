@@ -114,11 +114,15 @@ const SmartAnalytics = {
    * @returns {Object} - Estatísticas completas
    */
   analyzeExpensePattern(categoryId, months = 12) {
+    const sourceTransactions = typeof getReportingTransactions === 'function'
+      ? getReportingTransactions()
+      : transactions;
+
     // Filtrar transações da categoria nos últimos N meses
     const cutoffDate = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - months);
     
-    const categoryTransactions = transactions.filter(tx => 
+    const categoryTransactions = sourceTransactions.filter(tx => 
       tx.category_id === categoryId &&
       tx.type === 'expense' &&
       new Date(tx.date) >= cutoffDate
@@ -214,6 +218,9 @@ const SmartAnalytics = {
    */
   analyzeAllCategories() {
     const analyses = [];
+    const sourceTransactions = typeof getReportingTransactions === 'function'
+      ? getReportingTransactions()
+      : transactions;
     
     categories.forEach(cat => {
       if (cat.type !== 'expense') return; // Apenas despesas
@@ -224,7 +231,7 @@ const SmartAnalytics = {
       const now = new Date();
       const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       
-      const currentMonthTransactions = transactions.filter(tx =>
+      const currentMonthTransactions = sourceTransactions.filter(tx =>
         tx.category_id === cat.id &&
         tx.type === 'expense' &&
         new Date(tx.date) >= currentMonthStart
@@ -308,8 +315,12 @@ const SmartAnalytics = {
   getCurrentMonthSummary() {
     const now = new Date();
     const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const sourceTransactions = typeof getReportingTransactions === 'function'
+      ? getReportingTransactions()
+      : transactions;
     
-    const thisMonthTransactions = transactions.filter(tx =>
+    const thisMonthTransactions = sourceTransactions.filter(tx =>
       new Date(tx.date) >= currentMonthStart
     );
     
@@ -332,8 +343,12 @@ const SmartAnalytics = {
   getAverageExpensesLastMonths(months) {
     const cutoffDate = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - months);
+
+    const sourceTransactions = typeof getReportingTransactions === 'function'
+      ? getReportingTransactions()
+      : transactions;
     
-    const relevantTransactions = transactions.filter(tx =>
+    const relevantTransactions = sourceTransactions.filter(tx =>
       tx.type === 'expense' &&
       new Date(tx.date) >= cutoffDate
     );

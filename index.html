@@ -11,6 +11,7 @@
       SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdidmpkbnRrbGJnZ3h5Y21meWhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1MzUyMzYsImV4cCI6MjA3ODExMTIzNn0.aNVzAIJFavtrBsYwkuXUfrbwBU2gO3xXuePIpTkNpdQ'
     };
   </script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%230f4c81'/%3E%3Cpath d='M32 58c0 8 7 14 18 14s18-6 18-14c0-7-6-11-18-14-12-3-18-7-18-14 0-8 7-14 18-14s18 6 18 14' fill='none' stroke='%23ffffff' stroke-width='8' stroke-linecap='round'/%3E%3Cline x1='50' y1='16' x2='50' y2='84' stroke='%23ffffff' stroke-width='8' stroke-linecap='round'/%3E%3C/svg%3E" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -21,7 +22,7 @@
         <h1>💰 Controle Financeiro</h1>
         <p>Gerencie as finanças da sua família</p>
       </div>
-      <div class="login-form">
+      <form class="login-form" onsubmit="return false;">
         <div class="form-group">
           <label class="form-label">Email</label>
           <input type="email" id="loginEmail" class="form-control" placeholder="seu@email.com">
@@ -30,9 +31,9 @@
           <label class="form-label">Senha</label>
           <input type="password" id="loginPassword" class="form-control" placeholder="••••••••">
         </div>
-        <button onclick="handleLogin()" class="btn btn--primary btn--full-width">Entrar</button>
-        <button onclick="showSignup()" class="btn btn--secondary btn--full-width" style="margin-top: var(--space-8);">Criar Conta</button>
-      </div>
+        <button type="button" onclick="handleLogin()" class="btn btn--primary btn--full-width">Entrar</button>
+        <button type="button" onclick="showSignup()" class="btn btn--secondary btn--full-width" style="margin-top: var(--space-8);">Criar Conta</button>
+      </form>
     </div>
   </div>
 
@@ -43,7 +44,7 @@
         <h1>📝 Criar Conta</h1>
         <p>Comece a gerenciar suas finanças</p>
       </div>
-      <div class="login-form">
+      <form class="login-form" onsubmit="return false;">
         <div class="form-group">
           <label class="form-label">Email</label>
           <input type="email" id="signupEmail" class="form-control" placeholder="seu@email.com">
@@ -52,9 +53,9 @@
           <label class="form-label">Senha</label>
           <input type="password" id="signupPassword" class="form-control" placeholder="••••••••">
         </div>
-        <button onclick="handleSignup()" class="btn btn--primary btn--full-width">Criar Conta</button>
-        <button onclick="showLogin()" class="btn btn--secondary btn--full-width" style="margin-top: var(--space-8);">Voltar</button>
-      </div>
+        <button type="button" onclick="handleSignup()" class="btn btn--primary btn--full-width">Criar Conta</button>
+        <button type="button" onclick="showLogin()" class="btn btn--secondary btn--full-width" style="margin-top: var(--space-8);">Voltar</button>
+      </form>
     </div>
   </div>
 
@@ -551,7 +552,11 @@ function initializeFilters() {
       <div id="creditCardsView" class="view">
         <div class="view-header">
           <h2>Cartões de Crédito</h2>
-          <button onclick="showAddCreditCardModal()" class="btn btn--primary btn--sm">+ Novo Cartão</button>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" onclick="showClearCardItemizations()" class="btn btn--outline btn--sm">Zerar Compras Itemizadas</button>
+            <button type="button" onclick="showCardStatementModal()" class="btn btn--secondary btn--sm">Registrar Fatura</button>
+            <button type="button" onclick="showAddCreditCardModal()" class="btn btn--primary btn--sm">+ Novo Cartão</button>
+          </div>
         </div>
 
         <div id="creditCardsGrid" class="credit-cards-grid"></div>
@@ -804,74 +809,10 @@ function initializeFilters() {
      NOVA ESTRUTURA: Separar Conta de Cartão
      ============================================ -->
 
-<!-- GRUPO 1: Selecionar tipo de origem (Conta ou Cartão) -->
-<div class="form-group" id="accountTypeGroup">
-  <label class="form-label">💰 Origem do Gasto</label>
-  <div style="display: flex; gap: 8px;">
-    <label style="display: flex; align-items: center; flex: 1; cursor: pointer; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 4px; transition: all 0.2s; background: white;">
-      <input type="radio" name="accountType" value="bank_account" checked onchange="updateTransactionForm()" style="cursor: pointer;">
-      <span style="margin-left: 8px; font-weight: 500;">🏦 Conta Bancária</span>
-    </label>
-    <label style="display: flex; align-items: center; flex: 1; cursor: pointer; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 4px; transition: all 0.2s; background: white;">
-      <input type="radio" name="accountType" value="credit_card" onchange="updateTransactionForm()" style="cursor: pointer;">
-      <span style="margin-left: 8px; font-weight: 500;">💳 Cartão de Crédito</span>
-    </label>
-  </div>
-</div>
-
-<!-- GRUPO 2: Selecionar conta bancária (mostra para bank_account) -->
+<!-- GRUPO 1: Selecionar conta bancária -->
 <div class="form-group" id="bankAccountGroup" style="display: block;">
-  <label class="form-label">Qual Conta?</label>
+  <label class="form-label">Conta</label>
   <select id="transactionBankAccount" class="form-control"></select>
-</div>
-
-<!-- GRUPO 3: Selecionar cartão (mostra para credit_card) -->
-<div class="form-group" id="creditCardGroup" style="display: none;">
-  <label class="form-label">Qual Cartão?</label>
-  <select id="transactionCreditCard" class="form-control"></select>
-</div>
-
-<!-- Campo escondido para compatibilidade -->
-<input type="hidden" id="transactionAccount">
-
-<!-- ============================================
-     SEÇÃO: Parcelamento (apenas para cartão)
-     ============================================ -->
-
-<!-- Opção de parcelar (mostra quando selecionou cartão) -->
-<div class="form-group" id="installmentGroup" style="display: none;">
-  <label class="form-label">📅 Parcelar a Compra?</label>
-  <div style="display: flex; gap: 8px;">
-    <label style="display: flex; align-items: center; flex: 1; cursor: pointer; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 4px; background: white;">
-      <input type="radio" name="useInstallment" value="no" checked onchange="updateInstallmentFields()" style="cursor: pointer;">
-      <span style="margin-left: 8px;">À Vista</span>
-    </label>
-    <label style="display: flex; align-items: center; flex: 1; cursor: pointer; padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 4px; background: white;">
-      <input type="radio" name="useInstallment" value="yes" onchange="updateInstallmentFields()" style="cursor: pointer;">
-      <span style="margin-left: 8px;">Parcelado</span>
-    </label>
-  </div>
-</div>
-
-<!-- Quantidade de parcelas (mostra apenas se parcelado) -->
-<div class="form-group" id="installmentCountGroup" style="display: none;">
-  <label class="form-label">Quantas Parcelas?</label>
-  <select id="installmentCount" class="form-control" onchange="updateInstallmentPreview()">
-    <option value="2">2x</option>
-    <option value="3">3x</option>
-    <option value="4">4x</option>
-    <option value="6">6x</option>
-    <option value="8">8x</option>
-    <option value="10">10x</option>
-    <option value="12">12x</option>
-  </select>
-</div>
-
-<!-- Preview do valor da parcela (informativo) -->
-<div class="form-group" id="installmentPreviewGroup" style="display: none; background: #f0f9ff; padding: 12px; border-radius: 4px; border-left: 4px solid #3B82F6;">
-  <p style="margin: 0; font-size: 14px; color: #1e40af;">
-    <strong>💰 Valor de cada parcela:</strong> <span id="installmentPreviewValue">R$ 0,00</span>
-  </p>
 </div>
 
         <div class="form-group" id="categoryGroup">
@@ -978,15 +919,53 @@ function initializeFilters() {
     </div>
   </div>
 
-  <!-- Credit Card Detail Modal -->
-  <div id="creditCardDetailModal" class="modal">
-    <div class="modal-content modal-large">
+  <!-- Card Statement Modal -->
+  <div id="cardStatementModal" class="modal">
+    <div class="modal-content">
       <div class="modal-header">
-        <h3 id="cardDetailTitle">Detalhes do Cartão</h3>
-        <button onclick="closeModal('creditCardDetailModal')" class="modal-close">&times;</button>
+        <h3>Registrar Fatura do Cartão</h3>
+        <button type="button" onclick="closeModal('cardStatementModal')" class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
-        <div id="cardDetailContent"></div>
+        <div class="form-group">
+          <label class="form-label">Cartão</label>
+          <select id="statementCardId" class="form-control"></select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Mes da fatura</label>
+            <div style="display: flex; gap: 8px;">
+              <select id="statementMonthSelect" class="form-control" style="flex: 1;">
+                <option value="1">Janeiro</option>
+                <option value="2">Fevereiro</option>
+                <option value="3">Marco</option>
+                <option value="4">Abril</option>
+                <option value="5">Maio</option>
+                <option value="6">Junho</option>
+                <option value="7">Julho</option>
+                <option value="8">Agosto</option>
+                <option value="9">Setembro</option>
+                <option value="10">Outubro</option>
+                <option value="11">Novembro</option>
+                <option value="12">Dezembro</option>
+              </select>
+              <select id="statementYearSelect" class="form-control" style="flex: 1;"></select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Vencimento</label>
+            <input type="date" id="statementDueDate" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Total da fatura</label>
+          <input type="number" id="statementTotal" class="form-control" placeholder="0.00" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Observações (opcional)</label>
+          <input type="text" id="statementNotes" class="form-control" placeholder="Ex: fatura sem CSV">
+        </div>
+        <button type="button" onclick="saveCardStatement()" class="btn btn--primary btn--full-width">Salvar Fatura</button>
       </div>
     </div>
   </div>
@@ -1002,16 +981,6 @@ function initializeFilters() {
     <div class="modal-body">
       <!-- Informações do cartão -->
       <div id="payCardInfo" style="background: #f0f9ff; padding: 12px; border-radius: 4px; margin-bottom: 20px; border-left: 4px solid #3B82F6;"></div>
-
-      <!-- Tipo de pagamento -->
-      <div class="form-group">
-        <label class="form-label">Tipo de Pagamento</label>
-        <select id="payCardPaymentType" class="form-control" onchange="updatePaymentFields()">
-          <option value="full">Pagar Tudo</option>
-          <option value="partial">Pagamento Parcial</option>
-          <option value="minimum">Pagamento Mínimo (10%)</option>
-        </select>
-      </div>
 
       <!-- Valor a pagar -->
       <div class="form-group">
@@ -1214,8 +1183,37 @@ function initializeFilters() {
     </div>
   </div>
 
-  <!-- Supabase CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase CDN (com fallback) -->
+  <script>
+    (function loadSupabaseSdk() {
+      var sources = [
+        'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
+        'https://unpkg.com/@supabase/supabase-js@2'
+      ];
+
+      function tryLoad(index) {
+        if (index >= sources.length) {
+          console.error('❌ Falha ao carregar Supabase SDK');
+          return;
+        }
+
+        var script = document.createElement('script');
+        script.src = sources[index];
+        script.async = false;
+        script.onload = function () {
+          console.log('✅ Supabase SDK carregado:', script.src);
+        };
+        script.onerror = function () {
+          console.warn('⚠️ Erro ao carregar Supabase SDK:', script.src);
+          tryLoad(index + 1);
+        };
+
+        document.head.appendChild(script);
+      }
+
+      tryLoad(0);
+    })();
+  </script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
