@@ -31,6 +31,52 @@ function getAppConfigValue(key) {
   return APP_CONFIG[key] || localStorage.getItem(key) || '';
 }
 
+function parseMoneyInput(value) {
+  if (value === null || value === undefined) return NaN;
+
+  let normalized = String(value).trim();
+  if (!normalized) return NaN;
+
+  normalized = normalized.replace(/R\$/gi, '').replace(/\s/g, '');
+
+  const hasComma = normalized.includes(',');
+  const hasDot = normalized.includes('.');
+
+  if (hasComma && hasDot) {
+    normalized = normalized.replace(/\./g, '').replace(',', '.');
+  } else if (hasComma) {
+    normalized = normalized.replace(',', '.');
+  }
+
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function normalizeSearchText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function findSingleNameMatch(items, rawName) {
+  const normalizedTarget = normalizeSearchText(rawName);
+  if (!normalizedTarget) return null;
+
+  const genericNames = ['outro', 'outros', 'outra', 'outras'];
+  if (genericNames.includes(normalizedTarget)) return null;
+
+  const exactMatches = items.filter(item => normalizeSearchText(item.name) === normalizedTarget);
+  if (exactMatches.length === 1) return exactMatches[0];
+  if (exactMatches.length > 1) return null;
+
+  const partialMatches = items.filter(item => normalizeSearchText(item.name).includes(normalizedTarget));
+  if (partialMatches.length === 1) return partialMatches[0];
+
+  return null;
+}
+
 // ============================================
 // IA CATEGORY SUGGESTION - CLAUDE API
 // ============================================
@@ -1646,8 +1692,18 @@ async function saveAccount() {
     user_id: currentUser.id,
     name: document.getElementById('accountName').value,
     type: document.getElementById('accountType').value,
-    balance: parseFloat(document.getElementById('accountBalance').value)
+    balance: parseMoneyInput(document.getElementById('accountBalance').value)
   };
+
+  if (!data.name || !data.name.trim()) {
+    alert('❌ Informe o nome da conta.');
+    return;
+  }
+
+  if (!Number.isFinite(data.balance)) {
+    alert('❌ Saldo inicial invalido.');
+    return;
+  }
 
   try {
     const { error } = await supabase
@@ -1981,7 +2037,7 @@ function updateInstallmentFields() {
 
 // NOVO: Calcular preview de parcelas
 function updateInstallmentPreview() {
-  const amount = parseFloat(document.getElementById('transactionAmount').value) || 0;
+  const amount = parseMoneyInput(document.getElementById('transactionAmount').value) || 0;
   const installmentCount = parseInt(document.getElementById('installmentCount').value) || 1;
   const previewValue = document.getElementById('installmentPreviewValue');
   
@@ -2018,6 +2074,7 @@ function filterTransactions() {
   const typeFilter = document.getElementById('transactionTypeFilter')?.value || 'all';
   const accountFilter = document.getElementById('transactionAccountFilter')?.value || 'all';
   const categoryFilter = document.getElementById('filterCategory')?.value || 'all';
+  const searchFilter = normalizeSearchText(document.getElementById('transactionSearchFilter')?.value || '');
   
   let filtered = [...transactions];
   
@@ -2034,6 +2091,28 @@ function filterTransactions() {
   // Filtro por categoria
   if (categoryFilter !== 'all') {
     filtered = filtered.filter(t => t.category_id === categoryFilter);
+  }
+
+  // Filtro por pesquisa textual
+  if (searchFilter) {
+    filtered = filtered.filter(transaction => {
+      const account = accounts.find(item => item.id === transaction.account_id);
+      const category = categories.find(item => item.id === transaction.category_id);
+      const transferTarget = accounts.find(item => item.id === transaction.transfer_to_account_id);
+
+      const searchable = normalizeSearchText(
+        [
+          transaction.description || '',
+          account?.name || '',
+          category?.name || '',
+          transferTarget?.name || '',
+          transaction.amount || '',
+          new Date(transaction.date).toLocaleDateString('pt-BR')
+        ].join(' ')
+      );
+
+      return searchable.includes(searchFilter);
+    });
   }
   
   // Filtro por data inicial
@@ -2134,7 +2213,7 @@ async function saveTransaction() {
 
   const type = document.getElementById('transactionType').value;
   const accountType = document.querySelector('input[name="accountType"]:checked')?.value || 'bank_account';
-  const amount = parseFloat(document.getElementById('transactionAmount').value);
+  const amount = parseMoneyInput(document.getElementById('transactionAmount').value);
   const description = document.getElementById('transactionDescription').value;
   const date = document.getElementById('transactionDate').value;
   const categoryId = document.getElementById('transactionCategory').value;
@@ -2842,7 +2921,7 @@ async function updateTransaction(transactionId) {
     const categoryId = document.getElementById('transactionCategory')?.value;
     const creditCardId = document.getElementById('transactionCreditCard')?.value || null;
     const transferToAccountId = document.getElementById('transactionTransferTo')?.value || null;
-    const amount = parseFloat(document.getElementById('transactionAmount').value);
+    const amount = parseMoneyInput(document.getElementById('transactionAmount').value);
     const date = document.getElementById('transactionDate').value;
     const description = document.getElementById('transactionDescription').value;
     const type = document.getElementById('transactionType').value;
@@ -3199,6 +3278,7 @@ function stopAutoReload() {
 }
 
 function applyFilters() {
+  const searchFilter = normalizeSearchText(document.getElementById('transactionSearchFilter')?.value || '');
   console.log('🔍 Aplicando filtros...', {
     tipo: filterType,
     conta: filterAccount,
@@ -3222,6 +3302,28 @@ function applyFilters() {
   // Filtro por categoria
   if (filterCategory !== 'all') {
     filtered = filtered.filter(t => t.category_id === filterCategory);
+  }
+
+  // Filtro por pesquisa textual
+  if (searchFilter) {
+    filtered = filtered.filter(transaction => {
+      const account = accounts.find(item => item.id === transaction.account_id);
+      const category = categories.find(item => item.id === transaction.category_id);
+      const transferTarget = accounts.find(item => item.id === transaction.transfer_to_account_id);
+
+      const searchable = normalizeSearchText(
+        [
+          transaction.description || '',
+          account?.name || '',
+          category?.name || '',
+          transferTarget?.name || '',
+          transaction.amount || '',
+          new Date(transaction.date).toLocaleDateString('pt-BR')
+        ].join(' ')
+      );
+
+      return searchable.includes(searchFilter);
+    });
   }
   
   // Filtro por data inicial
@@ -3349,15 +3451,17 @@ function clearAllFilters() {
   filterDateEnd = null;
 
   // Resetar elementos HTML
-  const typeSelect = document.getElementById('filterType');
-  const accountSelect = document.getElementById('filterAccount');
+  const typeSelect = document.getElementById('transactionTypeFilter') || document.getElementById('filterType');
+  const accountSelect = document.getElementById('transactionAccountFilter') || document.getElementById('filterAccount');
   const categorySelect = document.getElementById('filterCategory');
+  const searchInput = document.getElementById('transactionSearchFilter');
   const dateStartInput = document.getElementById('filterDateStart');
   const dateEndInput = document.getElementById('filterDateEnd');
 
   if (typeSelect) typeSelect.value = 'all';
   if (accountSelect) accountSelect.value = 'all';
   if (categorySelect) categorySelect.value = 'all';
+  if (searchInput) searchInput.value = '';
   if (dateStartInput) dateStartInput.value = '';
   if (dateEndInput) dateEndInput.value = '';
 
@@ -3946,92 +4050,87 @@ function updateDashboard() {
 }
 
 
-// ===== FUNÇÕES DE FILTRO RÁPIDO POR DATA =====
+// ===== FUNCOES DE FILTRO RAPIDO POR DATA =====
 
 function filterThisMonth() {
-  console.log('🔄 Clicou em: Este Mês');
+  console.log('Filtro rapido: Este mes');
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  
+
   filterDateStart = firstDay.toISOString().split('T')[0];
   filterDateEnd = lastDay.toISOString().split('T')[0];
-  
-  // Resetar outros filtros
+
   filterType = 'all';
   filterAccount = 'all';
   filterCategory = 'all';
-  
-  // Resetar selects (SEM os inputs que não existem)
+
   const typeSelect = document.getElementById('transactionTypeFilter');
   const accountSelect = document.getElementById('transactionAccountFilter');
   const categorySelect = document.getElementById('filterCategory');
-  
+  const searchInput = document.getElementById('transactionSearchFilter');
+
   if (typeSelect) typeSelect.value = 'all';
   if (accountSelect) accountSelect.value = 'all';
   if (categorySelect) categorySelect.value = 'all';
-  
-  console.log(`📅 Este Mês: ${filterDateStart} a ${filterDateEnd}`);
+  if (searchInput) searchInput.value = '';
+
   applyFilters();
 }
 
 function filterThisYear() {
-  console.log('🔄 Clicou em: Este Ano');
+  console.log('Filtro rapido: Este ano');
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), 0, 1);
   const lastDay = new Date(today.getFullYear(), 11, 31);
-  
+
   filterDateStart = firstDay.toISOString().split('T')[0];
   filterDateEnd = lastDay.toISOString().split('T')[0];
-  
-  // Resetar outros filtros
+
   filterType = 'all';
   filterAccount = 'all';
   filterCategory = 'all';
-  
-  // Resetar selects
+
   const typeSelect = document.getElementById('transactionTypeFilter');
   const accountSelect = document.getElementById('transactionAccountFilter');
   const categorySelect = document.getElementById('filterCategory');
-  
+  const searchInput = document.getElementById('transactionSearchFilter');
+
   if (typeSelect) typeSelect.value = 'all';
   if (accountSelect) accountSelect.value = 'all';
   if (categorySelect) categorySelect.value = 'all';
-  
-  console.log(`📊 Este Ano: ${filterDateStart} a ${filterDateEnd}`);
+  if (searchInput) searchInput.value = '';
+
   applyFilters();
 }
 
 function filterLastMonth() {
-  console.log('🔄 Clicou em: Mês Passado');
+  console.log('Filtro rapido: Mes passado');
   const today = new Date();
   const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1);
   const firstDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
   const lastDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
-  
+
   filterDateStart = firstDay.toISOString().split('T')[0];
   filterDateEnd = lastDay.toISOString().split('T')[0];
-  
-  // Resetar outros filtros
+
   filterType = 'all';
   filterAccount = 'all';
   filterCategory = 'all';
-  
-  // Resetar selects
+
   const typeSelect = document.getElementById('transactionTypeFilter');
   const accountSelect = document.getElementById('transactionAccountFilter');
   const categorySelect = document.getElementById('filterCategory');
-  
+  const searchInput = document.getElementById('transactionSearchFilter');
+
   if (typeSelect) typeSelect.value = 'all';
   if (accountSelect) accountSelect.value = 'all';
   if (categorySelect) categorySelect.value = 'all';
-  
-  console.log(`📆 Mês Passado: ${filterDateStart} a ${filterDateEnd}`);
+  if (searchInput) searchInput.value = '';
+
   applyFilters();
 }
 
-
-// ===== FUNÇÃO DE SINCRONIZAÇÃO =====
 function syncFilters() {
   console.log('Sincronizando filtros...');
   filterType = document.getElementById('transactionTypeFilter')?.value || 'all';
@@ -4708,20 +4807,16 @@ async function approvePendingTransaction(pendingId, index) {
     };
     const transactionType = typeMap[rawType] || rawType;
 
-    // Encontrar categoria
-    const category = categories.find(c => 
-      c.name.toLowerCase().includes(data.category.toLowerCase())
-    );
+    // Encontrar categoria (evita associar "outro" automaticamente)
+    const category = findSingleNameMatch(categories, data.category);
 
     if (!category) {
       alert('❌ Categoria não encontrada: ' + data.category + '\nCategorias disponíveis: ' + categories.map(c => c.name).join(', '));
       return;
     }
 
-    // Encontrar conta/banco
-    const account = accounts.find(a => 
-      a.name.toLowerCase().includes(data.account.toLowerCase())
-    );
+    // Encontrar conta/banco (evita trocar "outro" para uma conta real sem confirmacao)
+    const account = findSingleNameMatch(accounts, data.account);
 
     if (!account) {
       alert('❌ Conta/Banco não encontrado: ' + data.account + '\nContas disponíveis: ' + accounts.map(a => a.name).join(', '));
@@ -4729,10 +4824,16 @@ async function approvePendingTransaction(pendingId, index) {
     }
 
     // Criar transação no banco definitivo
+    const parsedAmount = parseMoneyInput(data.amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      alert('❌ Valor invalido na transacao pendente: ' + data.amount);
+      return;
+    }
+
     const transactionPayload = {
       user_id: currentUser.id,
       type: transactionType,
-      amount: parseFloat(data.amount),
+      amount: parsedAmount,
       description: data.description,
       category_id: category.id,
       date: data.date,
@@ -4751,12 +4852,12 @@ async function approvePendingTransaction(pendingId, index) {
     if (transactionType === 'expense') {
       await supabase
         .from('accounts')
-        .update({ balance: account.balance - parseFloat(data.amount) })
+        .update({ balance: account.balance - parsedAmount })
         .eq('id', account.id);
     } else if (transactionType === 'income') {
       await supabase
         .from('accounts')
-        .update({ balance: account.balance + parseFloat(data.amount) })
+        .update({ balance: account.balance + parsedAmount })
         .eq('id', account.id);
     }
 
@@ -4794,3 +4895,6 @@ async function rejectPendingTransaction(pendingId) {
     alert('Erro ao rejeitar: ' + error.message);
   }
 }
+
+
+
