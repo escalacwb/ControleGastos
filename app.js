@@ -12,6 +12,7 @@ var investments = [];
 var creditCards = [];
 var billingCycles = [];
 var currentView = 'dashboard';
+var transactionsFabSetupDone = false;
 var charts = {};
 var filterCategory = 'all';  // 'all' ou ID da categoria
 var filterType = 'all';      // 'all', 'income', 'expense', 'transfer'
@@ -573,7 +574,8 @@ async function initApp() {
       currentUser = data.session.user;
       console.log('✅ Usuário logado:', currentUser.email);
       showScreen('mainApp');
-      loadAllData();
+    setupTransactionsFab();
+    loadAllData();
       if (typeof startAutoReload === 'function') {
       startAutoReload(30);
       }
@@ -644,6 +646,7 @@ async function handleLogin() {
     currentUser = data.user;
     console.log('✅ Login bem-sucedido!');
     showScreen('mainApp');
+    setupTransactionsFab();
     loadAllData();
   } catch (error) {
     console.error('❌ Erro no login:', error);
@@ -744,6 +747,36 @@ function showView(viewName) {
   if (viewName === 'dashboard') {
     updateDashboard();
   }
+
+  updateTransactionsFabVisibility();
+}
+
+function updateTransactionsFabVisibility() {
+  const fab = document.getElementById('transactionsFab');
+  const transactionsView = document.getElementById('transactionsView');
+  const appContent = document.querySelector('.app-content');
+
+  if (!fab || !transactionsView || !appContent) return;
+
+  const inTransactions = currentView === 'transactions' && transactionsView.classList.contains('active');
+  const scrolledDown = appContent.scrollTop > 120;
+
+  fab.classList.toggle('visible', inTransactions && scrolledDown);
+}
+
+function setupTransactionsFab() {
+  const appContent = document.querySelector('.app-content');
+  if (!appContent) return;
+
+  if (transactionsFabSetupDone) {
+    updateTransactionsFabVisibility();
+    return;
+  }
+
+  appContent.addEventListener('scroll', updateTransactionsFabVisibility, { passive: true });
+  window.addEventListener('resize', updateTransactionsFabVisibility);
+  transactionsFabSetupDone = true;
+  updateTransactionsFabVisibility();
 }
 
 // ============================================
@@ -4895,6 +4928,7 @@ async function rejectPendingTransaction(pendingId) {
     alert('Erro ao rejeitar: ' + error.message);
   }
 }
+
 
 
 
