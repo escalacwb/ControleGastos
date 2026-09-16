@@ -1,12 +1,21 @@
 {
-  "name": "controlador-gastos",
-  "version": "1.0.0",
+  "name": "em-casa-financas",
+  "version": "2.0.0",
   "description": "App de controle de gastos com integração Telegram",
   "dependencies": {
     "axios": "^1.6.0",
-    "@supabase/supabase-js": "^2.38.0"
+    "@supabase/supabase-js": "2.99.0"
+  },
+  "scripts": {
+    "start": "node tools/serve-web.cjs",
+    "test": "node --test tests/finance.test.mjs",
+    "test:ui": "node tools/check-ui-fixtures.cjs"
+  },
+  "devDependencies": {
+    "pg": "^8.16.0",
+    "playwright": "1.58.2"
   },
   "engines": {
-    "node": "18.x"
+    "node": ">=22"
   }
 }

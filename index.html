@@ -1,1237 +1,171 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Controle Financeiro Familiar</title>
-  <script>
-    window.APP_CONFIG = window.APP_CONFIG || {
-      SUPABASE_URL: 'https://gbvjdntklbggxycmfyhg.supabase.co',
-      SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdidmpkbnRrbGJnZ3h5Y21meWhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1MzUyMzYsImV4cCI6MjA3ODExMTIzNn0.aNVzAIJFavtrBsYwkuXUfrbwBU2gO3xXuePIpTkNpdQ'
-    };
-  </script>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%230f4c81'/%3E%3Cpath d='M32 58c0 8 7 14 18 14s18-6 18-14c0-7-6-11-18-14-12-3-18-7-18-14 0-8 7-14 18-14s18 6 18 14' fill='none' stroke='%23ffffff' stroke-width='8' stroke-linecap='round'/%3E%3Cline x1='50' y1='16' x2='50' y2='84' stroke='%23ffffff' stroke-width='8' stroke-linecap='round'/%3E%3C/svg%3E" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <!-- Login Screen -->
-  <div id="loginScreen" class="screen active">
-    <div class="login-container">
-      <div class="login-header">
-        <h1>💰 Controle Financeiro</h1>
-        <p>Gerencie as finanças da sua família</p>
-      </div>
-      <form class="login-form" onsubmit="return false;">
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input type="email" id="loginEmail" class="form-control" placeholder="seu@email.com">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Senha</label>
-          <input type="password" id="loginPassword" class="form-control" placeholder="••••••••">
-        </div>
-        <button type="button" onclick="handleLogin()" class="btn btn--primary btn--full-width">Entrar</button>
-        <button type="button" onclick="showSignup()" class="btn btn--secondary btn--full-width" style="margin-top: var(--space-8);">Criar Conta</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Signup Screen -->
-  <div id="signupScreen" class="screen">
-    <div class="login-container">
-      <div class="login-header">
-        <h1>📝 Criar Conta</h1>
-        <p>Comece a gerenciar suas finanças</p>
-      </div>
-      <form class="login-form" onsubmit="return false;">
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input type="email" id="signupEmail" class="form-control" placeholder="seu@email.com">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Senha</label>
-          <input type="password" id="signupPassword" class="form-control" placeholder="••••••••">
-        </div>
-        <button type="button" onclick="handleSignup()" class="btn btn--primary btn--full-width">Criar Conta</button>
-        <button type="button" onclick="showLogin()" class="btn btn--secondary btn--full-width" style="margin-top: var(--space-8);">Voltar</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Main App -->
-  <div id="mainApp" class="screen">
-    <!-- Header -->
-    <div class="app-header">
-  <h1>💰 Controle Financeiro</h1>
-  
-  <div style="display: flex; gap: 12px; align-items: center;">
-    <!-- Botão de Recarregar Manual -->
-    <button 
-      class="btn btn--primary" 
-      onclick="reloadNow()" 
-      title="Clique para recarregar os dados do banco de dados"
-      id="reloadBtn"
-      style="display: flex; align-items: center; gap: 8px;">
-      🔄 Atualizar Dados
-    </button>
-
-    <!-- Indicador de Auto-reload -->
-    <div id="autoReloadIndicator" style="
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: #666;
-      padding: 6px 12px;
-      background: #f0f0f0;
-      border-radius: 4px;
-    ">
-      <span id="reloadStatus" style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite;"></span>
-      <span id="reloadText">Auto-reload: ON</span>
-    </div>
-
-    <!-- Botão de Logout -->
-    <button class="btn btn--secondary" onclick="handleLogout()">
-      🚪 Sair
-    </button>
-  </div>
-</div>
-
-<!-- CSS para animação de pulse -->
-<style>
-  @keyframes pulse {
-    0%, 100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.5;
-    }
-  }
-
-  #reloadStatus {
-    animation: pulse 2s infinite;
-  }
-
-  #reloadBtn:hover {
-    transform: scale(1.05);
-  }
-
-  #reloadBtn:active {
-    transform: scale(0.98);
-  }
-</style>
-
-<!-- SCRIPT: Função para recarregar manualmente -->
-<script>
-async function reloadNow() {
-  console.log('🔄 Recarregando dados manualmente...');
-  const btn = document.getElementById('reloadBtn');
-  const originalText = btn.textContent;
-  
-  btn.disabled = true;
-  btn.textContent = '⏳ Atualizando...';
-  
-  try {
-    // Recarregar tudo
-    await Promise.all([
-      loadAccounts(),
-      loadCategories(),
-      loadTransactions(),
-      loadInvestments(),
-      loadCreditCards()
-    ]);
-    
-    // Recalcular saldos
-    await recalculateAccountBalances();
-    
-    // Atualizar dashboard
-    updateDashboard();
-    
-    alert('✅ Todos os dados foram atualizados!');
-    console.log('✅ Recarregamento completo');
-  } catch (error) {
-    console.error('❌ Erro ao recarregar:', error);
-    alert('❌ Erro ao atualizar dados: ' + error.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = originalText;
-  }
-}
-
-// Mostrar/ocultar status do auto-reload
-function updateReloadIndicator(enabled) {
-  const indicator = document.getElementById('autoReloadIndicator');
-  const status = document.getElementById('reloadStatus');
-  const text = document.getElementById('reloadText');
-  
-  if (indicator) {
-    if (enabled) {
-      status.style.background = '#10b981';
-      text.textContent = 'Auto-reload: ON ✅';
-    } else {
-      status.style.background = '#ef4444';
-      text.textContent = 'Auto-reload: OFF ❌';
-    }
-  }
-}
-</script>
-
-    <!-- Navigation -->
-    <nav class="app-nav">
-      <button class="nav-item active" data-view="dashboard" onclick="showView('dashboard')">
-        <span class="nav-icon">📊</span>
-        <span class="nav-label">Início</span>
-      </button>
-      <button class="nav-item" data-view="transactions" onclick="showView('transactions')">
-        <span class="nav-icon">💰</span>
-        <span class="nav-label">Transações</span>
-      </button>
-      <button class="nav-item" data-view="credit-cards" onclick="showView('credit-cards')">
-        <span class="nav-icon">💳</span>
-        <span class="nav-label">Cartões</span>
-      </button>
-      <button class="nav-item" data-view="accounts" onclick="showView('accounts')">
-        <span class="nav-icon">🏦</span>
-        <span class="nav-label">Contas</span>
-      </button>
-      <button class="nav-item" data-view="categories" onclick="showView('categories')">
-        <span class="nav-icon">🏷️</span>
-        <span class="nav-label">Categorias</span>
-      </button>
-      <button class="nav-item" data-view="investments" onclick="showView('investments')">
-        <span class="nav-icon">📈</span>
-        <span class="nav-label">Investimentos</span>
-      </button>
-      <button class="nav-item" data-view="importCsv" onclick="showView('importCsv')">
-        <span class="nav-icon">📥</span>
-        <span class="nav-label">Importar Fatura</span>
-      </button>
-      <button class="nav-item" data-view="pendingTransactions" onclick="showView('pendingTransactions')">
-        <span class="nav-icon">📱</span>
-        <span class="nav-label">Pendentes Telegram</span>
-      </button>
-    </nav>
-
-    <!-- Main Content -->
-    <main class="app-content">
-      <!-- Dashboard View -->
-      <!-- ============================================
-     DASHBOARD MELHORADO - HTML
-     Substitua o conteúdo dentro de <div id="dashboardView" class="view active">
-     ============================================ -->
-
-<div id="dashboardView" class="view active">
-  <div class="view-header">
-    <h2>📊 Dashboard</h2>
-    <button class="btn btn--primary" onclick="recalculateAccountBalances()">🔄 Recalcular Saldos</button>
-  </div>
-
-  <!-- ============================================
-       1. RESUMO FINANCEIRO (4 Cards)
-       ============================================ -->
-  <div class="stats-grid">
-    <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-      <div class="stat-label">PATRIMÔNIO LÍQUIDO</div>
-      <div class="stat-value" id="netWorthValue">R$ 0,00</div>
-    </div>
-
-    <div class="stat-card" style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);">
-      <div class="stat-label">SALDO EM CONTAS</div>
-      <div class="stat-value" id="totalAccountsValue">R$ 0,00</div>
-    </div>
-
-    <div class="stat-card" style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); color: white;">
-      <div class="stat-label">TOTAL INVESTIDO</div>
-      <div class="stat-value" id="totalInvestedValue">R$ 0,00</div>
-    </div>
-
-    <div class="stat-card" style="background: linear-gradient(135deg, #ff7675 0%, #d63031 100%); color: white;">
-      <div class="stat-label">CARTÕES A PAGAR</div>
-      <div class="stat-value" id="totalCardsDebtValue">R$ 0,00</div>
-    </div>
-  </div>
-
-  <!-- ============================================
-       2. RECEITAS E DESPESAS - ESTE MÊS
-       ============================================ -->
-  <div class="dashboard-section">
-    <h3>📅 Receitas e Despesas - Este Mês</h3>
-    <div class="stats-grid">
-      <div class="stat-card" style="background: var(--color-bg-2);">
-        <div class="stat-label">Receitas</div>
-        <div class="stat-value" id="monthIncomeValue" style="color: var(--color-secondary);">R$ 0,00</div>
-      </div>
-
-      <div class="stat-card" style="background: var(--color-bg-4);">
-        <div class="stat-label">Despesas</div>
-        <div class="stat-value" id="monthExpenseValue" style="color: var(--color-error);">R$ 0,00</div>
-      </div>
-
-      <div class="stat-card" style="background: var(--color-bg-1);">
-        <div class="stat-label">Saldo</div>
-        <div class="stat-value" id="monthBalanceValue" style="color: var(--color-primary);">R$ 0,00</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================
-       3. TOTAL DO ANO ATUAL
-       ============================================ -->
-  <div class="dashboard-section">
-    <h3>📊 Total do Ano (<span id="currentYearLabel">2025</span>)</h3>
-    <div class="stats-grid">
-      <div class="stat-card" style="background: var(--color-bg-2);">
-        <div class="stat-label">Receitas do Ano</div>
-        <div class="stat-value" id="yearIncomeValue" style="color: var(--color-secondary);">R$ 0,00</div>
-      </div>
-
-      <div class="stat-card" style="background: var(--color-bg-4);">
-        <div class="stat-label">Despesas do Ano</div>
-        <div class="stat-value" id="yearExpenseValue" style="color: var(--color-error);">R$ 0,00</div>
-      </div>
-
-      <div class="stat-card" style="background: var(--color-bg-1);">
-        <div class="stat-label">Saldo do Ano</div>
-        <div class="stat-value" id="yearBalanceValue" style="color: var(--color-primary);">R$ 0,00</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================
-       4. COMPARATIVO COM ANO ANTERIOR
-       ============================================ -->
-  <div class="dashboard-section">
-    <h3>📈 Comparativo com <span id="lastYearLabel">2024</span></h3>
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-          <div style="font-size: 12px; color: #666;">Receitas <span id="lastYearLabel2">2024</span></div>
-          <div style="font-size: 14px; font-weight: bold;" id="lastYearIncomeValue">R$ 0,00</div>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="font-size: 12px; color: #666;">Variação</div>
-          <div style="font-size: 16px; font-weight: bold; color: var(--color-secondary);" id="incomeVariation">0%</div>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-          <div style="font-size: 12px; color: #666;">Despesas <span id="lastYearLabel3">2024</span></div>
-          <div style="font-size: 14px; font-weight: bold;" id="lastYearExpenseValue">R$ 0,00</div>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="font-size: 12px; color: #666;">Variação</div>
-          <div style="font-size: 16px; font-weight: bold; color: var(--color-error);" id="expenseVariation">0%</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================
-       5. INSIGHTS E ANÁLISES
-       ============================================ -->
-  <div class="dashboard-section">
-    <h3>💡 Insights</h3>
-    <div class="stats-grid">
-      <div class="stat-card" style="background: var(--color-bg-5);">
-        <div class="stat-label">Categoria Mais Gasta (Mês)</div>
-        <div style="font-size: 18px; font-weight: bold; color: var(--color-primary);" id="topCategoryName">N/A</div>
-        <div style="font-size: 14px; color: #666; margin-top: 5px;" id="topCategoryValue">R$ 0,00</div>
-      </div>
-
-      <div class="stat-card" style="background: var(--color-bg-3);">
-        <div class="stat-label">Média de Gastos (6 meses)</div>
-        <div style="font-size: 20px; font-weight: bold; color: var(--color-warning);" id="avgMonthExpenseValue">R$ 0,00</div>
-      </div>
-
-      <div class="stat-card" style="background: var(--color-bg-6);">
-        <div class="stat-label">Total de Transações</div>
-        <div style="font-size: 20px; font-weight: bold; color: var(--color-info);" id="totalTransactionsCount">0</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- FASE 1B: Comparison Table -->
-  <div id="comparisonSection" style="display: none;">
-    <h3>📊 Gastos por Categoria — Este Mês vs. Histórico</h3>
-    <div id="comparisonTableContainer" style="overflow-x: auto;">
-      <table class="comparison-table">
-        <thead>
-          <tr>
-            <th>Categoria</th>
-            <th style="text-align: right;">Este Mês</th>
-            <th style="text-align: right;">Média 12m</th>
-            <th style="text-align: center;">Desvio %</th>
-            <th style="text-align: center;">Status</th>
-          </tr>
-        </thead>
-        <tbody id="comparisonTableBody">
-          <!-- Preenchido via JavaScript -->
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- FASE 1C: Historical Charts -->
-<div id="chartsSection" style="display: none; margin-top: var(--space-32);">
-  
-  <!-- Gráfico 1: Line Chart - Trend -->
-  <div style="margin-bottom: var(--space-32);">
-    <h3 style="margin-bottom: var(--space-16);">📊 Trend de Gastos — Últimos 12 Meses</h3>
-    <div style="position: relative; height: 300px; background-color: white; border-radius: var(--radius-lg); padding: var(--space-16); border: 1px solid var(--color-border);">
-      <canvas id="trendChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Gráfico 2: Bar Chart - Comparativo -->
-  <div style="margin-bottom: var(--space-32);">
-    <h3 style="margin-bottom: var(--space-16);">📊 Este Mês vs. Média Histórica</h3>
-    <div style="position: relative; height: 300px; background-color: white; border-radius: var(--radius-lg); padding: var(--space-16); border: 1px solid var(--color-border);">
-      <canvas id="comparisonChart"></canvas>
-    </div>
-  </div>
-  
-
-  <!-- FASE 2: Alerts & Anomalies -->
-<div id="alertsSection" style="display: none; margin-top: var(--space-32);">
-  <h3 style="margin-bottom: var(--space-16);">⚠️ Alertas & Oportunidades</h3>
-  <div id="alertsContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
-    <!-- Preenchido via JavaScript -->
-  </div>
-</div>
-
-</div>
-
-  <!-- ============================================
-       6. AÇÕES RÁPIDAS
-       ============================================ -->
-  <div class="dashboard-section">
-    <h3>⚡ Ações Rápidas</h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-      <button class="btn btn--primary" onclick="showAddTransactionModal()">➕ Nova Transação</button>
-      <button class="btn btn--secondary" onclick="showView('transactions')">📋 Ver Transações</button>
-      <button class="btn btn--secondary" onclick="showView('accounts')">🏦 Minhas Contas</button>
-      <button class="btn btn--secondary" onclick="showView('credit-cards')">💳 Cartões</button>
-    </div>
-  </div>
-</div>
-
-<script>
-// Atualizar labels de ano automaticamente
-document.addEventListener('DOMContentLoaded', () => {
-  const currentYear = new Date().getFullYear();
-  const lastYear = currentYear - 1;
-  
-  document.getElementById('currentYearLabel').textContent = currentYear;
-  document.getElementById('lastYearLabel').textContent = lastYear;
-  document.getElementById('lastYearLabel2').textContent = lastYear;
-  document.getElementById('lastYearLabel3').textContent = lastYear;
-});
-</script>  
-
-      <!-- Transactions View -->
-      <div id="transactionsView" class="view">
-        <div class="view-header">
-          
-
-<!-- SCRIPT: Preencher selects com dados -->
-<script>
-// Preencher select de contas
-function populateAccountFilter() {
-  const select = document.getElementById('filterAccount');
-  if (!select) return;
-  
-  // Limpar options antigos (deixar "Todas as contas")
-  while (select.options.length > 1) {
-    select.remove(1);
-  }
-  
-  // Adicionar contas
-  accounts.forEach(account => {
-    const option = document.createElement('option');
-    option.value = account.id;
-    option.text = account.name;
-    select.appendChild(option);
-  });
-}
-
-// Preencher select de categorias
-function populateCategoryFilter() {
-  const select = document.getElementById('filterCategory');
-  if (!select) return;
-  
-  // Limpar options antigos (deixar "Todas as categorias")
-  while (select.options.length > 1) {
-    select.remove(1);
-  }
-  
-  // Adicionar categorias
-  categories.forEach(category => {
-    const option = document.createElement('option');
-    option.value = category.id;
-    option.text = category.name;
-    select.appendChild(option);
-  });
-}
-
-// Chamar quando dados carregarem
-function initializeFilters() {
-  populateAccountFilter();
-  populateCategoryFilter();
-  console.log('✅ Filtros inicializados');
-}
-
-// Chamar quando dados forem carregados (adicione à função loadAllData)
-// initializeFilters();
-</script>
-          <h2>Transações</h2>
-          <button onclick="showAddTransactionModal()" class="btn btn--primary btn--sm">+ Nova</button>
-        </div>
-
-        <div class="filters-section">
-
-          <!-- Botões de Filtro Rápido por Data -->
-      <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;">
-        <span style="font-weight: bold; color: #666; margin-right: 8px;">Filtros Rápidos:</span>
-     
-        <button onclick="filterThisMonth()" class="btn btn--primary btn--sm"
-        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; cursor: pointer;">
-        📅 Este Mês
-        </button>
-    
-        <button onclick="filterThisYear()" class="btn btn--primary btn--sm"
-        style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: none; color: white; cursor: pointer;">
-        📊 Este Ano
-        </button>
-    
-        <button onclick="filterLastMonth()" class="btn btn--primary btn--sm"
-         style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); border: none; color: white; cursor: pointer;">
-         📆 Mês Passado
-         </button>
-
-         <button onclick="clearAllFilters()" class="btn btn--secondary btn--sm"
-          style="background: #f0f0f0; color: #666; border: 1px solid #ddd; cursor: pointer;">
-          ✕ Limpar
-          </button>
-        </div>
-
-          <select id="transactionTypeFilter" class="form-control" onchange="filterTransactions()">
-            <option value="all">Todos os Tipos</option>
-            <option value="income">Receitas</option>
-            <option value="expense">Despesas</option>
-            <option value="transfer">Transferências</option>
-          </select>
-          <input
-            type="text"
-            id="transactionSearchFilter"
-            class="form-control"
-            placeholder="Pesquisar lancamento..."
-            oninput="filterTransactions()"
-          >
-          <select id="transactionAccountFilter" class="form-control" onchange="filterTransactions()">
-            <option value="all">Todas as Contas</option>
-          </select>
-          <select id="filterCategory" class="form-control" onchange="filterTransactions()">
-            <option value="all">Todas as Categorias</option>
-          </select>
-        </div>
-
-        <div class="totals-section">
-          <div class="total-item">
-            <span>Total Receitas:</span>
-            <span class="total-value income" id="totalIncome">R$ 0,00</span>
-          </div>
-          <div class="total-item">
-            <span>Total Despesas:</span>
-            <span class="total-value expense" id="totalExpense">R$ 0,00</span>
-          </div>
-          <div class="total-item">
-            <span>Saldo:</span>
-            <span class="total-value" id="totalBalance">R$ 0,00</span>
-          </div>
-        </div>
-
-        <div id="transactionsList" class="transactions-list"></div>
-        <button id="transactionsFab" class="transactions-fab" onclick="showAddTransactionModal()">
-          + Nova
-        </button>
-      </div>
-
-      <!-- Credit Cards View -->
-      <div id="creditCardsView" class="view">
-        <div class="view-header">
-          <h2>Cartões de Crédito</h2>
-          <div style="display: flex; gap: 8px;">
-            <button type="button" onclick="showClearCardItemizations()" class="btn btn--outline btn--sm">Zerar Compras Itemizadas</button>
-            <button type="button" onclick="showCardStatementModal()" class="btn btn--secondary btn--sm">Registrar Fatura</button>
-            <button type="button" onclick="showAddCreditCardModal()" class="btn btn--primary btn--sm">+ Novo Cartão</button>
-          </div>
-        </div>
-
-        <div id="creditCardsGrid" class="credit-cards-grid"></div>
-      </div>
-
-      <!-- Accounts View -->
-      <div id="accountsView" class="view">
-        <div class="view-header">
-          <h2>Contas</h2>
-          <button onclick="showAddAccountModal()" class="btn btn--primary btn--sm">+ Nova</button>
-        </div>
-        <div id="accountsList" class="accounts-list"></div>
-      </div>
-
-      <!-- Categories View -->
-      <div id="categoriesView" class="view">
-        <div class="view-header">
-          <h2>Categorias</h2>
-          <button onclick="showAddCategoryModal()" class="btn btn--primary btn--sm">+ Nova</button>
-        </div>
-        <div id="categoriesList" class="categories-list"></div>
-      </div>
-
-      <!-- Investments View -->
-      <div id="investmentsView" class="view">
-        <div class="view-header">
-          <h2>Investimentos</h2>
-          <button onclick="showAddInvestmentModal()" class="btn btn--primary btn--sm">+ Novo</button>
-        </div>
-
-        <div class="investments-summary">
-          <div class="inv-summary-card">
-            <div class="inv-summary-label">Total Investido</div>
-            <div class="inv-summary-value" id="invTotalInvested">R$ 0,00</div>
-          </div>
-          <div class="inv-summary-card">
-            <div class="inv-summary-label">Valor Atual</div>
-            <div class="inv-summary-value" id="invCurrentValue">R$ 0,00</div>
-          </div>
-          <div class="inv-summary-card">
-            <div class="inv-summary-label">Retorno</div>
-            <div class="inv-summary-value" id="invTotalReturn">R$ 0,00</div>
-            <div class="inv-summary-percent" id="invReturnPercent">0%</div>
-          </div>
-        </div>
-
-        <div class="investments-filter">
-          <select id="investmentTypeFilter" class="form-control" onchange="filterInvestments()">
-            <option value="all">Todos os Tipos</option>
-            <option value="stocks">📈 Ações</option>
-            <option value="fixed_income">💰 Renda Fixa</option>
-            <option value="funds">🏦 Fundos</option>
-            <option value="crypto">₿ Criptomoedas</option>
-            <option value="real_estate">🏠 Imóveis</option>
-            <option value="other">📦 Outros</option>
-          </select>
-        </div>
-
-        <div id="investmentsList" class="investments-list"></div>
-      </div>
-      <!-- ============================================ -->
-      <!-- NOVA ABA: IMPORTAR FATURA CSV -->
-      <!-- ============================================ -->
-      <div id="importCsvView" class="view">
-        <h2>📥 Importar Fatura de Cartão</h2>
-        
-        <!-- ETAPA 1: Upload do CSV -->
-        <div id="csvUploadSection">
-          <h3>Etapa 1: Selecionar Arquivo CSV</h3>
-          <input type="file" id="csvFileInput" accept=".csv" style="padding: 10px; margin: 10px 0;">
-          <button onclick="handleCsvFileSelect()" style="padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 5px; cursor: pointer;">📤 Carregar CSV</button>
-        </div>
-
-        <!-- ETAPA 2: Mapeamento de Colunas -->
-        <div id="csvMappingSection" style="display: none; margin-top: 20px;">
-          <h3>Etapa 2: Mapear Colunas do CSV</h3>
-          <p style="color: #666; font-size: 14px;">Selecione qual coluna do CSV corresponde a cada campo:</p>
-          
-          <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
-            <tr style="background: #f5f5f5;">
-              <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Campo</th>
-              <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Selecionar Coluna CSV</th>
-            </tr>
-            <tr>
-              <td style="padding: 10px; border: 1px solid #ddd;"><strong>📅 Data</strong></td>
-              <td style="padding: 10px; border: 1px solid #ddd;">
-                <select id="mapDate" style="width: 100%; padding: 8px;">
-                  <option value="">-- Selecione --</option>
-                </select>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; border: 1px solid #ddd;"><strong>📝 Descrição</strong></td>
-              <td style="padding: 10px; border: 1px solid #ddd;">
-                <select id="mapDescription" style="width: 100%; padding: 8px;">
-                  <option value="">-- Selecione --</option>
-                </select>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; border: 1px solid #ddd;"><strong>💰 Valor</strong></td>
-              <td style="padding: 10px; border: 1px solid #ddd;">
-                <select id="mapAmount" style="width: 100%; padding: 8px;">
-                  <option value="">-- Selecione --</option>
-                </select>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; border: 1px solid #ddd;"><strong>🏦 Cartão de Crédito</strong></td>
-              <td style="padding: 10px; border: 1px solid #ddd;">
-                <select id="mapCreditCard" style="width: 100%; padding: 8px;">
-                  <option value="">-- Selecione --</option>
-                </select>
-              </td>
-            </tr>
-            <tr style="background: #f9f9f9;">
-              <td style="padding: 10px; border: 1px solid #ddd;"><strong>🏷️ Categoria</strong> (opcional)</td>
-              <td style="padding: 10px; border: 1px solid #ddd;">
-                <select id="mapCategory" style="width: 100%; padding: 8px;">
-                  <option value="">-- Deixar em Branco --</option>
-                </select>
-              </td>
-            </tr>
-            <tr style="background: #f9f9f9;">
-              <td style="padding: 10px; border: 1px solid #ddd;"><strong>📦 Parcela</strong> (opcional)</td>
-              <td style="padding: 10px; border: 1px solid #ddd;">
-                <select id="mapInstallment" style="width: 100%; padding: 8px;">
-                  <option value="">-- Deixar em Branco --</option>
-                </select>
-              </td>
-            </tr>
-          </table>
-
-          <button onclick="generateCsvPreview()" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px;">✅ Próximo: Visualizar Lançamentos</button>
-        </div>
-
-        <!-- ETAPA 3: Pré-visualização e Edição -->
-        <div id="csvPreviewSection" style="display: none; margin-top: 20px;">
-          <h3>Etapa 3: Revisar e Editar Lançamentos</h3>
-          <p style="color: #666; font-size: 14px;">Total de lançamentos: <strong id="csvRowCount">0</strong></p>
-          
-          <div id="csvPreviewTable" style="overflow-x: auto; margin: 15px 0; border: 1px solid #ddd; border-radius: 5px;"></div>
-
-          <div style="margin-top: 15px;">
-            <button onclick="backToMapping()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">⬅️ Voltar</button>
-            <button onclick="importAllTransactions()" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">✅ Importar Todos</button>
-          </div>
-
-          <div id="importProgressSection" style="display: none; margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px;">
-            <p><strong>Progresso da importação:</strong></p>
-            <div style="width: 100%; height: 25px; background: #e9ecef; border-radius: 5px; overflow: hidden;">
-              <div id="importProgressBar" style="width: 0%; height: 100%; background: #28a745; transition: width 0.3s;"></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#174f42" />
+    <meta
+      name="description"
+      content="Suas finanças em família, com mais clareza."
+    />
+    <title>Em Casa · Finanças da família</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="ui.css?v=2.0.0" />
+    <script>
+      window.APP_CONFIG = {
+        SUPABASE_URL: "https://gbvjdntklbggxycmfyhg.supabase.co",
+        SUPABASE_KEY:
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdidmpkbnRrbGJnZ3h5Y21meWhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1MzUyMzYsImV4cCI6MjA3ODExMTIzNn0.aNVzAIJFavtrBsYwkuXUfrbwBU2gO3xXuePIpTkNpdQ",
+      };
+    </script>
+    <script defer src="vendor/supabase-2.99.0.js"></script>
+    <script type="module" src="main.mjs?v=2.0.0"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Ir para o conteúdo</a>
+    <section id="auth" class="auth-screen">
+      <div class="auth-story">
+        <a class="brand" href="#"
+          ><span class="brand-symbol">⌂</span
+          ><span
+            >em casa<span class="brand-caption">FINANÇAS DA FAMÍLIA</span></span
+          ></a
+        >
+        <div>
+          <span class="eyebrow">MAIS CLAREZA. MAIS TRANQUILIDADE.</span>
+          <h1>
+            O dia a dia fica mais leve<br />quando as contas<br />fazem sentido.
+          </h1>
+          <p>
+            Um lugar para organizar os gastos, cuidar dos planos e acompanhar o
+            que importa.
+          </p>
+          <div class="auth-illustration" aria-hidden="true">
+            <span>Seu mês, organizado.</span>
+            <div class="illustration-bars">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
             </div>
-            <p id="importStatus" style="margin-top: 10px; font-size: 14px;">Aguardando...</p>
+            <b>Um passo de cada vez.</b>
           </div>
         </div>
+        <small>Feito para a vida real. E para vocês.</small>
       </div>
-      <!-- Pending Transactions View -->
-      <div id="pendingTransactionsView" class="view">
-        <div class="view-header">
-          <h2>📱 Transações Pendentes do Telegram</h2>
-          <button class="btn btn--primary btn--sm" onclick="loadPendingTransactions()">
-            🔄 Atualizar
-          </button>
-        </div>
-
-        <div class="pending-transactions-container">
-          <div id="pendingTransactionsList" class="pending-transactions-list">
-            <!-- Preenchido via JavaScript -->
-          </div>
-       </div>
-      </div>
-    </main>
-  </div>
-
-  <!-- Add Transaction Modal -->
-  <div id="transactionModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Nova Transação</h3>
-        <button onclick="closeModal('transactionModal')" class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <!-- ============================================
-             AI CATEGORIZATION SECTION - NOVO!
-             ============================================ -->
-        <div style="margin-bottom: var(--space-16); background: #f0f9ff; border-left: 4px solid #3B82F6; padding: 12px; border-radius: 4px;">
-          <label for="transactionDescription" style="font-weight: 600;">📝 Descrição da Transação *</label>
-          <div style="display: flex; gap: 8px; align-items: flex-end; margin-top: 8px;">
-            <input 
-              type="text" 
-              id="transactionDescription" 
-              class="form-control" 
-              placeholder="Ex: PG. SANESUL, Compra Mercado..."
-              style="flex: 1;"
-            />
-            <button 
-              type="button"
-              id="suggestCategoryBtn"
-              class="btn btn--primary"
-              style="white-space: nowrap; padding: 8px 16px;"
-              title="Clique para IA sugerir categoria"
+      <div class="auth-panel">
+        <div class="auth-card">
+          <span class="eyebrow">BEM-VINDO DE VOLTA</span>
+          <h2>Vamos cuidar das contas?</h2>
+          <p>Entre com seu e-mail e senha para continuar.</p>
+          <form id="login-form">
+            <label
+              >E-mail<input
+                id="login-email"
+                name="email"
+                type="email"
+                autocomplete="username"
+                placeholder="seu@email.com"
+                required /></label
+            ><label
+              >Senha
+              <div class="password-field">
+                <input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                /><button
+                  type="button"
+                  id="show-password"
+                  aria-label="Mostrar senha"
+                >
+                  Mostrar
+                </button>
+              </div></label
             >
-              🤖 Sugerir
+            <p id="login-error" class="form-error" role="alert"></p>
+            <button id="login-submit" type="submit" class="button primary wide">
+              Entrar na minha conta <span>→</span>
+            </button>
+          </form>
+          <p class="auth-note">
+            Seu espaço para organizar as finanças da família.
+          </p>
+        </div>
+      </div>
+    </section>
+    <div id="app" class="app-shell" hidden>
+      <aside class="sidebar">
+        <a class="brand" href="#overview"
+          ><span class="brand-symbol">⌂</span
+          ><span
+            >em casa<span class="brand-caption">FINANÇAS DA FAMÍLIA</span></span
+          ></a
+        >
+        <div class="nav-caption">SEU DIA A DIA</div>
+        <nav id="navigation" aria-label="Navegação principal"></nav>
+        <div class="sidebar-note">
+          <span class="plant-mark">✳</span
+          ><strong>Pequenos cuidados.<br />Grandes planos.</strong>
+          <p>Um lançamento de cada vez.</p>
+        </div>
+        <div class="sidebar-footer">
+          <div class="avatar" id="user-avatar">A</div>
+          <div>
+            <strong id="user-name">Minha conta</strong
+            ><small>Espaço pessoal</small>
+          </div>
+          <button
+            id="logout"
+            class="icon-button"
+            title="Sair"
+            aria-label="Sair da conta"
+          >
+            ↪
+          </button>
+        </div>
+      </aside>
+      <div class="main-shell">
+        <header class="topbar">
+          <div class="breadcrumb">
+            Meu espaço <span>/</span>
+            <strong id="view-name">Visão geral</strong>
+          </div>
+          <div class="topbar-actions">
+            <span id="sync-status" role="status">Carregando…</span
+            ><button
+              class="icon-button"
+              id="refresh"
+              title="Atualizar dados"
+              aria-label="Atualizar dados"
+            >
+              ↻</button
+            ><button class="button primary" data-action="new-transaction">
+              <span>＋</span> Novo lançamento
             </button>
           </div>
-          <small style="color: #0369a1; margin-top: 4px; display: block;">
-            Digite uma descrição e clique "Sugerir" para a IA categorizar automaticamente
-          </small>
-        </div>
-
-        <!-- INDICADOR DE CARREGAMENTO (escondido por padrão) -->
-        <div id="aiLoadingIndicator" style="display: none; margin-bottom: 12px; padding: 12px; background: #e0f2fe; border-radius: 4px; color: #0369a1; border: 1px solid #0ea5e9;">
-          ⏳ Analisando descrição... (aguarde)
-        </div>
-
-        <!-- MENSAGEM DE SUGESTÃO DA IA (escondido por padrão) -->
-        <div id="aiSuggestionMessage" style="display: none; margin-bottom: 12px; padding: 12px; background: #dcfce7; border-radius: 4px; border: 1px solid #86efac;">
-          <div style="margin-bottom: 8px;">
-            <strong style="color: #166534;">✅ Sugestão da IA:</strong>
-            <span id="aiSuggestionText" style="color: #166534; margin-left: 8px;"></span>
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button type="button" id="acceptSuggestionBtn" class="btn btn--primary" style="padding: 6px 12px; font-size: 12px;">
-              ✅ Aceitar
-            </button>
-            <button type="button" id="rejectSuggestionBtn" class="btn btn--secondary" style="padding: 6px 12px; font-size: 12px;">
-              ❌ Rejeitar
-            </button>
-          </div>
-        </div>
-
-        <!-- ============================================
-             FIM DA SEÇÃO DE IA
-             ============================================ -->
-
-        <div class="form-group">
-          <label class="form-label">Tipo</label>
-          <select id="transactionType" class="form-control" onchange="updateTransactionForm()">
-            <option value="expense">Despesa</option>
-            <option value="income">Receita</option>
-            <option value="transfer">Transferência</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Valor</label>
-          <input type="text" inputmode="decimal" id="transactionAmount" class="form-control" placeholder="0,00">
-        </div>
-        <!-- ============================================
-     NOVA ESTRUTURA: Separar Conta de Cartão
-     ============================================ -->
-
-<!-- GRUPO 1: Selecionar conta bancária -->
-<div class="form-group" id="bankAccountGroup" style="display: block;">
-  <label class="form-label">Conta</label>
-  <select id="transactionBankAccount" class="form-control"></select>
-</div>
-
-        <div class="form-group" id="categoryGroup">
-          <label class="form-label">Categoria</label>
-          <select id="transactionCategory" class="form-control"></select>
-        </div>
-        <div class="form-group" id="transferToGroup" style="display: none;">
-          <label class="form-label">Para a Conta</label>
-          <select id="transactionTransferTo" class="form-control"></select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Data</label>
-          <input type="date" id="transactionDate" class="form-control">
-        </div>
-      
-        <button onclick="saveTransaction()" class="btn btn--primary btn--full-width">Salvar</button>
+        </header>
+        <main id="content" tabindex="-1"></main>
+        <footer class="page-footer">
+          <span>Em Casa · Um pouco mais de tranquilidade.</span
+          ><span>Versão 2.0</span>
+        </footer>
       </div>
     </div>
-  </div>
-
-  <!-- Add Account Modal -->
-  <div id="accountModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Nova Conta</h3>
-        <button onclick="closeModal('accountModal')" class="modal-close">&times;</button>
+    <dialog id="dialog" aria-labelledby="dialog-title">
+      <div class="dialog-header">
+        <div>
+          <span class="eyebrow" id="dialog-eyebrow"
+            >ORGANIZE SEU DIA A DIA</span
+          >
+          <h2 id="dialog-title"></h2>
+        </div>
+        <button class="icon-button" id="close-dialog" aria-label="Fechar">
+          ×
+        </button>
       </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">Nome</label>
-          <input type="text" id="accountName" class="form-control" placeholder="Ex: Conta Corrente">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Tipo</label>
-          <select id="accountType" class="form-control">
-            <option value="checking">Conta Corrente</option>
-            <option value="savings">Poupança</option>
-            <option value="cash">Dinheiro</option>
-            <option value="other">Outro</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Saldo Inicial</label>
-          <input type="text" inputmode="decimal" id="accountBalance" class="form-control" placeholder="0,00" value="0">
-        </div>
-        <button onclick="saveAccount()" class="btn btn--primary btn--full-width">Salvar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add Credit Card Modal -->
-  <div id="creditCardModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Novo Cartão de Crédito</h3>
-        <button onclick="closeModal('creditCardModal')" class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">Banco</label>
-          <input type="text" id="creditCardBank" class="form-control" placeholder="Ex: Itaú, Bradesco, Nubank">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Bandeira</label>
-          <select id="creditCardNetwork" class="form-control">
-            <option value="Visa">Visa</option>
-            <option value="Mastercard">Mastercard</option>
-            <option value="Elo">Elo</option>
-            <option value="Amex">American Express</option>
-            <option value="Diners">Diners</option>
-            <option value="Hipercard">Hipercard</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Últimos 4 Dígitos</label>
-          <input type="text" id="creditCardDigits" class="form-control" placeholder="1234" maxlength="4">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Titular</label>
-          <input type="text" id="creditCardHolder" class="form-control" placeholder="Seu nome completo">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Limite de Crédito (R$)</label>
-          <input type="number" id="creditCardLimit" class="form-control" placeholder="5000" step="0.01">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Dia de Fechamento</label>
-          <input type="number" id="creditCardClosingDay" class="form-control" min="1" max="31" placeholder="15">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Dia de Vencimento</label>
-          <input type="number" id="creditCardDueDay" class="form-control" min="1" max="31" placeholder="25">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Conta Associada</label>
-          <select id="creditCardAccount" class="form-control"></select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Notas (opcional)</label>
-          <textarea id="creditCardNotes" class="form-control" rows="3" placeholder="Ex: Cartão principal, usar para compras online"></textarea>
-        </div>
-        <button onclick="saveCreditCard()" class="btn btn--primary btn--full-width">Salvar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Card Statement Modal -->
-  <div id="cardStatementModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Registrar Fatura do Cartão</h3>
-        <button type="button" onclick="closeModal('cardStatementModal')" class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">Cartão</label>
-          <select id="statementCardId" class="form-control"></select>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Mes da fatura</label>
-            <div style="display: flex; gap: 8px;">
-              <select id="statementMonthSelect" class="form-control" style="flex: 1;">
-                <option value="1">Janeiro</option>
-                <option value="2">Fevereiro</option>
-                <option value="3">Marco</option>
-                <option value="4">Abril</option>
-                <option value="5">Maio</option>
-                <option value="6">Junho</option>
-                <option value="7">Julho</option>
-                <option value="8">Agosto</option>
-                <option value="9">Setembro</option>
-                <option value="10">Outubro</option>
-                <option value="11">Novembro</option>
-                <option value="12">Dezembro</option>
-              </select>
-              <select id="statementYearSelect" class="form-control" style="flex: 1;"></select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Vencimento</label>
-            <input type="date" id="statementDueDate" class="form-control">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Total da fatura</label>
-          <input type="number" id="statementTotal" class="form-control" placeholder="0.00" step="0.01">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Observações (opcional)</label>
-          <input type="text" id="statementNotes" class="form-control" placeholder="Ex: fatura sem CSV">
-        </div>
-        <button type="button" onclick="saveCardStatement()" class="btn btn--primary btn--full-width">Salvar Fatura</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Pay Credit Card Modal -->
-  <div id="payCardModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3 id="payCardTitle">Pagar Fatura</h3>
-      <button type="button" onclick="closeModal('payCardModal')" class="modal-close">&times;</button>
-    </div>
-    
-    <div class="modal-body">
-      <!-- Informações do cartão -->
-      <div id="payCardInfo" style="background: #f0f9ff; padding: 12px; border-radius: 4px; margin-bottom: 20px; border-left: 4px solid #3B82F6;"></div>
-
-      <!-- Valor a pagar -->
-      <div class="form-group">
-        <label class="form-label">Valor</label>
-        <input type="number" id="payCardAmount" class="form-control" step="0.01" placeholder="R$ 0,00">
-      </div>
-
-      <!-- Data do pagamento -->
-      <div class="form-group">
-        <label class="form-label">Data do Pagamento</label>
-        <input type="date" id="payCardDate" class="form-control">
-      </div>
-
-      <!-- De qual conta pagar -->
-      <div class="form-group">
-        <label class="form-label">💰 De qual CONTA você vai pagar?</label>
-        <select id="payCardFromAccount" class="form-control"></select>
-        <small style="color: #999;">Você pode usar qualquer conta para pagar a fatura</small>
-      </div>
-
-      <!-- Botão de pagamento -->
-      <button onclick="processCardPayment()" class="btn btn--primary btn--full-width">✅ Confirmar Pagamento</button>
-    </div>
-  </div>
-</div>
-
-  <!-- Add Category Modal -->
-  <div id="categoryModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Nova Categoria</h3>
-        <button onclick="closeModal('categoryModal')" class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">Nome</label>
-          <input type="text" id="categoryName" class="form-control" placeholder="Ex: Alimentação">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Tipo</label>
-          <select id="categoryType" class="form-control">
-            <option value="expense">Despesa</option>
-            <option value="income">Receita</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Alocação Primária</label>
-          <input type="text" id="categoryPrimary" class="form-control" placeholder="Ex: Essencial">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Alocação Secundária</label>
-          <input type="text" id="categorySecondary" class="form-control" placeholder="Ex: Mercado">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Cor</label>
-          <input type="color" id="categoryColor" class="form-control" value="#3B82F6">
-        </div>
-        <button onclick="saveCategory()" class="btn btn--primary btn--full-width">Salvar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add Investment Modal -->
-  <div id="investmentModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Novo Investimento</h3>
-        <button onclick="closeModal('investmentModal')" class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">Nome</label>
-          <input type="text" id="investmentName" class="form-control" placeholder="Ex: Tesouro Selic 2027">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Tipo</label>
-          <select id="investmentType" class="form-control">
-            <option value="stocks">📈 Ações</option>
-            <option value="fixed_income">💰 Renda Fixa</option>
-            <option value="funds">🏦 Fundos</option>
-            <option value="crypto">₿ Criptomoedas</option>
-            <option value="real_estate">🏠 Imóveis</option>
-            <option value="other">📦 Outros</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Instituição</label>
-          <input type="text" id="investmentInstitution" class="form-control" placeholder="Ex: Tesouro Direto">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Valor Inicial</label>
-          <input type="number" id="investmentInitialAmount" class="form-control" placeholder="0.00" step="0.01">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Valor Atual</label>
-          <input type="number" id="investmentCurrentValue" class="form-control" placeholder="0.00" step="0.01">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Data de Compra</label>
-          <input type="date" id="investmentPurchaseDate" class="form-control">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Data de Vencimento (opcional)</label>
-          <input type="date" id="investmentMaturityDate" class="form-control">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Conta de Origem</label>
-          <select id="investmentAccount" class="form-control"></select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Observações</label>
-          <textarea id="investmentNotes" class="form-control" rows="3" placeholder="Observações sobre o investimento"></textarea>
-        </div>
-        <button onclick="saveInvestment()" class="btn btn--primary btn--full-width">Salvar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Investment Detail Modal -->
-  <div id="investmentDetailModal" class="modal">
-    <div class="modal-content modal-large">
-      <div class="modal-header">
-        <h3 id="invDetailName">Investimento</h3>
-        <button onclick="closeModal('investmentDetailModal')" class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="investment-detail-header">
-          <div class="detail-info">
-            <span class="detail-label">Tipo:</span>
-            <span id="invDetailType" class="detail-value"></span>
-          </div>
-          <div class="detail-info">
-            <span class="detail-label">Instituição:</span>
-            <span id="invDetailInstitution" class="detail-value"></span>
-          </div>
-        </div>
-
-        <div class="investment-detail-stats">
-          <div class="detail-stat">
-            <div class="detail-stat-label">Total Investido</div>
-            <div class="detail-stat-value" id="invDetailTotalInvested">R$ 0,00</div>
-          </div>
-          <div class="detail-stat">
-            <div class="detail-stat-label">Valor Atual</div>
-            <div class="detail-stat-value" id="invDetailCurrentValue">R$ 0,00</div>
-          </div>
-          <div class="detail-stat">
-            <div class="detail-stat-label">Retorno</div>
-            <div class="detail-stat-value" id="invDetailReturn">R$ 0,00</div>
-            <div class="detail-stat-percent" id="invDetailReturnPercent">0%</div>
-          </div>
-        </div>
-
-        <div class="investment-actions">
-          <button onclick="showAddInvestmentTransactionModal()" class="btn btn--primary btn--sm">+ Nova Transação</button>
-          <button onclick="deleteInvestment()" class="btn btn--outline btn--sm" style="color: var(--color-error); border-color: var(--color-error);">Excluir</button>
-        </div>
-
-        <h4 style="margin-top: var(--space-24); margin-bottom: var(--space-16);">Histórico de Transações</h4>
-        <div id="investmentTransactionsList" class="investment-transactions-list"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add Investment Transaction Modal -->
-  <div id="investmentTransactionModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Nova Transação de Investimento</h3>
-        <button onclick="closeModal('investmentTransactionModal')" class="modal-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label class="form-label">Tipo</label>
-          <select id="invTransactionType" class="form-control">
-            <option value="contribution">💵 Aporte</option>
-            <option value="withdrawal">💸 Resgate</option>
-            <option value="yield">📊 Rendimento</option>
-            <option value="dividend">💰 Dividendo</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Valor</label>
-          <input type="number" id="invTransactionAmount" class="form-control" placeholder="0.00" step="0.01">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Conta</label>
-          <select id="invTransactionAccount" class="form-control"></select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Data</label>
-          <input type="date" id="invTransactionDate" class="form-control">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Descrição</label>
-          <input type="text" id="invTransactionDescription" class="form-control" placeholder="Descrição da transação">
-        </div>
-        <button onclick="saveInvestmentTransaction()" class="btn btn--primary btn--full-width">Salvar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Supabase CDN (com fallback) -->
-  <script>
-    (function loadSupabaseSdk() {
-      var sources = [
-        'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-        'https://unpkg.com/@supabase/supabase-js@2'
-      ];
-
-      function tryLoad(index) {
-        if (index >= sources.length) {
-          console.error('❌ Falha ao carregar Supabase SDK');
-          return;
-        }
-
-        var script = document.createElement('script');
-        script.src = sources[index];
-        script.async = false;
-        script.onload = function () {
-          console.log('✅ Supabase SDK carregado:', script.src);
-        };
-        script.onerror = function () {
-          console.warn('⚠️ Erro ao carregar Supabase SDK:', script.src);
-          tryLoad(index + 1);
-        };
-
-        document.head.appendChild(script);
-      }
-
-      tryLoad(0);
-    })();
-  </script>
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!-- Smart Analytics Engine -->
-  <script src="smart-analytics-engine.js"></script>
-
-  <!-- App Script -->
-  <script src="app.js"></script>
-</body>
+      <div id="dialog-body"></div>
+    </dialog>
+    <div id="toasts" class="toast-stack" aria-live="polite"></div>
+    <noscript>Ative o JavaScript para usar o aplicativo.</noscript>
+  </body>
 </html>
-

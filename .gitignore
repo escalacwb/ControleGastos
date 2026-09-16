@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+node_modules/
+*.dpapi*
+backups/
+test-results/
+playwright-report/
+.local-tools/
+*.apk
+*.keystore
+*.jks
