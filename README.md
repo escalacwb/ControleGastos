@@ -1,8 +1,14 @@
 # Em Casa — finanças da família
 
+### Correção 2.1.1 — conferir pagamentos antes de importar
+
+A importação consulta pagamentos manuais e vinculados por cartão, período e valor. Um pagamento compatível e único é sugerido para vínculo; valores com até cinco centavos de diferença são conciliados preservando o lançamento original. Havendo mais de um candidato, é necessário escolher. A data e a conta do pagamento original são mantidas, sem outro débito.
+
+Importar não cria mais um pagamento por padrão. Para uma nova saída, escolha **Registrar pagamento agora** e confirme que ela ainda não foi lançada. O banco bloqueia pagamentos novos quando encontra pagamentos manuais candidatos, inclusive em clientes antigos. Faturas já pagas recebem somente o detalhamento. Aplique `20260916_statement_payment_guard.sql` depois de `20260916_statement_details.sql`. Android 2.1.1, código 5.
+
 ### Versão 2.1.0 — faturas com compras detalhadas
 
-Em **Cartões → Importar fatura do mês**, no card do próprio cartão, escolha CSV ou PDF: o cartão já vem definido e o pagamento é preparado pelo total extraído. Confira conta, data, valor e categorias antes de confirmar. As compras aparecem em Lançamentos como detalhes do cartão, fora do total de saídas. O pagamento é a única despesa que movimenta a conta. Em uma fatura existente, **Detalhar / anexar** permite incluir o arquivo depois, inclusive quando já estiver paga.
+Em **Cartões → Importar fatura do mês**, no card do próprio cartão, escolha CSV ou PDF: o cartão já vem definido e o histórico de pagamentos é conferido. Confira o vínculo sugerido ou escolha salvar apenas os detalhes. As compras aparecem em Lançamentos como detalhes do cartão, fora do total de saídas. O pagamento é a única despesa que movimenta a conta. Em uma fatura existente, **Detalhar / anexar** permite incluir o arquivo depois, inclusive quando já estiver paga.
 
 Use **Já lancei o pagamento** para vincular uma despesa existente sem descontar o saldo novamente. Nos relatórios, gráficos e DNA, os pagamentos vinculados são distribuídos proporcionalmente entre as categorias dos itens; pagamentos parciais preservam os centavos. Valores ainda não detalhados ficam sem categoria. Se os detalhes excederem o total ou houver uma categoria com crédito líquido, a distribuição aguarda conciliação e o pagamento permanece inteiro.
 

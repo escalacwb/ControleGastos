@@ -26,7 +26,7 @@ export function StatementForm({ form }) {
     month: cycle?.cycle_start_date.slice(0, 7) || today().slice(0, 7),
     due: cycle?.due_date || today(),
     total: String(cycle?.total_spent || ""),
-    mode: pay ? "new" : "none",
+    mode: pay && !autoImport ? "new" : "none",
     pay_amount: String(
       cycle ? Number(cycle.total_spent) - Number(cycle.total_paid) : "",
     ),
@@ -41,6 +41,82 @@ export function StatementForm({ form }) {
     [difference, setDifference] = useState(false),
     [pdf, setPdf] = useState(null),
     [attachments, setAttachments] = useState([]);
+  const [candidates, setCandidates] = useState([]),
+    [historyNote, setHistoryNote] = useState(
+      "O histórico será conferido antes de registrar qualquer pagamento.",
+    ),
+    [confirmNew, setConfirmNew] = useState(false);
+  React.useEffect(() => {
+    let active = true;
+    const total = parseMoney(values.total);
+    if (!/^\d{4}-\d{2}$/.test(values.month) || !(total > 0)) return;
+    setHistoryNote("Conferindo pagamentos anteriores…");
+    setConfirmNew(false);
+    rpc("statement_payment_candidates", {
+      p_card: card.id,
+      p_month: values.month + "-01",
+      p_total: total,
+      p_cycle: cycle?.id || null,
+    })
+      .then((found) => {
+        if (!active) return;
+        const available = found.filter((t) => !t.linked_cycle_id);
+        setCandidates(available);
+        const matches = available.filter((t) => t.close_amount && t.account_id);
+        const current =
+          cycle ||
+          rows("billing_cycles").find(
+            (c) =>
+              c.credit_card_id === card.id &&
+              c.cycle_start_date.slice(0, 7) === values.month,
+          );
+        if (
+          current &&
+          Number(current.total_paid) >= Number(current.total_spent)
+        ) {
+          setValues((v) => ({ ...v, mode: "none" }));
+          setHistoryNote(
+            "Esta fatura já está paga. O arquivo apenas detalha as compras; não haverá nova saída.",
+          );
+        } else if (matches.length === 1) {
+          setValues((v) => ({
+            ...v,
+            mode: "existing",
+            existing_payment_id: matches[0].id,
+          }));
+          setHistoryNote(
+            "Pagamento encontrado: " +
+              matches[0].date +
+              " · " +
+              money(matches[0].amount) +
+              ". Vamos preservar o lançamento original, sem novo débito.",
+          );
+        } else if (available.length) {
+          setValues((v) => ({
+            ...v,
+            mode: "existing",
+            existing_payment_id: "",
+          }));
+          setHistoryNote(
+            "Há pagamentos deste cartão no período. Escolha o correspondente; uma nova saída está bloqueada.",
+          );
+        } else {
+          if (autoImport) setValues((v) => ({ ...v, mode: "none" }));
+          setHistoryNote(
+            "Nenhum pagamento correspondente encontrado. Salve só os detalhes ou escolha Registrar pagamento agora e confirme a nova saída.",
+          );
+        }
+      })
+      .catch(() => {
+        if (active)
+          setHistoryNote(
+            "Não foi possível conferir o histórico. Tente novamente antes de pagar.",
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, [values.month, values.total]);
   const lock = useRef(false),
     request = useRef(Crypto.randomUUID()),
     pdfTask = useRef(null);
@@ -101,14 +177,7 @@ export function StatementForm({ form }) {
     fields.push(
       select("existing_payment_id", "Pagamento já lançado", [
         { value: "", label: "Escolher lançamento" },
-        ...rows("transactions")
-          .filter(
-            (t) =>
-              !t.credit_card_id &&
-              ["expense", "despesa"].includes(t.type) &&
-              !rows("card_payments").some((p) => p.transaction_id === t.id) &&
-              /nubank|cartao|\bxp\b|fatura/.test(normalize(t.description)),
-          )
+        ...candidates
           .sort((a, b) => b.date.localeCompare(a.date))
           .map((t) => ({
             value: t.id,
@@ -250,14 +319,41 @@ export function StatementForm({ form }) {
         throw Error("Confira valor e data do pagamento.");
       if (values.mode === "existing" && !values.existing_payment_id)
         throw Error("Escolha o pagamento já lançado.");
+      const found = await rpc("statement_payment_candidates", {
+        p_card: card.id,
+        p_month: values.month + "-01",
+        p_total: total,
+        p_cycle: cycle?.id || null,
+      });
+      if (values.mode === "new" && found.some((t) => !t.linked_cycle_id))
+        throw Error(
+          "Pagamento anterior encontrado. Use Vincular pagamento já lançado.",
+        );
+      if (values.mode === "new" && !confirmNew)
+        throw Error("Confirme que este pagamento ainda não foi lançado.");
+      const resolvedCycle =
+        cycle ||
+        rows("billing_cycles").find(
+          (c) =>
+            c.credit_card_id === card.id &&
+            c.cycle_start_date.slice(0, 7) === values.month,
+        );
+      if (
+        resolvedCycle &&
+        Math.abs(cents(resolvedCycle.total_spent) - cents(total)) > 5
+      )
+        throw Error(
+          "Já existe uma fatura com outro total. Abra Detalhar / anexar nessa fatura.",
+        );
       await rpc("save_statement_bundle", {
         p_data: {
           request_id: request.current,
           card_id: card.id,
-          cycle_id: cycle?.id || null,
+          cycle_id: resolvedCycle?.id || null,
           month: values.month + "-01",
           due: values.due,
-          total,
+          total: resolvedCycle ? Number(resolvedCycle.total_spent) : total,
+          confirm_new_payment: values.mode === "new" && confirmNew,
           items,
           document,
           existing_payment_id:
@@ -313,125 +409,157 @@ export function StatementForm({ form }) {
   };
   return (
     <Modal visible animationType="slide" onRequestClose={close}>
-      <View style={{flex:1,backgroundColor:'white'}}>
-      <ScrollView
-        style={{flex:1}}
-        contentContainerStyle={{ padding: 24, paddingTop: 40, gap: 16 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={S.title}>{card.bank_name} · Fatura</Text>
-        <Text style={S.muted}>
-          As compras detalham os gastos. Só o pagamento desconta dinheiro da
-          conta. Você pode anexar a fatura agora ou depois.
-        </Text>
-        {fields.map((f) => (
-          <FormField
-            key={f.name}
-            field={f}
-            value={values[f.name]}
-            onChange={(value) => set(f.name, value)}
-          />
-        ))}
-        <Button secondary disabled={busy} onPress={read}>
-          Anexar CSV ou PDF
-        </Button>
-        {document && <Text style={S.text}>{document.name}</Text>}
-        {parsed && (
-          <>
-            <Text style={S.text}>
-              {parsed.items.filter((x) => x.selected).length} itens ·{" "}
-              {money(
-                parsed.items
-                  .filter((x) => x.selected)
-                  .reduce((n, x) => n + cents(x.amount), 0) / 100,
-              )}
-            </Text>
-            <Text style={S.muted}>
-              {parsed.excluded.length} pagamentos ignorados ·{" "}
-              {parsed.invalid.length} linhas não reconhecidas. Parcelas
-              representam somente o valor desta fatura.
-            </Text>
-            {parsed.items.map((r, i) => (
-              <View key={r.key} style={S.card}>
-                <Text style={S.text}>
-                  {r.description} · {money(r.amount)}
-                </Text>
-                <Text style={S.muted}>
-                  {r.date}
-                  {r.parcel && r.parcel !== "-" ? " · parcela " + r.parcel : ""}
-                </Text>
-                <Switch
-                  accessibilityLabel={"Incluir " + r.description}
-                  value={r.selected}
-                  onValueChange={(selected) =>
-                    setParsed((p) => ({
-                      ...p,
-                      items: p.items.map((x, j) =>
-                        j === i ? { ...x, selected } : x,
-                      ),
-                    }))
-                  }
-                />
-                <FormField
-                  field={select("category", "Categoria", [
-                    { value: "", label: "Outros gastos" },
-                    ...opts(categories),
-                  ])}
-                  value={r.category_id || ""}
-                  onChange={(category_id) =>
-                    setParsed((p) => ({
-                      ...p,
-                      items: p.items.map((x, j) =>
-                        j === i ? { ...x, category_id } : x,
-                      ),
-                    }))
-                  }
-                />
-                <Text style={S.muted}>{r.reason}</Text>
-              </View>
-            ))}
-            <Text style={S.muted}>
-              Conferi eventual diferença entre os itens e o total da fatura.
-            </Text>
-            <Switch
-              accessibilityLabel="Confirmar diferença"
-              value={difference}
-              onValueChange={setDifference}
+      <View style={{ flex: 1, backgroundColor: "white" }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 24, paddingTop: 40, gap: 16 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={S.title}>{card.bank_name} · Fatura</Text>
+          <Text style={S.muted}>
+            As compras detalham os gastos. Só o pagamento desconta dinheiro da
+            conta. Você pode anexar a fatura agora ou depois.
+          </Text>
+          <Text style={S.muted}>{historyNote}</Text>
+          {fields.map((f) => (
+            <FormField
+              key={f.name}
+              field={f}
+              value={values[f.name]}
+              onChange={(value) => set(f.name, value)}
             />
-          </>
-        )}
-        {attachments.map((d) => (
-          <Button key={d.id} secondary onPress={() => download(d.id)}>
-            {d.name}
+          ))}
+          {values.mode === "new" && (
+            <>
+              <Text style={S.muted}>
+                Confirmo que este pagamento ainda não foi lançado. Criar uma
+                nova saída na conta.
+              </Text>
+              <Switch
+                accessibilityLabel="Confirmar novo pagamento"
+                value={confirmNew}
+                onValueChange={setConfirmNew}
+              />
+            </>
+          )}
+          <Button secondary disabled={busy} onPress={read}>
+            Anexar CSV ou PDF
           </Button>
-        ))}
-        {pdf && (
-          <WebView
-            style={{ height: 1, width: 1 }}
-            originWhitelist={["about:blank"]}
-            source={{ html: pdfHtml(pdf) }}
-            javaScriptEnabled
-            onMessage={(event) => {
-              const task = pdfTask.current;
-              if (!task) return;
-              pdfTask.current = null;
-              setPdf(null);
-              try {
-                const result = JSON.parse(event.nativeEvent.data);
-                if (result.error) task.reject(Error(result.error));
-                else task.resolve(result.lines);
-              } catch (e) {
-                task.reject(e);
-              }
-            }}
-          />
-        )}
-      </ScrollView>
-      <View style={{padding:16,paddingBottom:30,gap:8,borderTopWidth:1,borderColor:'#dce2d6'}}>
-        {!!error && <Text accessibilityRole="alert" style={S.error}>{error}</Text>}
-        <Button disabled={busy} onPress={save}>{busy?'Processando…':'Salvar fatura'}</Button>
-        <Button secondary disabled={busy} onPress={close}>Cancelar</Button>
-      </View>
+          {document && <Text style={S.text}>{document.name}</Text>}
+          {parsed && (
+            <>
+              <Text style={S.text}>
+                {parsed.items.filter((x) => x.selected).length} itens ·{" "}
+                {money(
+                  parsed.items
+                    .filter((x) => x.selected)
+                    .reduce((n, x) => n + cents(x.amount), 0) / 100,
+                )}
+              </Text>
+              <Text style={S.muted}>
+                {parsed.excluded.length} pagamentos ignorados ·{" "}
+                {parsed.invalid.length} linhas não reconhecidas. Parcelas
+                representam somente o valor desta fatura.
+              </Text>
+              {parsed.items.map((r, i) => (
+                <View key={r.key} style={S.card}>
+                  <Text style={S.text}>
+                    {r.description} · {money(r.amount)}
+                  </Text>
+                  <Text style={S.muted}>
+                    {r.date}
+                    {r.parcel && r.parcel !== "-"
+                      ? " · parcela " + r.parcel
+                      : ""}
+                  </Text>
+                  <Switch
+                    accessibilityLabel={"Incluir " + r.description}
+                    value={r.selected}
+                    onValueChange={(selected) =>
+                      setParsed((p) => ({
+                        ...p,
+                        items: p.items.map((x, j) =>
+                          j === i ? { ...x, selected } : x,
+                        ),
+                      }))
+                    }
+                  />
+                  <FormField
+                    field={select("category", "Categoria", [
+                      { value: "", label: "Outros gastos" },
+                      ...opts(categories),
+                    ])}
+                    value={r.category_id || ""}
+                    onChange={(category_id) =>
+                      setParsed((p) => ({
+                        ...p,
+                        items: p.items.map((x, j) =>
+                          j === i ? { ...x, category_id } : x,
+                        ),
+                      }))
+                    }
+                  />
+                  <Text style={S.muted}>{r.reason}</Text>
+                </View>
+              ))}
+              <Text style={S.muted}>
+                Conferi eventual diferença entre os itens e o total da fatura.
+              </Text>
+              <Switch
+                accessibilityLabel="Confirmar diferença"
+                value={difference}
+                onValueChange={setDifference}
+              />
+            </>
+          )}
+          {attachments.map((d) => (
+            <Button key={d.id} secondary onPress={() => download(d.id)}>
+              {d.name}
+            </Button>
+          ))}
+          {pdf && (
+            <WebView
+              style={{ height: 1, width: 1 }}
+              originWhitelist={["about:blank"]}
+              source={{ html: pdfHtml(pdf) }}
+              javaScriptEnabled
+              onMessage={(event) => {
+                const task = pdfTask.current;
+                if (!task) return;
+                pdfTask.current = null;
+                setPdf(null);
+                try {
+                  const result = JSON.parse(event.nativeEvent.data);
+                  if (result.error) task.reject(Error(result.error));
+                  else task.resolve(result.lines);
+                } catch (e) {
+                  task.reject(e);
+                }
+              }}
+            />
+          )}
+        </ScrollView>
+        <View
+          style={{
+            padding: 16,
+            paddingBottom: 30,
+            gap: 8,
+            borderTopWidth: 1,
+            borderColor: "#dce2d6",
+          }}
+        >
+          {!!error && (
+            <Text accessibilityRole="alert" style={S.error}>
+              {error}
+            </Text>
+          )}
+          <Button disabled={busy} onPress={save}>
+            {busy ? "Processando…" : "Salvar fatura"}
+          </Button>
+          <Button secondary disabled={busy} onPress={close}>
+            Cancelar
+          </Button>
+        </View>
       </View>
     </Modal>
   );
