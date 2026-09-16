@@ -1,4 +1,4 @@
-import { allocatedCashRows } from './statements.mjs';
+import { allocatedCashRows, dnaBreakdown } from './statements.mjs';
 import { openStatementEditor } from './statement-ui.mjs';
 import {
   money,
@@ -496,7 +496,7 @@ function renderDNA() {
         .map((g) => {
           const max = Math.max(1, ...g.monthly);
           const difference = g.current - g.average;
-          return `<article class="dna-card"><div class="line"><h3>${esc(g.area)}</h3><span class="pill ${g.recurring ? "positive" : ""}">${g.recurring ? "Habitual" : `${g.frequency}/${dna.months.length} meses`}</span></div><div class="dna-amount">${money(g.average)} <small class="muted">/ mês</small></div><p>${now ? "Até agora" : "No mês"}: <strong>${money(g.current)}</strong> · ${difference > 0 ? `${money(difference)} acima da média` : `${money(-difference)} abaixo da média`}</p><div class="dna-months" role="img" aria-label="${esc(g.monthly.map((v, i) => `${dna.months[i]}: ${money(v)}`).join("; "))}">${g.monthly.map((v, i) => `<span style="height:${Math.max(4, (v / max) * 100)}%" title="${dna.months[i]}: ${money(v)}"><small>${dna.months[i].slice(5)}/${dna.months[i].slice(2, 4)}</small></span>`).join("")}</div><details><summary>O que entra nesta área?</summary><ul>${g.categories.map((c) => `<li>${esc(c)}</li>`).join("")}</ul><p>Presente em ${g.frequency} dos ${dna.months.length} meses analisados.</p></details></article>`;
+          return `<article class="dna-card"><div class="line"><h3>${esc(g.area)}</h3><span class="pill ${g.recurring ? "positive" : ""}">${g.recurring ? "Habitual" : `${g.frequency}/${dna.months.length} meses`}</span></div><div class="dna-amount">${money(g.average)} <small class="muted">/ mês</small></div><p>${now ? "Até agora" : "No mês"}: <strong>${money(g.current)}</strong> · ${difference > 0 ? `${money(difference)} acima da média` : `${money(-difference)} abaixo da média`}</p><div class="dna-months" role="group" aria-label="Detalhar gastos por mês de ${esc(g.area)}">${g.monthly.map((v,i)=>`<button type="button" class="dna-bar" data-action="dna-details" data-area="${esc(g.area)}" data-month="${dna.months[i]}" aria-label="Ver gastos de ${esc(g.area)}, ${monthLabel(dna.months[i])}: ${money(v)}" title="Clique para detalhar: ${money(v)}"><span class="dna-fill" style="height:${Math.max(4,Math.abs(v)/Math.max(1,...g.monthly.map(Math.abs))*100)}%"></span><small>${dna.months[i].slice(5)}/${dna.months[i].slice(2,4)}</small></button>`).join("")}</div><p class="subtle-note">Clique em uma barra para ver os gastos.</p><details><summary>O que entra nesta área?</summary><ul>${g.categories.map((c) => `<li>${esc(c)}</li>`).join("")}</ul><p>Presente em ${g.frequency} dos ${dna.months.length} meses analisados.</p></details></article>`;
         })
         .join("") ||
       empty(
@@ -505,6 +505,13 @@ function renderDNA() {
       )
     }</div>`
   );
+}
+
+
+function openDNADetails(area,month){
+  const detail=dnaBreakdown(rows('transactions'),rows('installments'),rows('categories'),rows('card_payments'),rows('billing_cycles'),{basis:state.dnaBasis,area,month});
+  openDialog(area+' · '+monthLabel(month),
+    `<div class="info-banner">${state.dnaBasis==='cash'?'Saídas das contas · data do pagamento. Nas faturas, os valores mostram a parte de cada compra incluída no pagamento, com os créditos descontados.':'Compras e parcelas no cartão · data da compra ou parcela. Estornos reduzem o total.'}</div><div class="dna-detail-total"><span>${detail.items.length} registros · total da barra</span><strong>${money(detail.total)}</strong></div><div class="dna-detail-list">${detail.items.map(t=>`<article class="dna-detail-row"><div><strong>${esc(t.description||'Sem descrição')}</strong><small>${formatDate(t.date)} · ${esc(categoryName(t.category_id))}</small><small>${esc(t.credit_card_id?byId('credit_cards',t.credit_card_id)?.bank_name||'Cartão':accountName(t.account_id))}${t.allocated?' · pago pela conta '+esc(accountName(t.account_id)):''}</small>${t.allocated?`<small>Compra${t.purchase_date?' de '+formatDate(t.purchase_date):''}: ${money(t.original_amount)} · valor contabilizado neste pagamento ao lado</small>`:''}</div><strong class="${t.contribution<0?'positive':''}" data-contribution="${t.contribution}">${money(t.contribution)}</strong></article>`).join('')||empty('Nenhum gasto neste mês','Esta barra representa um mês sem gastos nesta área.')}</div><div class="form-actions"><button type="button" class="button" data-action="close-dialog">Fechar</button></div>`,{wide:true});
 }
 
 function renderAccounts() {
@@ -1287,6 +1294,9 @@ document.addEventListener("click", async (event) => {
     id = target.dataset.id;
   try {
     switch (action) {
+      case "dna-details":
+        openDNADetails(target.dataset.area,target.dataset.month);
+        break;
       case "toggle-nav": {
         const expanded = $("#navigation").classList.toggle("expanded");
         target.setAttribute("aria-expanded", String(expanded));

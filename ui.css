@@ -1440,23 +1440,43 @@ dialog::backdrop {
   height: 50px;
   align-items: flex-end;
 }
-.dna-months span {
+.dna-months .dna-bar {
+  height: 100%;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  cursor: pointer;
+  background: transparent;
+  flex: 1;
+  position: relative;
+}
+.dna-bar:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.dna-bar:hover .dna-fill { filter: brightness(.85); }
+.dna-months .dna-fill {
   flex: 1;
   background: #c8d8b4;
   border-radius: 4px 4px 0 0;
   min-height: 3px;
   position: relative;
 }
-.dna-months span:last-child {
+.dna-months .dna-bar:last-child .dna-fill {
   background: var(--green);
 }
-.dna-months span small {
+.dna-months .dna-bar small {
   position: absolute;
   bottom: -16px;
   left: 0;
   font-size: 8px;
   color: var(--muted);
 }
+.dna-detail-total { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; padding: 18px 0; }
+.dna-detail-total strong { font-size: 22px; }
+.dna-detail-row { display: flex; justify-content: space-between; gap: 16px; padding: 15px 0; border-bottom: 1px solid var(--border); }
+.dna-detail-row > div { min-width: 0; overflow-wrap: anywhere; }
+.dna-detail-row > strong { white-space: nowrap; }
+.dna-detail-row small { display: block; margin-top: 5px; color: var(--muted); }
 .dna-card details {
   margin-top: 28px;
   font-size: 11px;

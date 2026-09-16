@@ -1,4 +1,4 @@
-import { normalize, parseCsv, csvDate, parseMoney, cents } from './finance';
+import { normalize, parseCsv, csvDate, parseMoney, cents, cardSchedule, spendingArea, transactionType } from './finance';
 
 export const isStatementPayment = description => /^(pagamentos validos normais|pagamento recebido|pagamento efetuado|pagamento de fatura|pagamento da fatura|pagamento fatura|inclusao de pagamento|obrigado pelo pagamento|total da fatura anterior)\b/.test(normalize(description).trim());
 const rules = [
@@ -102,4 +102,31 @@ export function allocatedCashRows(transactions,payments=[],cycles=[]) {
     let remaining=paid;const groups=[...buckets].filter(([,v])=>v>0);
     return groups.map(([category_id,value],i)=>{const amount=i===groups.length-1?remaining:Math.min(remaining,Math.round(paid*value/total));remaining-=amount;return {...t,id:t.id+':'+i,category_id:category_id||null,amount:amount/100,description:t.description+' · distribuição da fatura'};});
   });
+}
+
+// Reuse the chart's source, then explain each category allocation with its purchases.
+// Distribute rounding inside each allocation so the dialog reconciles to the bar.
+export function dnaBreakdown(transactions, installments, categories, payments, cycles, {basis,area,month}) {
+  const source=basis==='card'?cardSchedule(transactions,installments):allocatedCashRows(transactions,payments,cycles);
+  const selected=source.filter(t=>t.date.slice(0,7)===month && spendingArea(categories.find(c=>c.id===t.category_id))===area && (transactionType(t.type)==='expense'||(t.credit_card_id&&transactionType(t.type)==='income')));
+  const signed=t=>cents(t.amount)*(transactionType(t.type)==='income'&&t.credit_card_id?-1:1);
+  const items=selected.flatMap(t=>{
+    const payment=basis==='cash'&&payments.find(p=>t.id.startsWith(p.transaction_id+':'));
+    const cycle=payment&&cycles.find(c=>c.id===payment.billing_cycle_id);
+    if(!cycle)return [{...t,contribution:signed(t)/100}];
+    const all=transactions.filter(i=>i.billing_cycle_id===cycle.id);
+    const itemWeight=i=>cents(i.amount)*(i.type==='income'?-1:1);
+    const net=all.reduce((sum,i)=>sum+itemWeight(i),0);
+    const parts=all.filter(i=>(i.category_id||'')===(t.category_id||'')).map(i=>({...i,weight:itemWeight(i)}));
+    if(!t.category_id&&net<cents(cycle.total_spent))parts.push({id:cycle.id+':residual',description:'Parte da fatura sem detalhamento',weight:cents(cycle.total_spent)-net});
+    const weight=parts.reduce((sum,i)=>sum+i.weight,0);
+    if(weight<=0)return [{...t,contribution:signed(t)/100}];
+    let remaining=cents(t.amount);
+    return parts.map((item,index)=>{
+      const contribution=index===parts.length-1?remaining:Math.round(cents(t.amount)*item.weight/weight);
+      remaining-=contribution;
+      return {...item,id:t.id+':'+item.id,date:t.date,purchase_date:item.date,account_id:t.account_id,category_id:t.category_id,credit_card_id:cycle.credit_card_id,contribution:contribution/100,allocated:true,payment_description:payment.transaction_id,original_amount:item.weight/100};
+    });
+  }).sort((a,b)=>b.date.localeCompare(a.date)||(a.description||'').localeCompare(b.description||''));
+  return {items,total:selected.reduce((sum,t)=>sum+signed(t),0)/100};
 }

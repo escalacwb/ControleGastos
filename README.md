@@ -83,3 +83,6 @@ Foram exercitados cálculos de moeda/data/parcelamento, transações de banco re
 # Correção 2.1.2: faturas XP
 
 O importador ignora a linha `Pagamentos Validos Normais`, que registra o pagamento anterior, antes de calcular compras e créditos da fatura. Estornos e outros créditos continuam incluídos. Ao selecionar ou desmarcar itens, o total calculado é atualizado; totais digitados manualmente e de faturas já cadastradas são preservados. A correção vale para o site e o aplicativo Android.
+# DNA interativo — 2.1.3
+
+Clique ou toque nas barras do DNA para abrir os gastos que compõem o mês e a área escolhidos. O modal lista todos os registros, suas categorias e datas, e o total da barra. Pagamentos de faturas distribuídos por categoria são explicados por compra, incluindo créditos, rateio de pagamentos parciais e valores ainda sem detalhamento. A soma dos detalhes mantém o valor do gráfico; as visões de contas e cartões usam suas respectivas datas e bases. Disponível no site e no Android.

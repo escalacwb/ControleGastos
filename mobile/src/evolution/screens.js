@@ -1,4 +1,5 @@
-import { allocatedCashRows } from "../lib/statements";
+import { allocatedCashRows, dnaBreakdown } from "../lib/statements";
+import { DNADetailModal } from './DNADetailModal';
 import React, { useMemo, useState } from "react";
 import {
   View,
@@ -39,11 +40,11 @@ const typeOptions = [
   { value: "income", label: "Receitas" },
   { value: "transfer", label: "Transferências" },
 ];
-function Bars({ items }) {
+function Bars({ items, onPress }) {
   const max = Math.max(1, ...items.map((i) => i.value));
   return items.length ? (
     items.map((i) => (
-      <View key={i.id || i.name} style={{ gap: 8 }}>
+      <TouchableOpacity key={i.id || i.name} style={{ gap: 8, minHeight:onPress?44:0 }} disabled={!onPress} onPress={()=>onPress?.(i)} accessibilityRole={onPress?'button':undefined} accessibilityLabel={onPress?`Ver gastos de ${i.name}: ${money(i.value)}`:undefined}>
         <View style={S.row}>
           <Text style={[S.text, { flex: 1 }]}>{i.name}</Text>
           <Text style={[S.text, { fontWeight: "600" }]}>{money(i.value)}</Text>
@@ -53,7 +54,7 @@ function Bars({ items }) {
             style={[S.bar, { width: Math.max(1, (i.value / max) * 100) + "%" }]}
           />
         </View>
-      </View>
+      </TouchableOpacity>
     ))
   ) : (
     <Empty title="Sem gastos neste período" />
@@ -328,6 +329,8 @@ export function Transactions() {
 export function Reports() {
   const { rows } = useData(),
     a = useActions();
+  const [detail,setDetail]=useState(null);
+  const openDetails=(area,selectedMonth)=>setDetail({...dnaBreakdown(rows('transactions'),rows('installments'),rows('categories'),rows('card_payments'),rows('billing_cycles'),{basis,area,month:selectedMonth}),area,month:selectedMonth,basis});
   const [month, setMonth] = useState(today().slice(0, 7)),
     [basis, setBasis] = useState("cash"),
     [view, setView] = useState("report"),
@@ -349,6 +352,7 @@ export function Reports() {
       title="Entenda seus gastos"
       subtitle="Números para decidir melhor no dia a dia."
     >
+      <DNADetailModal detail={detail} onClose={()=>setDetail(null)} rows={rows}/>
       <MonthPicker value={month} onChange={setMonth} />
       <Chips
         value={view}
@@ -451,11 +455,14 @@ export function Reports() {
               <Text style={S.text}>No mês: {money(g.current)}</Text>
               <Text style={S.muted}>{g.categories.join(" · ")}</Text>
               <Bars
+                onPress={item=>openDetails(g.area,item.month)}
                 items={g.monthly.map((v, i) => ({
+                  month:dna.months[i],
                   name: monthLabel(dna.months[i]),
                   value: v,
                 }))}
               />
+              <Text style={S.muted}>Toque em uma barra para ver os gastos.</Text>
             </Card>
           ))}
           {!dna.areas.length && (
@@ -627,7 +634,7 @@ export function More() {
                 : "Espaço pessoal"}
             </Text>
             <Text style={S.text}>{user.email}</Text>
-            <Text style={S.muted}>Em Casa · versão 2.1.2</Text>
+            <Text style={S.muted}>Em Casa · versão 2.1.3</Text>
             <Button
               secondary
               onPress={() =>

@@ -59,5 +59,22 @@ historyFixtures=[];
 await page.locator('.nav-link[href="#reports"]').click();await page.locator('#report-preset').selectOption('month');assert.equal(await page.locator('#report-start').inputValue(),month+'-01');await page.locator('#report-preset').selectOption('all');assert.equal(await page.locator('#report-start').inputValue(),'');
 await page.locator('.nav-link[href="#import"]').click();await page.locator('#csv-file').setInputFiles({name:'fixture.csv',mimeType:'text/csv',buffer:Buffer.from(`Data;Descrição;Valor\n${month}-02;CSV almoço;12,30\n${month}-02;CSV almoço;12,30\n31/02/2026;Data inválida;9\n${month}-03;CSV transporte;50,00`)});await page.locator('#import-target').selectOption('account:'+a1);await page.locator('[data-action="preview-import"]').click();assert.match(await page.locator('#import-results .info-banner').textContent(),/2 prontos.*1 duplicados.*1 inválidos/);await page.locator('[data-action="confirm-import"]').click();await page.waitForTimeout(250);assert.equal(calls.at(-1).name,'import_financial_transactions');assert.equal(calls.at(-1).body.p_rows.length,2);assert.equal(calls.at(-1).body.p_rows[0].amount,12.3);
 await page.locator('.nav-link[href="#dna"]').click();assert.ok(await page.locator('.dna-card').count());await page.screenshot({path:path.join(screenshotDir,'dna-fixture-desktop.png'),fullPage:true});
+
+const {dnaBreakdown}=await import('../release/statements.mjs');
+for(const index of [0,5]){
+ const bar=page.locator('[data-action="dna-details"]').nth(index);
+ const area=await bar.getAttribute('data-area'), selectedMonth=await bar.getAttribute('data-month');
+ const expected=dnaBreakdown(db.transactions,db.installments,db.categories,db.card_payments,db.billing_cycles,{basis:'cash',area,month:selectedMonth});
+ await bar.focus();await page.keyboard.press('Enter');await page.locator('#dialog').waitFor({state:'visible'});
+ assert.equal(await page.locator('.dna-detail-row').count(),expected.items.length);
+ const sum=await page.locator('[data-contribution]').evaluateAll(nodes=>nodes.reduce((s,n)=>s+Math.round(Number(n.dataset.contribution)*100),0));
+ assert.equal(sum,Math.round(expected.total*100));
+ await page.screenshot({path:path.join(screenshotDir,'dna-detail-desktop.png')});
+ await page.keyboard.press('Escape');await page.locator('#dialog').waitFor({state:'hidden'});
+}
+await page.setViewportSize({width:390,height:844});
+await page.locator('[data-action="dna-details"]').first().click();await page.locator('#dialog').waitFor({state:'visible'});
+assert.equal(await page.locator('#dialog').evaluate(el=>el.scrollWidth>el.clientWidth),false,'Modal horizontal overflow');
+await page.screenshot({path:path.join(screenshotDir,'dna-detail-mobile.png')});await page.locator('#dialog [data-action="close-dialog"]').click();
 await page.setViewportSize({width:390,height:844});for(const view of ['overview','transactions','cards','reports','dna','accounts','categories','investments','pending','import']){if(!await page.locator(`.nav-link[href="#${view}"]`).isVisible())await page.locator("#more-nav").click();await page.locator(`.nav-link[href="#${view}"]`).click();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Overflow '+view);}await page.locator('.nav-link[href="#overview"]').click();await page.screenshot({path:path.join(screenshotDir,'overview-fixture-mobile.png'),fullPage:true});assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:['pagination 1055 records','30 visible rows','create BRL expense','optimistic edit','duplicate','delete','partial card payment','DNA from history','10 mobile layouts'],mockedWrites:calls.length,realNetworkWrites:0}));
 }finally{await browser.close();}})().catch(e=>{console.error(e.stack);process.exitCode=1;});
