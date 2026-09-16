@@ -32,6 +32,21 @@ for(const fixture of JSON.parse(process.env.STATEMENT_FIXTURES_JSON||'[]')){
 }
 
 
+await page.locator('[data-action="new-statement"]').first().click();
+await page.locator('#statement-file').setInputFiles({name:'Fatura2026-03-25.csv',mimeType:'text/csv',buffer:Buffer.from('Data;Estabelecimento;Portador;Valor;Parcela\n01/03/2026;Loja;Titular;R$ 100,00;-\n02/03/2026;Pagamentos Validos Normais;Titular;R$ -900,00;-\n03/03/2026;Estorno Loja;Titular;R$ -10,00;-')});
+await page.locator('[data-statement-select="1"]').waitFor();
+assert.equal(await page.locator('[name=total]').inputValue(),'90.00');
+assert.match(await page.locator('#statement-preview').textContent(),/1 pagamentos ignorados/);
+await page.locator('[data-statement-select="1"]').uncheck();
+assert.equal(await page.locator('[name=total]').inputValue(),'100.00');
+await page.locator('[data-statement-select="1"]').check();
+assert.equal(await page.locator('[name=total]').inputValue(),'90.00');
+await page.locator('[name=total]').fill('100,00');
+await page.locator('[data-statement-select="1"]').uncheck();
+assert.equal(await page.locator('[name=total]').inputValue(),'100,00');
+await page.locator('#edit-form button[type="submit"]').click();await page.locator('#dialog').waitFor({state:'hidden'});
+assert.equal(calls.at(-1).body.p_data.total,100);assert.equal(calls.at(-1).body.p_data.items.length,1);assert.equal(calls.at(-1).body.p_data.pay_amount,0);
+
 historyFixtures=[{id:randomUUID(),date:'2026-05-22',description:'PG. NUBANK WAGNER',amount:100.02,account_id:a1,account_name:'Conta original',linked_cycle_id:null,close_amount:true,difference:0.02}];
 await page.locator('[data-action="new-statement"]').first().click();
 await page.locator('#statement-file').setInputFiles({name:'Nubank_2026-05-22.csv',mimeType:'text/csv',buffer:Buffer.from('date,title,amount\n2026-05-10,Supermercado,100.00')});

@@ -34,6 +34,7 @@ export function StatementForm({ form }) {
     pay_account: card.account_id,
     existing_payment_id: "",
   });
+  const automaticTotal = useRef(!cycle);
   const [parsed, setParsed] = useState(null),
     [document, setDocument] = useState(null),
     [error, setError] = useState(""),
@@ -136,7 +137,10 @@ export function StatementForm({ form }) {
       c.type === "expense" &&
       !/reembols|pagamento.*fatura/.test(normalize(c.name)),
   );
-  const set = (name, value) => setValues((v) => ({ ...v, [name]: value }));
+  const set = (name, value) => {
+    if (name === "total") automaticTotal.current = false;
+    setValues((v) => ({ ...v, [name]: value }));
+  };
   const select = (name, label, options) => ({
     name,
     label,
@@ -272,12 +276,12 @@ export function StatementForm({ form }) {
         mime: /\.pdf$/i.test(file.name) ? "application/pdf" : "text/csv",
         content_base64: content,
       });
-      if (!cycle && !values.total) {
+      setDifference(false);
+      if (!cycle) {
         const due = result.due || file.name.match(/\d{4}-\d{2}-\d{2}/)?.[0];
         setValues((v) => ({
           ...v,
-          total: result.total.toFixed(2),
-          pay_amount: result.total.toFixed(2),
+          ...(automaticTotal.current ? {total: result.total.toFixed(2), pay_amount: result.total.toFixed(2)} : {}),
           ...(due ? { due, month: due.slice(0, 7) } : {}),
         }));
       }
@@ -475,14 +479,15 @@ export function StatementForm({ form }) {
                   <Switch
                     accessibilityLabel={"Incluir " + r.description}
                     value={r.selected}
-                    onValueChange={(selected) =>
-                      setParsed((p) => ({
-                        ...p,
-                        items: p.items.map((x, j) =>
-                          j === i ? { ...x, selected } : x,
-                        ),
-                      }))
-                    }
+                    onValueChange={(selected) => {
+                      const items = parsed.items.map((x,j)=>j===i?{...x,selected}:x);
+                      setParsed({...parsed,items});
+                      setDifference(false);
+                      if(automaticTotal.current){
+                        const total=(items.filter(x=>x.selected).reduce((n,x)=>n+cents(x.amount),0)/100).toFixed(2);
+                        setValues(v=>({...v,total,...(cents(parseMoney(v.pay_amount))===cents(parseMoney(v.total))?{pay_amount:total}:{})}));
+                      }
+                    }}
                   />
                   <FormField
                     field={select("category", "Categoria", [

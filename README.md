@@ -1,10 +1,10 @@
 # Em Casa — finanças da família
 
-### Correção 2.1.1 — conferir pagamentos antes de importar
+### Correção 2.1.2 — conferir pagamentos antes de importar
 
 A importação consulta pagamentos manuais e vinculados por cartão, período e valor. Um pagamento compatível e único é sugerido para vínculo; valores com até cinco centavos de diferença são conciliados preservando o lançamento original. Havendo mais de um candidato, é necessário escolher. A data e a conta do pagamento original são mantidas, sem outro débito.
 
-Importar não cria mais um pagamento por padrão. Para uma nova saída, escolha **Registrar pagamento agora** e confirme que ela ainda não foi lançada. O banco bloqueia pagamentos novos quando encontra pagamentos manuais candidatos, inclusive em clientes antigos. Faturas já pagas recebem somente o detalhamento. Aplique `20260916_statement_payment_guard.sql` depois de `20260916_statement_details.sql`. Android 2.1.1, código 5.
+Importar não cria mais um pagamento por padrão. Para uma nova saída, escolha **Registrar pagamento agora** e confirme que ela ainda não foi lançada. O banco bloqueia pagamentos novos quando encontra pagamentos manuais candidatos, inclusive em clientes antigos. Faturas já pagas recebem somente o detalhamento. Aplique `20260916_statement_payment_guard.sql` depois de `20260916_statement_details.sql`. Android 2.1.2, código 5.
 
 ### Versão 2.1.0 — faturas com compras detalhadas
 
@@ -80,3 +80,6 @@ Para gerar localmente no ambiente Windows original: `npm ci` e `npm run apk:loca
 ## Validação
 
 Foram exercitados cálculos de moeda/data/parcelamento, transações de banco revertidas ao final, importação integral, edição concorrente, estorno de faturas/investimentos, isolamento entre usuários, navegação web e histórico com mais de mil registros. Os testes de interface usam dados fictícios e não geram lançamentos de teste na família. A validação Android inclui compilação nativa e execução em emulador; não substitui a conferência no aparelho físico usado diariamente.
+# Correção 2.1.2: faturas XP
+
+O importador ignora a linha `Pagamentos Validos Normais`, que registra o pagamento anterior, antes de calcular compras e créditos da fatura. Estornos e outros créditos continuam incluídos. Ao selecionar ou desmarcar itens, o total calculado é atualizado; totais digitados manualmente e de faturas já cadastradas são preservados. A correção vale para o site e o aplicativo Android.

@@ -5,6 +5,7 @@ const options = (items,selected='')=>items.map(x=>`<option value="${esc(x.id)}" 
 export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,rpc,client,pay=false,autoImport=false}) {
   let parsed=null,document=null,reading=false;const request=crypto.randomUUID();
   let existing=[]; let historySequence=0;
+  let automaticTotal=!cycle;
   const categories=rows('categories').filter(c=>c.type==='expense'&&!/reembols|pagamento.*fatura/.test(normalize(c.name)));
   const total=cycle?.total_spent||'';
   const body=`<div class="info-banner">${esc(card.bank_name)} · As compras detalham a fatura e não descontam dinheiro da conta. Só o pagamento entra no total de saídas.</div>
@@ -60,13 +61,25 @@ export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,r
   }
   dialog.querySelector('[name=month]').addEventListener('change',checkHistory);
   dialog.querySelector('[name=total]').addEventListener('change',checkHistory);
+  dialog.querySelector('[name=total]').addEventListener('input',()=>{automaticTotal=false;});
   checkHistory();
 
   function renderPreview(){
     const selected=parsed.items.filter(r=>r.selected),net=selected.reduce((n,r)=>n+cents(r.amount),0)/100;
     dialog.querySelector('#statement-preview').innerHTML=`<p><strong>${selected.length} compras/créditos · ${money(net)}</strong><br>${parsed.excluded.length} pagamentos ignorados · ${parsed.invalid.length} linhas não reconhecidas</p><p class="form-note">Parcelas representam somente o valor cobrado nesta fatura. Linhas iguais dentro do arquivo são preservadas. Reimportações da mesma fatura não duplicam os itens.</p><div class="table-wrap statement-preview"><table><thead><tr><th>Incluir</th><th>Compra</th><th>Categoria sugerida</th><th>Valor</th></tr></thead><tbody>${parsed.items.map((r,i)=>`<tr><td><input type="checkbox" data-statement-select="${i}" aria-label="Incluir ${esc(r.description)}" ${r.selected?'checked':''}></td><td>${esc(r.description)}<small style="display:block">${r.date}${r.parcel&&r.parcel!=='-'?' · parcela '+esc(r.parcel):''}</small></td><td><select data-statement-category="${i}" aria-label="Categoria de ${esc(r.description)}"><option value="">Outros gastos</option>${options(categories,r.category_id)}</select><small style="display:block">${esc(r.reason)}</small></td><td>${money(r.amount)}</td></tr>`).join('')}</tbody></table></div><label class="form-note"><input type="checkbox" id="statement-difference"> Conferi eventual diferença: o total informado inclui valores que não estão detalhados neste arquivo.</label>${parsed.invalid.length?'<p class="form-error">Há linhas não reconhecidas. O salvamento do arquivo foi bloqueado para evitar uma importação incompleta.</p>':''}`;
     dialog.querySelectorAll('[data-statement-category]').forEach(el=>el.onchange=()=>{parsed.items[Number(el.dataset.statementCategory)].category_id=el.value||null;});
-    dialog.querySelectorAll('[data-statement-select]').forEach(el=>el.onchange=()=>{parsed.items[Number(el.dataset.statementSelect)].selected=el.checked;renderPreview();});
+    dialog.querySelectorAll('[data-statement-select]').forEach(el=>el.onchange=()=>{
+      parsed.items[Number(el.dataset.statementSelect)].selected=el.checked;
+      if(automaticTotal){
+        const previous=dialog.querySelector('[name=total]').value;
+        const total=parsed.items.filter(r=>r.selected).reduce((n,r)=>n+cents(r.amount),0)/100;
+        dialog.querySelector('[name=total]').value=total.toFixed(2);
+        const paid=dialog.querySelector('[name=pay_amount]');
+        if(paid&&cents(parseMoney(paid.value))===cents(parseMoney(previous)))paid.value=total.toFixed(2);
+        checkHistory();
+      }
+      renderPreview();
+    });
   }
   dialog.querySelector('#statement-file').onchange=async event=>{
     parsed=null;document=null;const file=event.target.files[0];if(!file)return;
@@ -90,7 +103,7 @@ export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,r
       let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
       document={name:file.name,sha256:hash,mime:/\.pdf$/i.test(file.name)?'application/pdf':'text/csv',content_base64:btoa(binary)};
       if(!cycle){
-        if(!dialog.querySelector('[name=total]').value)dialog.querySelector('[name=total]').value=parsed.total.toFixed(2);
+        if(automaticTotal)dialog.querySelector('[name=total]').value=parsed.total.toFixed(2);
         const due=parsed.due||file.name.match(/\d{4}-\d{2}-\d{2}/)?.[0];
         if(due){dialog.querySelector('[name=due]').value=due;dialog.querySelector('[name=month]').value=due.slice(0,7);}
       }

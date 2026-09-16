@@ -2,6 +2,10 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {parseStatementCsv,parseStatementPdfLines,pdfPageLines,allocatedCashRows,suggestStatementCategory} from '../statements.mjs';
 import {totals,categoryTotals} from '../finance.mjs';
 const categories=[{id:'market',name:'MERCADO',type:'expense'},{id:'health',name:'SAÚDE',type:'expense'},{id:'extra',name:'EXTRAS',type:'expense'},{id:'reimburse',name:'REEMBOLSÁVEIS',type:'expense'}];
+test('XP prior payment is excluded while refunds and merchant payments remain',()=>{
+ const r=parseStatementCsv('Data;Estabelecimento;Portador;Valor;Parcela\n01/01/2026;Loja;Titular;R$ 100,00;-\n02/01/2026;  Pagamentos Válidos Normais;Titular;R$ -900,00;-\n03/01/2026;Estorno Loja;Titular;R$ -10,00;-\n04/01/2026;PG *LEROY MERLIN;Titular;R$ 20,00;-');
+ assert.equal(r.excluded.length,1);assert.equal(r.total,110);assert.equal(r.items.length,3);assert.equal(r.items[1].amount,-10);assert.equal(r.invalid.length,0);
+});
 test('Nubank headers, payment exclusion, IOF and unknown merchants',()=>{
 const r=parseStatementCsv('date,title,amount\n2026-09-01,Supermercado Chama,"64,86"\n2026-09-02,Drogasil,"21,99"\n2026-09-03,Desconhecido,"8,00"\n2026-09-04,Pagamento recebido,"- 891,06"',categories);
 assert.equal(r.total,94.85);assert.equal(r.excluded.length,1);assert.deepEqual(r.items.map(x=>x.category_id),['market','health','extra']);

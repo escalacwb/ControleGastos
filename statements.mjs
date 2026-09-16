@@ -1,6 +1,6 @@
 import { normalize, parseCsv, csvDate, parseMoney, cents } from './finance.mjs';
 
-export const isStatementPayment = description => /^(pagamento recebido|pagamento efetuado|pagamento de fatura|pagamento da fatura|pagamento fatura|inclusao de pagamento|obrigado pelo pagamento|total da fatura anterior)\b/.test(normalize(description));
+export const isStatementPayment = description => /^(pagamentos validos normais|pagamento recebido|pagamento efetuado|pagamento de fatura|pagamento da fatura|pagamento fatura|inclusao de pagamento|obrigado pelo pagamento|total da fatura anterior)\b/.test(normalize(description).trim());
 const rules = [
   [/supermerc|mercado|atacadao|assai|hortifruti/, /mercado/],
   [/drog|farmac|hospital|clinica|laboratorio/, /^saude$/],
