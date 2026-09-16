@@ -10,7 +10,7 @@
     />
     <title>Em Casa · Finanças da família</title>
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="ui.css?v=2.0.0" />
+    <link rel="stylesheet" href="ui.css?v=2.0.1" />
     <script>
       window.APP_CONFIG = {
         SUPABASE_URL: "https://gbvjdntklbggxycmfyhg.supabase.co",
@@ -19,7 +19,7 @@
       };
     </script>
     <script defer src="vendor/supabase-2.99.0.js"></script>
-    <script type="module" src="main.mjs?v=2.0.0"></script>
+    <script type="module" src="main.mjs?v=2.0.1"></script>
   </head>
   <body>
     <a class="skip-link" href="#content">Ir para o conteúdo</a>
@@ -112,7 +112,7 @@
           <div class="avatar" id="user-avatar">A</div>
           <div>
             <strong id="user-name">Minha conta</strong
-            ><small>Espaço pessoal</small>
+            ><small id="workspace-name">Espaço pessoal</small>
           </div>
           <button
             id="logout"
@@ -127,7 +127,7 @@
       <div class="main-shell">
         <header class="topbar">
           <div class="breadcrumb">
-            Meu espaço <span>/</span>
+            <span id="workspace-breadcrumb">Meu espaço</span> <span>/</span>
             <strong id="view-name">Visão geral</strong>
           </div>
           <div class="topbar-actions">

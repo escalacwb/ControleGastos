@@ -69,6 +69,7 @@ const nav = [
 ];
 const state = {
   user: null,
+  workspace: null,
   view: "overview",
   month: today().slice(0, 7),
   data: {},
@@ -159,7 +160,7 @@ function bankAccounts() {
     (a) => !["credit_card", "cartao", "cartão"].includes(normalize(a.type)),
   );
 }
-async function fetchAll(table) {
+async function fetchAll(table, ownerId) {
   let result = [];
   for (let offset = 0; ; offset += 500) {
     let query = client
@@ -167,8 +168,7 @@ async function fetchAll(table) {
       .select("*")
       .order("id")
       .range(offset, offset + 499);
-    if (table !== "pending_transactions")
-      query = query.eq("user_id", state.user.id);
+    if (table !== "pending_transactions") query = query.eq("user_id", ownerId);
     const { data, error } = await query;
     if (error) throw error;
     result.push(...data);
@@ -192,6 +192,11 @@ async function loadData({ silent = false } = {}) {
       '</div><p class="loading-message">Organizando seus lançamentos…</p>';
   state.loading = (async () => {
     try {
+      const workspace = await rpc("get_finance_workspace", {});
+      if (!workspace?.owner_id)
+        throw Error(
+          "Não foi possível identificar seu espaço financeiro. Entre novamente.",
+        );
       const tables = [
         "accounts",
         "categories",
@@ -204,8 +209,17 @@ async function loadData({ silent = false } = {}) {
         "investment_transactions",
         "pending_transactions",
       ];
-      const values = await Promise.all(tables.map(fetchAll));
+      const values = await Promise.all(
+        tables.map((table) => fetchAll(table, workspace.owner_id)),
+      );
       if (state.user?.id !== userId) return;
+      state.workspace = workspace;
+      $("#workspace-name").textContent = workspace.shared
+        ? "Espaço compartilhado"
+        : "Espaço pessoal";
+      $("#workspace-breadcrumb").textContent = workspace.shared
+        ? "Nossa família"
+        : "Meu espaço";
       state.data = Object.fromEntries(
         tables.map((name, i) => [name, values[i]]),
       );
@@ -640,8 +654,10 @@ async function saveRow(table, payload, id) {
         .from(table)
         .update(payload)
         .eq("id", id)
-        .eq("user_id", state.user.id)
-    : client.from(table).insert({ ...payload, user_id: state.user.id });
+        .eq("user_id", state.workspace.owner_id)
+    : client
+        .from(table)
+        .insert({ ...payload, user_id: state.workspace.owner_id });
   const { data, error } = await query.select().single();
   if (error) throw error;
   return data;
@@ -1139,7 +1155,7 @@ function confirmDelete(kind, id) {
             .from(table)
             .delete()
             .eq("id", id)
-            .eq("user_id", state.user.id);
+            .eq("user_id", state.workspace.owner_id);
           if (error)
             throw Error(
               error.code === "23503"
@@ -1682,6 +1698,7 @@ async function logout() {
     return;
   }
   state.user = null;
+  state.workspace = null;
   state.data = {};
   state.loaded = false;
   $("#app").hidden = true;
@@ -1714,6 +1731,7 @@ window.addEventListener("online", () => {
 });
 client.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_OUT") {
+    state.workspace = null;
     state.user = null;
     state.loaded = false;
     state.data = {};

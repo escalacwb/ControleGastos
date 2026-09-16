@@ -2018,3 +2018,4 @@ dialog::backdrop {
     display: none;
   }
 }
+@media(max-width:760px){.breadcrumb>#workspace-breadcrumb{display:inline}}

@@ -550,7 +550,7 @@ export function Cards() {
   );
 }
 export function More() {
-  const { rows, user } = useData(),
+  const { rows, user, workspace } = useData(),
     a = useActions();
   const [section, setSection] = useState("menu");
   const pending = rows("pending_transactions").filter(
@@ -604,8 +604,13 @@ export function More() {
             </Text>
           </Card>
           <Card title="Sua sessão">
+            <Text style={S.text}>
+              {workspace?.shared
+                ? "Espaço compartilhado da família"
+                : "Espaço pessoal"}
+            </Text>
             <Text style={S.text}>{user.email}</Text>
-            <Text style={S.muted}>Em Casa · versão 2.0.0</Text>
+            <Text style={S.muted}>Em Casa · versão 2.0.1</Text>
             <Button
               secondary
               onPress={() =>

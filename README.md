@@ -2,6 +2,12 @@
 
 Aplicativo web estático e Android para acompanhar contas, gastos e faturas com o mesmo banco Supabase. A versão 2.0 organiza a rotina em lançamentos, cartões, relatórios e médias por área.
 
+### Correção 2.0.1 — espaço compartilhado
+
+O login de um membro da família agora resolve o titular do espaço antes de consultar ou salvar dados. Os dois logins autorizados enxergam e operam o mesmo histórico, sem copiar lançamentos. A interface identifica o espaço compartilhado. As operações atômicas e a proteção contra edições simultâneas usam o mesmo titular para ambos.
+
+O administrador configura o vínculo em `finance_memberships`; usuários do aplicativo não podem conceder acesso por conta própria. A migração `20260916_family_workspace.sql` deve ser aplicada depois de `20260915_financial_integrity.sql`. Os registros financeiros existentes são preservados. O Android precisa ser atualizado para 2.0.1 para consultar o espaço compartilhado.
+
 ## O que mudou
 
 - Interface responsiva; no celular, navegação com cinco entradas e menu Mais.
@@ -39,7 +45,7 @@ A configuração pública contém apenas a chave `anon`. Chaves administrativas,
 
 ## Android
 
-Versão 2.0.0, código 2, pacote `com.awfinance.app`, Android 7 ou superior. O APK entregue usa a assinatura anterior para permitir atualização sobre o app existente; não desinstale a versão antiga para atualizar. O servidor mantém o histórico, mas confirme o acesso à conta antes de trocar de aparelho.
+Versão 2.0.1, código 3, pacote `com.awfinance.app`, Android 7 ou superior. O APK entregue usa a assinatura anterior para permitir atualização sobre o app existente; não desinstale a versão antiga para atualizar. O servidor mantém o histórico, mas confirme o acesso à conta antes de trocar de aparelho.
 
 O projeto original usava uma assinatura de desenvolvimento, preservada nesta atualização. A chave está somente no backup local protegido. Uma compilação em outro computador deve restaurar essa mesma chave em `mobile/android/app/debug.keystore` depois do prebuild e antes do Gradle. Não publique a chave. Trocar a assinatura impede a atualização direta de instalações existentes.
 
