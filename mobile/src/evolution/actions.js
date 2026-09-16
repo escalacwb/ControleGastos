@@ -51,6 +51,31 @@ export function useActions() {
   const fail = (e) =>
     Alert.alert("Não foi possível concluir", e.message || "Tente novamente.");
   const transaction = (old = null, duplicate = false, pending = null) => {
+    if (old?.billing_cycle_id && !duplicate) {
+      setForm({
+        title: "Categoria da compra",
+        initial: { category: old.category_id },
+        fields: [
+          select(
+            "category",
+            "Categoria",
+            opts(rows("categories").filter((c) => c.type === "expense")),
+          ),
+        ],
+        note:
+          old.description +
+          " · " +
+          money(old.amount) +
+          " · detalhe da fatura, sem nova saída.",
+        onSave: (v) =>
+          rpc("categorize_statement_item", {
+            p_id: old.id,
+            p_category: v.category,
+            p_expected: old.updated_at,
+          }),
+      });
+      return;
+    }
     if (
       old &&
       !duplicate &&
@@ -361,58 +386,21 @@ export function useActions() {
         );
       },
     });
-  const statement = (c) =>
+  const statement = (card, cycle = null, pay = false, autoImport = false) =>
     setForm({
-      title: "Registrar fatura · " + c.bank_name,
-      initial: { month: today().slice(0, 7), due: today(), total: "" },
-      fields: [
-        field("month", "Mês de referência (AAAA-MM)"),
-        field("due", "Vencimento", "date"),
-        field("total", "Total da fatura (R$)", "money"),
-      ],
-      note: "Atualiza o total da fatura da mesma referência, preservando os pagamentos já feitos.",
-      onSave: (v) => {
-        monthRange(v.month);
-        return rpc("save_card_statement", {
-          p_card: c.id,
-          p_month: v.month + "-01",
-          p_due: v.due,
-          p_total: positive(v.total),
-        });
-      },
+      kind: "statement",
+      card,
+      cycle,
+      pay,
+      autoImport,
+      requestKey: Crypto.randomUUID(),
     });
-  const pay = (c) => {
-    const request = Crypto.randomUUID();
-    setForm({
-      title: "Pagar fatura",
-      initial: {
-        amount: String(outstanding(c)),
-        date: today(),
-        account: accounts[0]?.id || "",
-      },
-      fields: [
-        field("amount", "Valor do pagamento", "money"),
-        field("date", "Data", "date"),
-        select("account", "Conta de pagamento", opts(accounts)),
-      ],
-      note:
-        "Em aberto: " +
-        money(outstanding(c)) +
-        ". O pagamento cria a despesa na conta, sem duplicar a compra.",
-      onSave: (v) => {
-        const amount = positive(v.amount);
-        if (cents(amount) > cents(outstanding(c)))
-          throw Error("O pagamento excede o saldo em aberto.");
-        return rpc("pay_card_statement", {
-          p_cycle: c.id,
-          p_account: v.account,
-          p_amount: amount,
-          p_date: v.date,
-          p_request: request,
-        });
-      },
-    });
-  };
+  const pay = (cycle) =>
+    statement(
+      rows("credit_cards").find((c) => c.id === cycle.credit_card_id),
+      cycle,
+      true,
+    );
   const investment = (i = {}) =>
     setForm({
       title: i.id ? "Atualizar investimento" : "Novo investimento",

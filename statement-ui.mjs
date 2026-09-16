@@ -1,0 +1,78 @@
+import { money, cents, parseMoney, today, normalize } from './finance.mjs';
+import { parseStatementCsv, parseStatementPdfLines, pdfPageLines } from './statements.mjs';
+const esc = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const options = (items,selected='')=>items.map(x=>`<option value="${esc(x.id)}" ${x.id===selected?'selected':''}>${esc(x.name)}</option>`).join('');
+export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,rpc,client,pay=false,autoImport=false}) {
+  let parsed=null,document=null,reading=false;const request=crypto.randomUUID();
+  const existing=rows('transactions').filter(t=>!t.credit_card_id&&['expense','despesa'].includes(t.type)&&!rows('card_payments').some(p=>p.transaction_id===t.id)&&/nubank|cartao|\bxp\b|fatura/.test(normalize(t.description))).sort((a,b)=>b.date.localeCompare(a.date));
+  const categories=rows('categories').filter(c=>c.type==='expense'&&!/reembols|pagamento.*fatura/.test(normalize(c.name)));
+  const total=cycle?.total_spent||'';
+  const body=`<div class="info-banner">${esc(card.bank_name)} · As compras detalham a fatura e não descontam dinheiro da conta. Só o pagamento entra no total de saídas.</div>
+  <div class="form-grid"><label>Referência<input name="month" type="month" value="${cycle?.cycle_start_date.slice(0,7)||month}" required ${cycle?'readonly':''}></label><label>Vencimento<input name="due" type="date" value="${cycle?.due_date||month+'-'+String(Math.min(card.due_day||10,28)).padStart(2,'0')}" required ${cycle?'readonly':''}></label><label class="full">Total da fatura (R$)<input name="total" inputmode="decimal" value="${total}" required ${cycle?'readonly':''}></label></div>
+  <label class="upload-zone"><strong>Anexar fatura CSV ou PDF</strong><span>Até 5 MB · confira as compras e categorias antes de salvar</span><input id="statement-file" type="file" accept=".csv,.pdf,text/csv,application/pdf"></label>
+  <div id="statement-preview" aria-live="polite"></div>
+  <div class="form-grid"><label class="full">Pagamento<select name="payment_mode" id="statement-payment-mode"><option value="none">Salvar fatura / anexar detalhes, sem novo pagamento</option><option value="new" ${pay?'selected':''}>Registrar pagamento agora</option><option value="existing">Já lancei o pagamento — vincular sem descontar novamente</option></select></label><div id="statement-payment-fields" class="full"></div></div>
+  <details><summary>Compras e anexos já salvos nesta fatura</summary><div id="statement-saved">${cycle?'Carregando anexos…':'Os arquivos ficam disponíveis após salvar.'}</div>${cycle?`<p>${rows('transactions').filter(t=>t.billing_cycle_id===cycle.id).length} compras detalhadas. As categorias podem ser ajustadas em Lançamentos.</p>`:''}</details>`;
+  showDialog(cycle?'Fatura · detalhes e pagamento':'Registrar fatura',formWrap(body,'Salvar fatura'),async form=>{
+    if(reading)throw Error('Aguarde a leitura do arquivo.');
+    if(form.querySelector('#statement-file').files.length&&!document)throw Error('O arquivo selecionado não foi lido. Escolha um CSV ou PDF válido antes de salvar.');
+    const fd=new FormData(form),amount=parseMoney(fd.get('total'));
+    if(!(amount>0))throw Error('Informe o total positivo da fatura.');
+    const items=parsed?.items.filter(x=>x.selected)||[];
+    const net=items.reduce((n,x)=>n+cents(x.amount),0)/100;
+    if(document && (!items.length||parsed.invalid.length))throw Error('Existem linhas que não puderam ser lidas. Corrija o arquivo ou use o CSV do banco.');
+    if(document && cents(net)!==cents(amount) && !form.querySelector('#statement-difference')?.checked)throw Error('Confira a diferença entre os itens e o total e marque a confirmação abaixo da prévia.');
+    const mode=fd.get('payment_mode');
+    if(mode==='existing'&&!fd.get('existing_payment_id'))throw Error('Escolha o pagamento já lançado.');
+    if(mode==='new'&&!(parseMoney(fd.get('pay_amount'))>0))throw Error('Informe o valor pago.');
+    await rpc('save_statement_bundle',{p_data:{request_id:request,card_id:card.id,cycle_id:cycle?.id||null,month:fd.get('month')+'-01',due:fd.get('due'),total:amount,items,document,existing_payment_id:mode==='existing'?fd.get('existing_payment_id'):null,pay_amount:mode==='new'?parseMoney(fd.get('pay_amount')):0,pay_account:fd.get('pay_account'),pay_date:fd.get('pay_date')}});
+  },{wide:true});
+  const dialog=window.document.querySelector('#dialog');
+  const paymentFields=()=>{
+    const mode=dialog.querySelector('#statement-payment-mode').value;
+    dialog.querySelector('#statement-payment-fields').innerHTML=mode==='none'?'':mode==='existing'?`<label>Pagamento já registrado<select name="existing_payment_id" required><option value="">Escolher lançamento</option>${options(existing.map(t=>({id:t.id,name:`${t.date} · ${t.description} · ${money(t.amount)}`})))}</select></label><p class="form-note">O saldo da conta fica igual. Apenas vinculamos a despesa a esta fatura.</p>`:`<div class="form-grid"><label>Valor pago<input name="pay_amount" inputmode="decimal" value="${cycle?Math.max(0,Number(cycle.total_spent)-Number(cycle.total_paid)):dialog.querySelector('[name=total]').value}" required></label><label>Data do pagamento<input name="pay_date" type="date" value="${today()}" required></label><label class="full">Conta<select name="pay_account">${options(rows('accounts').filter(a=>!['credit_card','investment'].includes(a.type)),card.account_id)}</select></label></div>`;
+  };
+  dialog.querySelector('#statement-payment-mode').onchange=paymentFields;paymentFields();
+  function renderPreview(){
+    const selected=parsed.items.filter(r=>r.selected),net=selected.reduce((n,r)=>n+cents(r.amount),0)/100;
+    dialog.querySelector('#statement-preview').innerHTML=`<p><strong>${selected.length} compras/créditos · ${money(net)}</strong><br>${parsed.excluded.length} pagamentos ignorados · ${parsed.invalid.length} linhas não reconhecidas</p><p class="form-note">Parcelas representam somente o valor cobrado nesta fatura. Linhas iguais dentro do arquivo são preservadas. Reimportações da mesma fatura não duplicam os itens.</p><div class="table-wrap statement-preview"><table><thead><tr><th>Incluir</th><th>Compra</th><th>Categoria sugerida</th><th>Valor</th></tr></thead><tbody>${parsed.items.map((r,i)=>`<tr><td><input type="checkbox" data-statement-select="${i}" aria-label="Incluir ${esc(r.description)}" ${r.selected?'checked':''}></td><td>${esc(r.description)}<small style="display:block">${r.date}${r.parcel&&r.parcel!=='-'?' · parcela '+esc(r.parcel):''}</small></td><td><select data-statement-category="${i}" aria-label="Categoria de ${esc(r.description)}"><option value="">Outros gastos</option>${options(categories,r.category_id)}</select><small style="display:block">${esc(r.reason)}</small></td><td>${money(r.amount)}</td></tr>`).join('')}</tbody></table></div><label class="form-note"><input type="checkbox" id="statement-difference"> Conferi eventual diferença: o total informado inclui valores que não estão detalhados neste arquivo.</label>${parsed.invalid.length?'<p class="form-error">Há linhas não reconhecidas. O salvamento do arquivo foi bloqueado para evitar uma importação incompleta.</p>':''}`;
+    dialog.querySelectorAll('[data-statement-category]').forEach(el=>el.onchange=()=>{parsed.items[Number(el.dataset.statementCategory)].category_id=el.value||null;});
+    dialog.querySelectorAll('[data-statement-select]').forEach(el=>el.onchange=()=>{parsed.items[Number(el.dataset.statementSelect)].selected=el.checked;renderPreview();});
+  }
+  dialog.querySelector('#statement-file').onchange=async event=>{
+    parsed=null;document=null;const file=event.target.files[0];if(!file)return;
+    const preview=dialog.querySelector('#statement-preview');reading=true;preview.textContent='Lendo arquivo…';
+    try{
+      if(file.size>5*1024*1024)throw Error('Escolha um arquivo de até 5 MB.');
+      const buffer=await file.arrayBuffer(),bytes=new Uint8Array(buffer);
+      if(/\.pdf$/i.test(file.name)){
+        const pdfjs=await import('./vendor/pdf.mjs');pdfjs.GlobalWorkerOptions.workerSrc=new URL('./vendor/pdf.worker.mjs',import.meta.url).href;
+        const pdf=await pdfjs.getDocument({data:bytes.slice(),isEvalSupported:false}).promise;
+        const lines=[];
+        try{if(pdf.numPages>50)throw Error('PDF com mais de 50 páginas. Use o CSV.');
+        for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p),content=await page.getTextContent();lines.push(...pdfPageLines(content.items));}
+        parsed=parseStatementPdfLines(lines,Number(dialog.querySelector('[name=month]').value.slice(0,4)),categories,rows('transactions'));
+        }finally{await pdf.destroy();}
+      }else if(/\.csv$/i.test(file.name)){
+        let text=new TextDecoder('utf-8').decode(bytes);if(text.includes('\uFFFD'))text=new TextDecoder('windows-1252').decode(bytes);
+        parsed=parseStatementCsv(text,categories,rows('transactions'));
+      }else throw Error('Use um arquivo CSV ou PDF.');
+      const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',buffer))).map(x=>x.toString(16).padStart(2,'0')).join('');
+      let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+      document={name:file.name,sha256:hash,mime:/\.pdf$/i.test(file.name)?'application/pdf':'text/csv',content_base64:btoa(binary)};
+      if(!cycle){
+        if(!dialog.querySelector('[name=total]').value)dialog.querySelector('[name=total]').value=parsed.total.toFixed(2);
+        const due=parsed.due||file.name.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+        if(due){dialog.querySelector('[name=due]').value=due;dialog.querySelector('[name=month]').value=due.slice(0,7);}
+      }
+      renderPreview();paymentFields();
+    }catch(e){parsed=null;document=null;preview.textContent=e.message||'Não foi possível ler o arquivo.';}finally{reading=false;}
+  };
+  if(autoImport)dialog.querySelector('#statement-file').click();
+  if(cycle)(async()=>{
+    const box=dialog.querySelector('#statement-saved');const {data,error}=await client.from('statement_documents').select('id,name,created_at').eq('billing_cycle_id',cycle.id);
+    if(error){box.textContent='Não foi possível consultar os anexos.';return;}
+    box.innerHTML=data.length?data.map(d=>`<button type="button" class="button small" data-document="${d.id}">${esc(d.name)}</button>`).join(' '):'Nenhum anexo salvo.';
+    box.querySelectorAll('[data-document]').forEach(el=>el.onclick=async()=>{el.disabled=true;try{const {data:d,error:e}=await client.from('statement_documents').select('name,mime,content_base64').eq('id',el.dataset.document).single();if(e)throw e;const bytes=Uint8Array.from(atob(d.content_base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:d.mime}));const a=window.document.createElement('a');a.href=url;a.download=d.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);}catch{box.append(' Falha ao baixar anexo.');}finally{el.disabled=false;}});
+  })();
+}

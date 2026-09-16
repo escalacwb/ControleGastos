@@ -1,3 +1,4 @@
+import { StatementForm } from "./StatementForm";
 import React, { useEffect, useRef, useState } from "react";
 import {
   View,
@@ -379,6 +380,8 @@ export function FormModal() {
     dirty.current = false;
   }, [form]);
   if (!form) return null;
+  if (form.kind === "statement")
+    return <StatementForm key={form.requestKey} form={form} />;
   const fields =
     typeof form.fields === "function" ? form.fields(values) : form.fields;
   const close = () => {

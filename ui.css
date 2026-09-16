@@ -2019,3 +2019,5 @@ dialog::backdrop {
   }
 }
 @media(max-width:760px){.breadcrumb>#workspace-breadcrumb{display:inline}}
+.statement-preview { max-height: 360px; overflow: auto; margin-bottom: 14px; }
+.statement-preview select { min-width: 160px; max-width: 230px; }

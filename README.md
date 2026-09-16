@@ -1,5 +1,17 @@
 # Em Casa — finanças da família
 
+### Versão 2.1.0 — faturas com compras detalhadas
+
+Em **Cartões → Importar fatura do mês**, no card do próprio cartão, escolha CSV ou PDF: o cartão já vem definido e o pagamento é preparado pelo total extraído. Confira conta, data, valor e categorias antes de confirmar. As compras aparecem em Lançamentos como detalhes do cartão, fora do total de saídas. O pagamento é a única despesa que movimenta a conta. Em uma fatura existente, **Detalhar / anexar** permite incluir o arquivo depois, inclusive quando já estiver paga.
+
+Use **Já lancei o pagamento** para vincular uma despesa existente sem descontar o saldo novamente. Nos relatórios, gráficos e DNA, os pagamentos vinculados são distribuídos proporcionalmente entre as categorias dos itens; pagamentos parciais preservam os centavos. Valores ainda não detalhados ficam sem categoria. Se os detalhes excederem o total ou houver uma categoria com crédito líquido, a distribuição aguarda conciliação e o pagamento permanece inteiro.
+
+Nubank e XP têm leitura de CSV; PDFs com texto incluem o formato CAIXA de duas colunas, créditos e parcelas. PDFs digitalizados, protegidos por senha ou com formatos não reconhecidos exigem CSV ou revisão manual. A leitura ocorre no dispositivo com PDF.js, sem serviço externo. Até 5 MB, 50 páginas e 1.000 itens. Confira a referência, vencimento, categorias e total antes de salvar. Parcelas importadas representam somente a parcela cobrada, sem criar novamente as futuras.
+
+Pagamentos anteriores dentro do arquivo são excluídos dos itens. Repetições legítimas dentro do CSV são preservadas; reimportar o mesmo arquivo não duplica itens. Uma fatura aceita um arquivo de origem: outro arquivo é bloqueado para evitar duplicidade entre formatos. O anexo original fica disponível somente no espaço autenticado da família. Ajustes de categoria podem ser feitos em Lançamentos e são reaproveitados para o mesmo estabelecimento em próximas importações.
+
+Aplique `20260916_statement_details.sql` depois das duas migrações anteriores. A importação, o anexo e o pagamento são atômicos. Android: versão 2.1.0, código 4, mesma assinatura e pacote. Testes: `node --test tests/*.test.mjs`; a suíte de interface aceita arquivos privados opcionais via `STATEMENT_FIXTURES_JSON`, sem publicá-los.
+
 Aplicativo web estático e Android para acompanhar contas, gastos e faturas com o mesmo banco Supabase. A versão 2.0 organiza a rotina em lançamentos, cartões, relatórios e médias por área.
 
 ### Correção 2.0.1 — espaço compartilhado

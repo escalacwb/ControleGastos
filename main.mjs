@@ -1,3 +1,5 @@
+import { allocatedCashRows } from './statements.mjs';
+import { openStatementEditor } from './statement-ui.mjs';
 import {
   money,
   cents,
@@ -280,7 +282,7 @@ function trendMarkup() {
   const series = months.map((month) => {
     const r = monthRange(month);
     return totals(
-      inPeriod(reportingRows(rows("transactions")), r.start, r.end),
+      inPeriod(allocatedCashRows(rows("transactions"), rows("card_payments"), rows("billing_cycles")), r.start, r.end),
     );
   });
   const max = Math.max(1, ...series.flatMap((x) => [x.income, x.expense]));
@@ -319,13 +321,13 @@ function transactionTable(items, { compact = false } = {}) {
       const parts = rows("installments").filter(
         (p) => p.transaction_id === t.id,
       ).length;
-      return `<tr><td><div class="transaction-name"><span class="transaction-symbol ${type}">${type === "income" ? "↙" : type === "transfer" ? "⇄" : "↗"}</span><div><strong>${esc(t.description || "Sem descrição")}</strong><small>${esc(t.credit_card_id ? byId("credit_cards", t.credit_card_id)?.bank_name || "Cartão" : accountName(t.account_id))}${type === "transfer" ? ` → ${esc(accountName(t.transfer_to_account_id))}` : ""}${parts ? ` · ${parts} parcelas` : ""}${t.credit_card_id ? " · cartão" : ""}</small></div></div></td><td><span class="pill">${esc(type === "transfer" ? "Transferência" : categoryName(t.category_id))}</span></td><td>${formatDate(t.date)}</td><td class="amount ${type === "income" ? "positive" : type === "expense" ? "negative" : ""}">${type === "income" ? "+ " : type === "expense" ? "− " : ""}${money(t.amount)}</td>${compact ? "" : `<td><div class="row-actions"><button class="icon-button" data-action="edit-transaction" data-id="${t.id}" title="Editar" aria-label="Editar ${esc(t.description)}">${icon("edit")}</button><button class="icon-button" data-action="duplicate-transaction" data-id="${t.id}" title="Repetir lançamento" aria-label="Repetir ${esc(t.description)}">${icon("copy")}</button><button class="icon-button" data-action="delete-transaction" data-id="${t.id}" title="Excluir" aria-label="Excluir ${esc(t.description)}">${icon("trash")}</button></div></td>`}</tr>`;
+      return `<tr><td><div class="transaction-name"><span class="transaction-symbol ${type}">${type === "income" ? "↙" : type === "transfer" ? "⇄" : "↗"}</span><div><strong>${esc(t.description || "Sem descrição")}</strong><small>${esc(t.credit_card_id ? byId("credit_cards", t.credit_card_id)?.bank_name || "Cartão" : accountName(t.account_id))}${type === "transfer" ? ` → ${esc(accountName(t.transfer_to_account_id))}` : ""}${parts ? ` · ${parts} parcelas` : ""}${t.credit_card_id ? " · detalhe do cartão · fora do total de saídas" : ""}</small></div></div></td><td><span class="pill">${esc(type === "transfer" ? "Transferência" : categoryName(t.category_id))}</span></td><td>${formatDate(t.date)}</td><td class="amount ${type === "income" ? "positive" : type === "expense" ? "negative" : ""}">${type === "income" ? "+ " : type === "expense" ? "− " : ""}${money(t.amount)}</td>${compact ? "" : `<td><div class="row-actions"><button class="icon-button" data-action="edit-transaction" data-id="${t.id}" title="Editar" aria-label="Editar ${esc(t.description)}">${icon("edit")}</button><button class="icon-button" data-action="duplicate-transaction" data-id="${t.id}" title="Repetir lançamento" aria-label="Repetir ${esc(t.description)}">${icon("copy")}</button><button class="icon-button" data-action="delete-transaction" data-id="${t.id}" title="Excluir" aria-label="Excluir ${esc(t.description)}">${icon("trash")}</button></div></td>`}</tr>`;
     })
     .join("")}</tbody></table></div>`;
 }
 function renderOverview() {
   const range = monthRange(state.month),
-    cash = reportingRows(rows("transactions")),
+    cash = allocatedCashRows(rows("transactions"), rows("card_payments"), rows("billing_cycles")),
     monthly = inPeriod(cash, range.start, range.end),
     sum = totals(monthly);
   const balance =
@@ -343,7 +345,7 @@ function renderOverview() {
       periodPicker(),
       "VISÃO GERAL",
     ) +
-    `<div class="kpi-grid">${kpi("Saldo disponível", balance, "Saldo atual das suas contas", "wallet", true)}${kpi("Entradas do mês", sum.income, `${monthly.filter((t) => transactionType(t.type) === "income").length} lançamentos de receita`, "down")}${kpi("Saídas do mês", sum.expense, "Pagamentos e despesas das contas", "up")}${kpi("Faturas a pagar", debt, `${unpaid.length} fatura${unpaid.length === 1 ? "" : "s"} com saldo em aberto`, "card")}</div><div class="overview-grid"><section class="panel"><div class="panel-heading"><div><h3>O ritmo das suas finanças</h3><p>Entradas e saídas das contas · últimos 6 meses</p></div><div class="legend"><span>Entradas</span><span>Saídas</span></div></div>${trendMarkup()}<div class="chart-summary"><span>Resultado do mês<strong class="${sum.balance < 0 ? "negative" : "positive"}">${money(sum.balance)}</strong></span><span>Média mensal de saídas<strong>${money(dna.average)}</strong></span><a href="#reports" class="button text small">Ver relatório →</a></div></section><section class="panel"><div class="panel-heading"><div><h3>Para onde vai o dinheiro?</h3><p>Saídas por categoria · mês selecionado</p></div></div>${categoryMarkup(categoryTotals(monthly, rows("categories")))}<p class="subtle-note">Compras no cartão ficam separadas nos relatórios. Aqui entram os pagamentos para não contar duas vezes.</p></section></div><section class="panel recent-panel"><div class="panel-heading"><div><h3>Últimos lançamentos</h3><p>Os movimentos mais recentes do mês.</p></div><a class="button text small" href="#transactions">Ver todos →</a></div>${transactionTable(
+    `<div class="kpi-grid">${kpi("Saldo disponível", balance, "Saldo atual das suas contas", "wallet", true)}${kpi("Entradas do mês", sum.income, `${monthly.filter((t) => transactionType(t.type) === "income").length} lançamentos de receita`, "down")}${kpi("Saídas do mês", sum.expense, "Pagamentos e despesas das contas", "up")}${kpi("Faturas a pagar", debt, `${unpaid.length} fatura${unpaid.length === 1 ? "" : "s"} com saldo em aberto`, "card")}</div><div class="overview-grid"><section class="panel"><div class="panel-heading"><div><h3>O ritmo das suas finanças</h3><p>Entradas e saídas das contas · últimos 6 meses</p></div><div class="legend"><span>Entradas</span><span>Saídas</span></div></div>${trendMarkup()}<div class="chart-summary"><span>Resultado do mês<strong class="${sum.balance < 0 ? "negative" : "positive"}">${money(sum.balance)}</strong></span><span>Média mensal de saídas<strong>${money(dna.average)}</strong></span><a href="#reports" class="button text small">Ver relatório →</a></div></section><section class="panel"><div class="panel-heading"><div><h3>Para onde vai o dinheiro?</h3><p>Saídas por categoria · mês selecionado</p></div></div>${categoryMarkup(categoryTotals(monthly, rows("categories")))}<p class="subtle-note">Faturas detalhadas distribuem o valor pago entre as categorias. A soma permanece igual às saídas da conta.</p></section></div><section class="panel recent-panel"><div class="panel-heading"><div><h3>Últimos lançamentos</h3><p>Os movimentos mais recentes do mês.</p></div><a class="button text small" href="#transactions">Ver todos →</a></div>${transactionTable(
       inPeriod(rows("transactions"), range.start, range.end)
         .sort(
           (a, b) =>
@@ -440,20 +442,20 @@ function renderCards() {
             cycles
               .filter((c) => c.credit_card_id === card.id)
               .reduce((n, c) => n + cents(outstanding(c)), 0) / 100;
-          return `<article class="bank-card"><div class="bank-card-header"><h3>${esc(card.bank_name)}</h3><span>${esc(card.card_network)}</span></div><div class="card-number">•••• &nbsp; •••• &nbsp; ${esc(card.last_four_digits)}</div><p>${esc(card.holder_name)} · fecha dia ${card.closing_day} · vence dia ${card.due_day}</p><div class="card-footer"><div><small>Faturas em aberto</small><br><strong>${money(debt)}</strong></div>${button("Registrar fatura", "new-statement", card.id, "small")}</div><div class="card-footer">${button("Ver compras", "card-purchases", card.id, "small")}${button("Editar", "edit-card", card.id, "small")}</div></article>`;
+          return `<article class="bank-card"><div class="bank-card-header"><h3>${esc(card.bank_name)}</h3><span>${esc(card.card_network)}</span></div><div class="card-number">•••• &nbsp; •••• &nbsp; ${esc(card.last_four_digits)}</div><p>${esc(card.holder_name)} · fecha dia ${card.closing_day} · vence dia ${card.due_day}</p><div class="card-footer"><div><small>Faturas em aberto</small><br><strong>${money(debt)}</strong></div>${button("Importar fatura do mês", "import-card-statement", card.id, "small")}${button("Registrar sem arquivo", "new-statement", card.id, "small")}</div><div class="card-footer">${button("Ver compras", "card-purchases", card.id, "small")}${button("Editar", "edit-card", card.id, "small")}</div></article>`;
         })
         .join("") ||
       empty(
         "Cadastre seu primeiro cartão",
         "Acompanhe os totais das faturas e as compras detalhadas.",
       )
-    }</div><div class="section-label"><h2>Suas faturas</h2><small>Pagamento registrado uma única vez na conta.</small></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Cartão</th><th>Referência</th><th>Vencimento</th><th class="amount">Total</th><th class="amount">Em aberto</th><th>Status</th><th>Ações</th></tr></thead><tbody>${cycles.map((c) => `<tr><td>${esc(byId("credit_cards", c.credit_card_id)?.bank_name || "Cartão")}</td><td>${c.cycle_start_date.slice(0, 7).split("-").reverse().join("/")}</td><td>${formatDate(c.due_date)}</td><td class="amount">${money(c.total_spent)}</td><td class="amount">${money(outstanding(c))}</td><td><span class="pill ${outstanding(c) <= 0 ? "positive" : c.due_date < today() ? "danger" : "warning"}">${outstanding(c) <= 0 ? "Paga" : Number(c.total_paid) > 0 ? "Parcial" : c.due_date < today() ? "Vencida" : "Em aberto"}</span></td><td>${outstanding(c) > 0 ? button("Pagar", "pay-cycle", c.id, "small") : ""}</td></tr>`).join("")}</tbody></table></div>${cycles.length ? "" : empty("Nenhuma fatura registrada", "Use “Registrar fatura” no cartão e informe o total do mês.")}</section><p class="form-note">O total da fatura é informado por você. Compras e parcelas detalhadas servem para analisar os gastos; não aumentam automaticamente uma fatura já registrada.</p>`
+    }</div><div class="section-label"><h2>Suas faturas</h2><small>Pagamento registrado uma única vez na conta.</small></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Cartão</th><th>Referência</th><th>Vencimento</th><th class="amount">Total</th><th class="amount">Em aberto</th><th>Status</th><th>Ações</th></tr></thead><tbody>${cycles.map((c) => `<tr><td>${esc(byId("credit_cards", c.credit_card_id)?.bank_name || "Cartão")}</td><td>${c.cycle_start_date.slice(0, 7).split("-").reverse().join("/")}</td><td>${formatDate(c.due_date)}</td><td class="amount">${money(c.total_spent)}</td><td class="amount">${money(outstanding(c))}</td><td><span class="pill ${outstanding(c) <= 0 ? "positive" : c.due_date < today() ? "danger" : "warning"}">${outstanding(c) <= 0 ? "Paga" : Number(c.total_paid) > 0 ? "Parcial" : c.due_date < today() ? "Vencida" : "Em aberto"}</span></td><td>${button("Detalhar / anexar", "statement-details", c.id, "small")} ${outstanding(c) > 0 ? button("Pagar", "pay-cycle", c.id, "small") : ""}</td></tr>`).join("")}</tbody></table></div>${cycles.length ? "" : empty("Nenhuma fatura registrada", "Use “Registrar fatura” no cartão e informe o total do mês.")}</section><p class="form-note">O total da fatura é informado por você. Compras e parcelas detalhadas servem para analisar os gastos; não aumentam automaticamente uma fatura já registrada.</p>`
   );
 }
 function reportRows() {
   return state.reportBasis === "card"
     ? cardSchedule(rows("transactions"), rows("installments"))
-    : reportingRows(rows("transactions"));
+    : allocatedCashRows(rows("transactions"), rows("card_payments"), rows("billing_cycles"));
 }
 function renderReports() {
   const list = inPeriod(reportRows(), state.reportStart, state.reportEnd),
@@ -467,14 +469,14 @@ function renderReports() {
         button("Imprimir", "print", "", "small"),
       "VISÃO CLARA",
     ) +
-    `<div class="filters"><label>Visão<select id="report-basis"><option value="cash" ${state.reportBasis === "cash" ? "selected" : ""}>Movimentação das contas</option><option value="card" ${state.reportBasis === "card" ? "selected" : ""}>Compras e parcelas no cartão</option></select></label><label>De<input id="report-start" type="date" value="${state.reportStart}"></label><label>Até<input id="report-end" type="date" value="${state.reportEnd}"></label><label>Atalho<select id="report-preset"><option value="">Escolher período</option><option value="month">Este mês</option><option value="last">Mês anterior</option><option value="year">Este ano</option><option value="all">Todo o histórico</option></select></label></div><div class="info-banner">${state.reportBasis === "cash" ? "Esta visão mostra o dinheiro que entrou e saiu das contas. Transferências entre suas contas não são despesas. Faturas entram no pagamento." : "Esta visão mostra as compras do cartão. Compras parceladas são distribuídas pelas datas das parcelas. Pagamentos de faturas ficam fora para evitar dupla contagem."}</div><div class="report-summary">${kpi("Entradas", sum.income, "No período selecionado", "down")}${kpi("Despesas", sum.expense, `${list.filter((t) => transactionType(t.type) === "expense").length} lançamentos`, "up")}${kpi(state.reportBasis === "card" ? "Total de compras" : "Resultado", state.reportBasis === "card" ? sum.expense : sum.balance, state.reportBasis === "card" ? "Inclui parcelas no período" : "Entradas menos saídas", "chart", true)}</div><div class="bottom-grid"><section class="panel"><div class="panel-heading"><h3>Despesas por categoria</h3><span class="pill">${groups.length} categorias</span></div>${groups.map((g, i) => `<div class="report-category"><div class="line"><strong>${esc(g.name)}</strong><span>${money(g.value)} · ${Math.round((g.value / (sum.expense || 1)) * 100)}%</span></div><div class="progress"><span style="width:${(g.value / (groups[0]?.value || 1)) * 100}%;background:${palette[i % palette.length]}"></span></div></div>`).join("") || empty("Sem despesas neste período")}</section><section class="panel"><div class="panel-heading"><h3>Resumo prático</h3></div><div class="account-row"><div class="bill-copy"><strong>Maior concentração</strong><small>${esc(groups[0]?.name || "Sem dados")}</small></div><div class="bill-value">${money(groups[0]?.value)}</div></div><div class="account-row"><div class="bill-copy"><strong>Sem categoria</strong><small>Classifique para melhorar seus relatórios.</small></div><div class="bill-value">${money(groups.find((g) => g.id === "")?.value)}</div></div><div class="account-row"><div class="bill-copy"><strong>Compras no cartão</strong><small>Consulte a visão de cartões para detalhar.</small></div><div class="bill-value">${money(totals(inPeriod(cardSchedule(rows("transactions"), rows("installments")), state.reportStart, state.reportEnd)).expense)}</div></div><p class="subtle-note">Quer entender o custo habitual da casa? O DNA dos gastos compara meses completos por área, sem misturar o mês em andamento à média.</p><a class="button text" href="#dna">Conhecer meu DNA dos gastos →</a></section></div><section class="panel recent-panel"><div class="panel-heading"><h3>Lançamentos do período</h3><span class="muted">${list.length} registros · exporte para ver todos</span></div>${transactionTable(list.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 15), { compact: true })}</section>`
+    `<div class="filters"><label>Visão<select id="report-basis"><option value="cash" ${state.reportBasis === "cash" ? "selected" : ""}>Movimentação das contas</option><option value="card" ${state.reportBasis === "card" ? "selected" : ""}>Compras e parcelas no cartão</option></select></label><label>De<input id="report-start" type="date" value="${state.reportStart}"></label><label>Até<input id="report-end" type="date" value="${state.reportEnd}"></label><label>Atalho<select id="report-preset"><option value="">Escolher período</option><option value="month">Este mês</option><option value="last">Mês anterior</option><option value="year">Este ano</option><option value="all">Todo o histórico</option></select></label></div><div class="info-banner">${state.reportBasis === "cash" ? "Esta visão mostra o dinheiro que entrou e saiu das contas. Transferências entre suas contas não são despesas. Faturas entram no pagamento, distribuídas entre as categorias dos itens anexados." : "Esta visão mostra as compras do cartão. Compras parceladas são distribuídas pelas datas das parcelas. Pagamentos de faturas ficam fora para evitar dupla contagem."}</div><div class="report-summary">${kpi("Entradas", sum.income, "No período selecionado", "down")}${kpi("Despesas", sum.expense, `${list.filter((t) => transactionType(t.type) === "expense").length} lançamentos`, "up")}${kpi(state.reportBasis === "card" ? "Total de compras" : "Resultado", state.reportBasis === "card" ? sum.expense : sum.balance, state.reportBasis === "card" ? "Inclui parcelas no período" : "Entradas menos saídas", "chart", true)}</div><div class="bottom-grid"><section class="panel"><div class="panel-heading"><h3>Despesas por categoria</h3><span class="pill">${groups.length} categorias</span></div>${groups.map((g, i) => `<div class="report-category"><div class="line"><strong>${esc(g.name)}</strong><span>${money(g.value)} · ${Math.round((g.value / (sum.expense || 1)) * 100)}%</span></div><div class="progress"><span style="width:${(g.value / (groups[0]?.value || 1)) * 100}%;background:${palette[i % palette.length]}"></span></div></div>`).join("") || empty("Sem despesas neste período")}</section><section class="panel"><div class="panel-heading"><h3>Resumo prático</h3></div><div class="account-row"><div class="bill-copy"><strong>Maior concentração</strong><small>${esc(groups[0]?.name || "Sem dados")}</small></div><div class="bill-value">${money(groups[0]?.value)}</div></div><div class="account-row"><div class="bill-copy"><strong>Sem categoria</strong><small>Classifique para melhorar seus relatórios.</small></div><div class="bill-value">${money(groups.find((g) => g.id === "")?.value)}</div></div><div class="account-row"><div class="bill-copy"><strong>Compras no cartão</strong><small>Consulte a visão de cartões para detalhar.</small></div><div class="bill-value">${money(totals(inPeriod(cardSchedule(rows("transactions"), rows("installments")), state.reportStart, state.reportEnd)).expense)}</div></div><p class="subtle-note">Quer entender o custo habitual da casa? O DNA dos gastos compara meses completos por área, sem misturar o mês em andamento à média.</p><a class="button text" href="#dna">Conhecer meu DNA dos gastos →</a></section></div><section class="panel recent-panel"><div class="panel-heading"><h3>Lançamentos do período</h3><span class="muted">${list.length} registros · exporte para ver todos</span></div>${transactionTable(list.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 15), { compact: true })}</section>`
   );
 }
 function renderDNA() {
   const source =
     state.dnaBasis === "card"
       ? cardSchedule(rows("transactions"), rows("installments"))
-      : reportingRows(rows("transactions"));
+      : allocatedCashRows(rows("transactions"), rows("card_payments"), rows("billing_cycles"));
   const dna = spendingDNA(
     source,
     rows("categories"),
@@ -489,7 +491,7 @@ function renderDNA() {
       periodPicker(),
       "UM RETRATO DA SUA ROTINA",
     ) +
-    `<div class="filters"><label>O que analisar<select id="dna-basis"><option value="cash" ${state.dnaBasis === "cash" ? "selected" : ""}>Saídas das contas</option><option value="card" ${state.dnaBasis === "card" ? "selected" : ""}>Compras e parcelas no cartão</option></select></label><label>Histórico<select id="dna-window">${[3, 6, 12].map((n) => `<option value="${n}" ${state.dnaMonths === n ? "selected" : ""}>Últimos ${n} meses completos</option>`).join("")}</select></label></div><div class="report-summary">${kpi("Custo médio mensal", dna.average, `${dna.months.length} meses completos analisados`, "wallet", true)}${kpi("Parte habitual estimada", dna.habitual, "Áreas presentes em pelo menos 2/3 dos meses", "dna")}${kpi("No mês selecionado", totals(inPeriod(source, monthRange(state.month).start, monthRange(state.month).end)).expense, now ? "Mês em andamento · comparação parcial" : "Total do mês selecionado", "chart")}</div><div class="info-banner">Média = soma dos gastos ÷ meses analisados, incluindo meses sem gastos. “Habitual” indica frequência no histórico, não uma conta fixa contratada. ${state.dnaBasis === "cash" ? "Faturas aparecem como pagamentos; veja “Compras e parcelas no cartão” para analisar as categorias detalhadas sem somar as duas visões." : "Somente compras e parcelas detalhadas. Faturas sem itens importados não aparecem nesta visão."} As áreas podem ser ajustadas em Categorias.</div>${dna.months.length < 3 ? '<div class="info-banner warning">Histórico ainda curto: as estimativas ficam mais úteis a partir de três meses completos.</div>' : ""}<div class="dna-grid">${
+    `<div class="filters"><label>O que analisar<select id="dna-basis"><option value="cash" ${state.dnaBasis === "cash" ? "selected" : ""}>Saídas das contas</option><option value="card" ${state.dnaBasis === "card" ? "selected" : ""}>Compras e parcelas no cartão</option></select></label><label>Histórico<select id="dna-window">${[3, 6, 12].map((n) => `<option value="${n}" ${state.dnaMonths === n ? "selected" : ""}>Últimos ${n} meses completos</option>`).join("")}</select></label></div><div class="report-summary">${kpi("Custo médio mensal", dna.average, `${dna.months.length} meses completos analisados`, "wallet", true)}${kpi("Parte habitual estimada", dna.habitual, "Áreas presentes em pelo menos 2/3 dos meses", "dna")}${kpi("No mês selecionado", totals(inPeriod(source, monthRange(state.month).start, monthRange(state.month).end)).expense, now ? "Mês em andamento · comparação parcial" : "Total do mês selecionado", "chart")}</div><div class="info-banner">Média = soma dos gastos ÷ meses analisados, incluindo meses sem gastos. “Habitual” indica frequência no histórico, não uma conta fixa contratada. ${state.dnaBasis === "cash" ? "Faturas detalhadas distribuem os pagamentos por categoria; o que falta detalhar aparece sem categoria." : "Somente compras e parcelas detalhadas. Faturas sem itens importados não aparecem nesta visão."} As áreas podem ser ajustadas em Categorias.</div>${dna.months.length < 3 ? '<div class="info-banner warning">Histórico ainda curto: as estimativas ficam mais úteis a partir de três meses completos.</div>' : ""}<div class="dna-grid">${
       dna.areas
         .map((g) => {
           const max = Math.max(1, ...g.monthly);
@@ -667,6 +669,9 @@ function transactionDialog(
   { duplicate = false, pending = null } = {},
 ) {
   const old = byId("transactions", id);
+  if(old?.billing_cycle_id && !duplicate){
+    simpleDialog("Categoria da compra", '<p class="full form-note">'+esc(old.description)+' · '+money(old.amount)+' · detalhe da fatura, sem nova saída da conta.</p><label class="full">Categoria<select name="category">'+optionList(rows("categories").filter(c=>c.type==='expense'),old.category_id)+'</select></label>', async form=>rpc('categorize_statement_item',{p_id:old.id,p_category:new FormData(form).get('category'),p_expected:old.updated_at}));return;
+  }
   if (
     old &&
     !duplicate &&
@@ -953,77 +958,11 @@ function cardDialog(id) {
     },
   );
 }
-function statementDialog(cardId) {
-  const card = byId("credit_cards", cardId);
-  const [y, m] = state.month.split("-").map(Number);
-  const due = dateISO(
-    new Date(
-      y,
-      m - 1 + (card.due_day <= card.closing_day ? 1 : 0),
-      Math.min(
-        card.due_day,
-        new Date(
-          y,
-          m + (card.due_day <= card.closing_day ? 1 : 0),
-          0,
-        ).getDate(),
-      ),
-      12,
-    ),
-  );
-  simpleDialog(
-    "Registrar fatura",
-    `<div class="full info-banner">${esc(card.bank_name)} · O total substitui a fatura da mesma referência, sem somar novamente.</div>` +
-      inputField("Mês de referência", "month", state.month, { type: "month" }) +
-      inputField("Vencimento", "due", due, { type: "date" }) +
-      inputField("Total da fatura (R$)", "total", "", {
-        full: true,
-        extra: 'inputmode="decimal" placeholder="0,00"',
-      }),
-    async (form) => {
-      const fd = new FormData(form),
-        total = parseMoney(fd.get("total"));
-      if (!Number.isFinite(total) || total <= 0)
-        throw Error("Informe um total positivo.");
-      await rpc("save_card_statement", {
-        p_card: cardId,
-        p_month: fd.get("month") + "-01",
-        p_due: fd.get("due"),
-        p_total: total,
-      });
-    },
-  );
+function statementDialog(cardId, cycle = null, pay = false, autoImport = false) {
+  return openStatementEditor({card:byId("credit_cards",cardId),cycle,pay,autoImport,month:state.month,rows,rpc,client,formWrap,showDialog:(title,body,onSubmit)=>openDialog(title,body,{wide:true,onSubmit})});
 }
 function payDialog(id) {
-  const c = byId("billing_cycles", id),
-    card = byId("credit_cards", c.credit_card_id),
-    request = crypto.randomUUID();
-  simpleDialog(
-    "Pagar fatura",
-    `<div class="full info-banner">${esc(card?.bank_name || "Cartão")} · em aberto ${money(outstanding(c))}. O pagamento também cria a despesa na conta escolhida.</div>` +
-      inputField("Valor do pagamento", "amount", outstanding(c), {
-        extra: 'inputmode="decimal"',
-      }) +
-      inputField("Data", "date", today(), { type: "date" }) +
-      `<label class="full">Pagar com qual conta?<select name="account" required>${optionList(bankAccounts(), card?.account_id)}</select></label>`,
-    async (form) => {
-      const fd = new FormData(form),
-        amount = parseMoney(fd.get("amount"));
-      if (
-        !Number.isFinite(amount) ||
-        amount <= 0 ||
-        cents(amount) > cents(outstanding(c))
-      )
-        throw Error("Informe um valor positivo até o saldo da fatura.");
-      await rpc("pay_card_statement", {
-        p_cycle: id,
-        p_account: fd.get("account"),
-        p_amount: amount,
-        p_date: fd.get("date"),
-        p_request: request,
-      });
-    },
-  );
+ const cycle=byId("billing_cycles",id);return statementDialog(cycle.credit_card_id,cycle,true);
 }
 function investmentDialog(id) {
   const i = byId("investments", id) || {};
@@ -1390,7 +1329,12 @@ document.addEventListener("click", async (event) => {
       case "edit-card":
         cardDialog(id);
         break;
-      case "new-statement":
+      case "statement-details": {
+ const cycle=byId("billing_cycles",id);statementDialog(cycle.credit_card_id,cycle);break;
+ }
+ case "import-card-statement":
+ statementDialog(id,null,true,true);break;
+ case "new-statement":
         statementDialog(id);
         break;
       case "pay-cycle":

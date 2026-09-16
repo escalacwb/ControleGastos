@@ -1,6 +1,6 @@
 {
   "name": "em-casa-financas",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "App de controle de gastos com integração Telegram",
   "dependencies": {
     "axios": "^1.6.0",
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node tools/serve-web.cjs",
-    "test": "node --test tests/finance.test.mjs",
+    "test": "node --test tests/*.test.mjs",
     "test:ui": "node tools/check-ui-fixtures.cjs"
   },
   "devDependencies": {

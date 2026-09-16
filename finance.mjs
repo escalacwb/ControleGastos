@@ -89,7 +89,8 @@ export function totals(rows) {
     expense = 0;
   for (const t of rows) {
     const type = transactionType(t.type);
-    if (type === "income") income += cents(t.amount);
+    if (type === "income" && t.credit_card_id) expense -= cents(t.amount);
+    else if (type === "income") income += cents(t.amount);
     if (type === "expense") expense += cents(t.amount);
   }
   return {
@@ -102,9 +103,9 @@ export function totals(rows) {
 export function categoryTotals(rows, categories = []) {
   const map = new Map();
   for (const t of rows) {
-    if (transactionType(t.type) !== "expense") continue;
+    if (transactionType(t.type) !== "expense" && !(t.credit_card_id && transactionType(t.type) === "income")) continue;
     const id = t.category_id || "";
-    map.set(id, (map.get(id) || 0) + cents(t.amount));
+    map.set(id, (map.get(id) || 0) + (transactionType(t.type) === "income" ? -1 : 1) * cents(t.amount));
   }
   return [...map]
     .map(([id, value]) => ({
@@ -261,7 +262,7 @@ export function spendingArea(category) {
 }
 export function spendingDNA(rows, categories, anchorMonth, count = 6) {
   // Only completed months, including zero-spend months after history begins.
-  const expense = rows.filter((t) => transactionType(t.type) === "expense");
+  const expense = rows.filter((t) => transactionType(t.type) === "expense" || (t.credit_card_id && transactionType(t.type) === "income"));
   const earliest = expense.map((t) => t.date.slice(0, 7)).sort()[0];
   const months = Array.from({ length: count }, (_, i) =>
     shiftMonth(anchorMonth, i - count),
@@ -282,8 +283,8 @@ export function spendingDNA(rows, categories, anchorMonth, count = 6) {
     const group = groups.get(area);
     group.categories.add(category?.name || "Sem categoria");
     const index = months.indexOf(month);
-    if (index >= 0) group.monthly[index] += cents(t.amount);
-    if (month === anchorMonth) group.current += cents(t.amount);
+    if (index >= 0) group.monthly[index] += (transactionType(t.type) === "income" && t.credit_card_id ? -1 : 1) * cents(t.amount);
+    if (month === anchorMonth) group.current += (transactionType(t.type) === "income" && t.credit_card_id ? -1 : 1) * cents(t.amount);
   }
   const areas = [...groups.values()]
     .map((g) => {

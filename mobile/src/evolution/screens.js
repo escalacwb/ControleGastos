@@ -1,3 +1,4 @@
+import { allocatedCashRows } from "../lib/statements";
 import React, { useMemo, useState } from "react";
 import {
   View,
@@ -98,7 +99,7 @@ function TransactionRow({ item, actions = true }) {
             (rows("accounts").find((x) => x.id === item.transfer_to_account_id)
               ?.name || "Conta")
           : category?.name || "Sem categoria"}
-        {card ? " · Cartão" : ""}
+        {card ? " · detalhe do cartão · fora das saídas" : ""}
       </Text>
       {actions && (
         <View style={S.wrap}>
@@ -124,7 +125,11 @@ export function Overview() {
     a = useActions();
   const [month, setMonth] = useState(today().slice(0, 7));
   const range = monthRange(month),
-    cash = reportingRows(rows("transactions")),
+    cash = allocatedCashRows(
+      rows("transactions"),
+      rows("card_payments"),
+      rows("billing_cycles"),
+    ),
     monthly = inPeriod(cash, range.start, range.end),
     sum = totals(monthly),
     debt = rows("billing_cycles")
@@ -330,7 +335,11 @@ export function Reports() {
   const source =
       basis === "card"
         ? cardSchedule(rows("transactions"), rows("installments"))
-        : reportingRows(rows("transactions")),
+        : allocatedCashRows(
+            rows("transactions"),
+            rows("card_payments"),
+            rows("billing_cycles"),
+          ),
     r = monthRange(month),
     list = inPeriod(source, r.start, r.end),
     sum = totals(list),
@@ -491,7 +500,12 @@ export function Cards() {
               <Button secondary onPress={() => a.card(c)}>
                 Editar cartão
               </Button>
-              <Button onPress={() => a.statement(c)}>Registrar fatura</Button>
+              <Button onPress={() => a.statement(c, null, true, true)}>
+                Importar fatura do mês
+              </Button>
+              <Button secondary onPress={() => a.statement(c)}>
+                Registrar sem arquivo
+              </Button>
             </View>
             {cycles
               .filter((x) => showPaid || outstanding(x) > 0)
@@ -527,6 +541,9 @@ export function Cards() {
                       <Text style={S.muted}>Total {money(x.total_spent)}</Text>
                     </View>
                   </View>
+                  <Button secondary onPress={() => a.statement(c, x)}>
+                    Detalhar / anexar
+                  </Button>
                   {outstanding(x) > 0 && (
                     <Button secondary onPress={() => a.pay(x)}>
                       Pagar fatura
@@ -610,7 +627,7 @@ export function More() {
                 : "Espaço pessoal"}
             </Text>
             <Text style={S.text}>{user.email}</Text>
-            <Text style={S.muted}>Em Casa · versão 2.0.1</Text>
+            <Text style={S.muted}>Em Casa · versão 2.1.0</Text>
             <Button
               secondary
               onPress={() =>
