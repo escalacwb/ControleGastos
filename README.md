@@ -86,3 +86,6 @@ O importador ignora a linha `Pagamentos Validos Normais`, que registra o pagamen
 # DNA interativo — 2.1.3
 
 Clique ou toque nas barras do DNA para abrir os gastos que compõem o mês e a área escolhidos. O modal lista todos os registros, suas categorias e datas, e o total da barra. Pagamentos de faturas distribuídos por categoria são explicados por compra, incluindo créditos, rateio de pagamentos parciais e valores ainda sem detalhamento. A soma dos detalhes mantém o valor do gráfico; as visões de contas e cartões usam suas respectivas datas e bases. Disponível no site e no Android.
+# CSV C6 — 2.1.4
+
+A importação reconhece `Data de Compra`, `Nome no Cartão`, `Categoria`, `Descrição`, `Parcela` e `Valor (em R$)`. Usa o valor em reais, ignorando as colunas em dólares e de cotação. A linha `Inclusao de Pagamento` é excluída; estornos continuam incluídos e parcelas representam apenas o valor cobrado na fatura. Disponível no site e no Android.

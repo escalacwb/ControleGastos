@@ -2,6 +2,10 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {parseStatementCsv,parseStatementPdfLines,pdfPageLines,allocatedCashRows,suggestStatementCategory} from '../statements.mjs';
 import {totals,categoryTotals} from '../finance.mjs';
 const categories=[{id:'market',name:'MERCADO',type:'expense'},{id:'health',name:'SAÚDE',type:'expense'},{id:'extra',name:'EXTRAS',type:'expense'},{id:'reimburse',name:'REEMBOLSÁVEIS',type:'expense'}];
+test('C6 uses BRL instead of USD or exchange rate, retaining installments and credits',()=>{
+const csv='Data de Compra;Nome no Cartão;Final do Cartão;Categoria;Descrição;Parcela;Valor (em US$);Cotação (em R$);Valor (em R$)\n18/07/2026;Pessoa;1234;Supermercados;Mercado;Única;100;5;88.06\n20/07/2026;Pessoa;1234;Saúde;Drogasil;1/3;20;5;98.49\n27/07/2026;Pessoa;5678;-;"Inclusao de Pagamento    ";Única;0;0;-15.98\n21/07/2026;Pessoa;1234;Supermercados;Estorno Mercado;Única;0;0;-8.06';
+const r=parseStatementCsv(csv,categories);assert.equal(r.total,178.49);assert.equal(r.items.length,3);assert.equal(r.excluded.length,1);assert.equal(r.invalid.length,0);assert.equal(r.items[1].parcel,'1/3');assert.equal(r.items[1].amount,98.49);assert.equal(r.items[0].holder,'Pessoa');assert.equal(r.items[0].category_id,'market');assert.equal(r.items[2].amount,-8.06);
+});
 test('XP prior payment is excluded while refunds and merchant payments remain',()=>{
  const r=parseStatementCsv('Data;Estabelecimento;Portador;Valor;Parcela\n01/01/2026;Loja;Titular;R$ 100,00;-\n02/01/2026;  Pagamentos Válidos Normais;Titular;R$ -900,00;-\n03/01/2026;Estorno Loja;Titular;R$ -10,00;-\n04/01/2026;PG *LEROY MERLIN;Titular;R$ 20,00;-');
  assert.equal(r.excluded.length,1);assert.equal(r.total,110);assert.equal(r.items.length,3);assert.equal(r.items[1].amount,-10);assert.equal(r.invalid.length,0);

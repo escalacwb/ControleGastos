@@ -32,9 +32,10 @@ export function parseStatementCsv(text,categories=[],history=[]) {
   const [headers,...data] = parseCsv(text);
   if(!headers)throw Error('O arquivo está vazio.');
   const col = patterns => headers.findIndex(h=>patterns.some(p=>p.test(normalize(h))));
-  const date=col([/^data$/, /^date$/]), description=col([/estabelecimento/,/^title$/, /descri/, /historico/]), amount=col([/^valor$/, /^amount$/, /^total$/]);
+  const brl=col([/^valor\s*\(em\s*r\$\)$/]);
+  const date=col([/^data$/, /^date$/, /^data de compra$/]), description=col([/estabelecimento/,/^title$/, /descri/, /historico/]), amount=brl>=0?brl:col([/^valor$/, /^amount$/, /^total$/]);
   if([date,description,amount].some(i=>i<0))throw Error('Não encontrei as colunas de data, estabelecimento/descrição e valor.');
-  const category=col([/categoria/,/^category$/]),parcel=col([/parcela/]),holder=col([/portador/,/titular/]);
+  const category=col([/categoria/,/^category$/]),parcel=col([/parcela/]),holder=col([/portador/,/titular/,/^nome no cartao$/]);
   return prepareStatementRows(data.map((r,i)=>({line:i+2,date:csvDate(r[date]),description:r[description]?.trim(),amount:parseMoney(r[amount]),bank_category:r[category]||'',parcel:r[parcel]||'',holder:r[holder]||''})),categories,history);
 }
 export function prepareStatementRows(data,categories=[],history=[]) {
