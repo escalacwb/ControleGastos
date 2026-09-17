@@ -98,7 +98,7 @@ const client = window.supabase.createClient(
   config.SUPABASE_URL,
   config.SUPABASE_KEY,
 );
-const rows = (name) => state.data[name] || [];
+const rows = (name) => name==='billing_cycles'?(state.data[name]||[]).filter(c=>!c.archived_at):state.data[name]||[];
 const byId = (table, id) => rows(table).find((x) => x.id === id);
 const accountName = (id) => byId("accounts", id)?.name || "Sem conta";
 const categoryName = (id) => byId("categories", id)?.name || "Sem categoria";

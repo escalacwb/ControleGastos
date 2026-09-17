@@ -128,7 +128,7 @@ export function DataProvider({ user, children }) {
     <DataContext.Provider
       value={{
         data,
-        rows: (t) => data[t] || [],
+          rows: (t) => t==='billing_cycles'?(data[t]||[]).filter(c=>!c.archived_at):data[t]||[],
         user,
         workspace,
         loading,

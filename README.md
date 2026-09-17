@@ -89,3 +89,6 @@ Clique ou toque nas barras do DNA para abrir os gastos que compõem o mês e a �
 # CSV C6 — 2.1.4
 
 A importação reconhece `Data de Compra`, `Nome no Cartão`, `Categoria`, `Descrição`, `Parcela` e `Valor (em R$)`. Usa o valor em reais, ignorando as colunas em dólares e de cotação. A linha `Inclusao de Pagamento` é excluída; estornos continuam incluídos e parcelas representam apenas o valor cobrado na fatura. Disponível no site e no Android.
+# Faturas arquivadas — 2.1.5
+
+Faturas marcadas com `archived_at` ficam fora das pendências e da lista de faturas ativas, no site e no Android. O registro original é preservado no banco, incluindo total, valor pago e status. O arquivamento administrativo não registra pagamento nem altera saldos. Migração: `migrations/20260917_archive_billing_cycles.sql`.
