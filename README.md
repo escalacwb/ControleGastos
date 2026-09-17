@@ -92,3 +92,6 @@ A importação reconhece `Data de Compra`, `Nome no Cartão`, `Categoria`, `Desc
 # Faturas arquivadas — 2.1.5
 
 Faturas marcadas com `archived_at` ficam fora das pendências e da lista de faturas ativas, no site e no Android. O registro original é preservado no banco, incluindo total, valor pago e status. O arquivamento administrativo não registra pagamento nem altera saldos. Migração: `migrations/20260917_archive_billing_cycles.sql`.
+# Conta padrão nas faturas — 2.1.6
+
+Toda importação usa inicialmente a conta padrão cadastrada no cartão. Ao registrar um novo pagamento, a conta pode ser alterada antes de salvar. Pagamentos históricos que já têm conta preservam a conta original; lançamentos antigos sem conta usam a conta escolhida apenas no vínculo da fatura, sem criar outro débito ou alterar o saldo.

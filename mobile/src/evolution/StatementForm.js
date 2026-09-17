@@ -63,7 +63,7 @@ export function StatementForm({ form }) {
         if (!active) return;
         const available = found.filter((t) => !t.linked_cycle_id);
         setCandidates(available);
-        const matches = available.filter((t) => t.close_amount && t.account_id);
+        const matches = available.filter((t) => t.close_amount);
         const current =
           cycle ||
           rows("billing_cycles").find(
@@ -188,6 +188,15 @@ export function StatementForm({ form }) {
             label: `${t.date} · ${t.description} · ${money(t.amount)}`,
           })),
       ]),
+      select(
+        "pay_account",
+        "Conta para o vínculo",
+        opts(
+          rows("accounts").filter(
+            (a) => !["credit", "credit_card", "investment"].includes(a.type),
+          ),
+        ),
+      ),
     );
   const read = async () => {
     if (lock.current) return;

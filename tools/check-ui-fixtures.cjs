@@ -48,14 +48,15 @@ assert.equal(await page.locator('[name=total]').inputValue(),'100,00');
 await page.locator('#edit-form button[type="submit"]').click();await page.locator('#dialog').waitFor({state:'hidden'});
 assert.equal(calls.at(-1).body.p_data.total,100);assert.equal(calls.at(-1).body.p_data.items.length,1);assert.equal(calls.at(-1).body.p_data.pay_amount,0);
 
-historyFixtures=[{id:randomUUID(),date:'2026-05-22',description:'PG. NUBANK WAGNER',amount:100.02,account_id:a1,account_name:'Conta original',linked_cycle_id:null,close_amount:true,difference:0.02}];
+historyFixtures=[{id:randomUUID(),date:'2026-05-22',description:'PG. NUBANK WAGNER',amount:100.02,account_id:null,account_name:null,linked_cycle_id:null,close_amount:true,difference:0.02}];
 await page.locator('[data-action="new-statement"]').first().click();
 await page.locator('#statement-file').setInputFiles({name:'Nubank_2026-05-22.csv',mimeType:'text/csv',buffer:Buffer.from('date,title,amount\n2026-05-10,Supermercado,100.00')});
 await page.locator('#statement-history').filter({hasText:'Pagamento encontrado:'}).waitFor();
 assert.equal(await page.locator('#statement-payment-mode').inputValue(),'existing');
 assert.equal(await page.locator('[name=existing_payment_id]').inputValue(),historyFixtures[0].id);
+assert.equal(await page.locator('[name=pay_account]').inputValue(),a1);
 await page.locator('#edit-form button[type="submit"]').click();await page.locator('#dialog').waitFor({state:'hidden'});
-assert.equal(calls.at(-1).body.p_data.pay_amount,0);assert.equal(calls.at(-1).body.p_data.existing_payment_id,historyFixtures[0].id);
+assert.equal(calls.at(-1).body.p_data.pay_amount,0);assert.equal(calls.at(-1).body.p_data.existing_payment_id,historyFixtures[0].id);assert.equal(calls.at(-1).body.p_data.pay_account,a1);
 historyFixtures=[];
 await page.locator('.nav-link[href="#reports"]').click();await page.locator('#report-preset').selectOption('month');assert.equal(await page.locator('#report-start').inputValue(),month+'-01');await page.locator('#report-preset').selectOption('all');assert.equal(await page.locator('#report-start').inputValue(),'');
 await page.locator('.nav-link[href="#import"]').click();await page.locator('#csv-file').setInputFiles({name:'fixture.csv',mimeType:'text/csv',buffer:Buffer.from(`Data;Descrição;Valor\n${month}-02;CSV almoço;12,30\n${month}-02;CSV almoço;12,30\n31/02/2026;Data inválida;9\n${month}-03;CSV transporte;50,00`)});await page.locator('#import-target').selectOption('account:'+a1);await page.locator('[data-action="preview-import"]').click();assert.match(await page.locator('#import-results .info-banner').textContent(),/2 prontos.*1 duplicados.*1 inválidos/);await page.locator('[data-action="confirm-import"]').click();await page.waitForTimeout(250);assert.equal(calls.at(-1).name,'import_financial_transactions');assert.equal(calls.at(-1).body.p_rows.length,2);assert.equal(calls.at(-1).body.p_rows[0].amount,12.3);
