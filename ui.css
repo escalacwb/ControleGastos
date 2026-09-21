@@ -2041,3 +2041,8 @@ dialog::backdrop {
 @media(max-width:760px){.breadcrumb>#workspace-breadcrumb{display:inline}}
 .statement-preview { max-height: 360px; overflow: auto; margin-bottom: 14px; }
 .statement-preview select { min-width: 160px; max-width: 230px; }
+/* Daily valuations: every bar opens the recorded closing balance. */
+.investment-bars { display:flex;align-items:flex-end;gap:5px;overflow-x:auto;min-height:105px;margin:12px 0; }
+.investment-bar { display:flex;flex-direction:column;justify-content:flex-end;gap:5px;align-items:center;flex:1;min-width:30px;border:0;background:transparent;cursor:pointer;color:inherit; }
+.investment-bar span { display:block;width:100%;max-width:35px;background:#205b4e;border-radius:5px 5px 0 0; }
+.investment-bar:focus-visible { outline:2px solid #205b4e;outline-offset:2px; }

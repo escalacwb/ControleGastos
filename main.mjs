@@ -1,5 +1,15 @@
-import { allocatedCashRows, dnaBreakdown } from './statements.mjs';
-import { openStatementEditor } from './statement-ui.mjs';
+import { allocatedCashRows, dnaBreakdown } from "./statements.mjs";
+import { openStatementEditor } from "./statement-ui.mjs";
+import {
+  investmentPeriods,
+  portfolioPerformance,
+  portfolioHistory,
+  periodStart,
+  refreshInvestmentQuotes,
+  quoteRefreshDue,
+} from "./investments.mjs";
+let investmentPeriod = "all";
+let investmentQuoteStatus = "";
 import {
   money,
   cents,
@@ -98,7 +108,10 @@ const client = window.supabase.createClient(
   config.SUPABASE_URL,
   config.SUPABASE_KEY,
 );
-const rows = (name) => name==='billing_cycles'?(state.data[name]||[]).filter(c=>!c.archived_at):state.data[name]||[];
+const rows = (name) =>
+  name === "billing_cycles"
+    ? (state.data[name] || []).filter((c) => !c.archived_at)
+    : state.data[name] || [];
 const byId = (table, id) => rows(table).find((x) => x.id === id);
 const accountName = (id) => byId("accounts", id)?.name || "Sem conta";
 const categoryName = (id) => byId("categories", id)?.name || "Sem categoria";
@@ -209,6 +222,7 @@ async function loadData({ silent = false } = {}) {
         "installments",
         "investments",
         "investment_transactions",
+        "investment_valuations",
         "pending_transactions",
       ];
       const values = await Promise.all(
@@ -282,7 +296,15 @@ function trendMarkup() {
   const series = months.map((month) => {
     const r = monthRange(month);
     return totals(
-      inPeriod(allocatedCashRows(rows("transactions"), rows("card_payments"), rows("billing_cycles")), r.start, r.end),
+      inPeriod(
+        allocatedCashRows(
+          rows("transactions"),
+          rows("card_payments"),
+          rows("billing_cycles"),
+        ),
+        r.start,
+        r.end,
+      ),
     );
   });
   const max = Math.max(1, ...series.flatMap((x) => [x.income, x.expense]));
@@ -327,7 +349,11 @@ function transactionTable(items, { compact = false } = {}) {
 }
 function renderOverview() {
   const range = monthRange(state.month),
-    cash = allocatedCashRows(rows("transactions"), rows("card_payments"), rows("billing_cycles")),
+    cash = allocatedCashRows(
+      rows("transactions"),
+      rows("card_payments"),
+      rows("billing_cycles"),
+    ),
     monthly = inPeriod(cash, range.start, range.end),
     sum = totals(monthly);
   const balance =
@@ -455,7 +481,11 @@ function renderCards() {
 function reportRows() {
   return state.reportBasis === "card"
     ? cardSchedule(rows("transactions"), rows("installments"))
-    : allocatedCashRows(rows("transactions"), rows("card_payments"), rows("billing_cycles"));
+    : allocatedCashRows(
+        rows("transactions"),
+        rows("card_payments"),
+        rows("billing_cycles"),
+      );
 }
 function renderReports() {
   const list = inPeriod(reportRows(), state.reportStart, state.reportEnd),
@@ -476,7 +506,11 @@ function renderDNA() {
   const source =
     state.dnaBasis === "card"
       ? cardSchedule(rows("transactions"), rows("installments"))
-      : allocatedCashRows(rows("transactions"), rows("card_payments"), rows("billing_cycles"));
+      : allocatedCashRows(
+          rows("transactions"),
+          rows("card_payments"),
+          rows("billing_cycles"),
+        );
   const dna = spendingDNA(
     source,
     rows("categories"),
@@ -496,7 +530,7 @@ function renderDNA() {
         .map((g) => {
           const max = Math.max(1, ...g.monthly);
           const difference = g.current - g.average;
-          return `<article class="dna-card"><div class="line"><h3>${esc(g.area)}</h3><span class="pill ${g.recurring ? "positive" : ""}">${g.recurring ? "Habitual" : `${g.frequency}/${dna.months.length} meses`}</span></div><div class="dna-amount">${money(g.average)} <small class="muted">/ mês</small></div><p>${now ? "Até agora" : "No mês"}: <strong>${money(g.current)}</strong> · ${difference > 0 ? `${money(difference)} acima da média` : `${money(-difference)} abaixo da média`}</p><div class="dna-months" role="group" aria-label="Detalhar gastos por mês de ${esc(g.area)}">${g.monthly.map((v,i)=>`<button type="button" class="dna-bar" data-action="dna-details" data-area="${esc(g.area)}" data-month="${dna.months[i]}" aria-label="Ver gastos de ${esc(g.area)}, ${monthLabel(dna.months[i])}: ${money(v)}" title="Clique para detalhar: ${money(v)}"><span class="dna-fill" style="height:${Math.max(4,Math.abs(v)/Math.max(1,...g.monthly.map(Math.abs))*100)}%"></span><small>${dna.months[i].slice(5)}/${dna.months[i].slice(2,4)}</small></button>`).join("")}</div><p class="subtle-note">Clique em uma barra para ver os gastos.</p><details><summary>O que entra nesta área?</summary><ul>${g.categories.map((c) => `<li>${esc(c)}</li>`).join("")}</ul><p>Presente em ${g.frequency} dos ${dna.months.length} meses analisados.</p></details></article>`;
+          return `<article class="dna-card"><div class="line"><h3>${esc(g.area)}</h3><span class="pill ${g.recurring ? "positive" : ""}">${g.recurring ? "Habitual" : `${g.frequency}/${dna.months.length} meses`}</span></div><div class="dna-amount">${money(g.average)} <small class="muted">/ mês</small></div><p>${now ? "Até agora" : "No mês"}: <strong>${money(g.current)}</strong> · ${difference > 0 ? `${money(difference)} acima da média` : `${money(-difference)} abaixo da média`}</p><div class="dna-months" role="group" aria-label="Detalhar gastos por mês de ${esc(g.area)}">${g.monthly.map((v, i) => `<button type="button" class="dna-bar" data-action="dna-details" data-area="${esc(g.area)}" data-month="${dna.months[i]}" aria-label="Ver gastos de ${esc(g.area)}, ${monthLabel(dna.months[i])}: ${money(v)}" title="Clique para detalhar: ${money(v)}"><span class="dna-fill" style="height:${Math.max(4, (Math.abs(v) / Math.max(1, ...g.monthly.map(Math.abs))) * 100)}%"></span><small>${dna.months[i].slice(5)}/${dna.months[i].slice(2, 4)}</small></button>`).join("")}</div><p class="subtle-note">Clique em uma barra para ver os gastos.</p><details><summary>O que entra nesta área?</summary><ul>${g.categories.map((c) => `<li>${esc(c)}</li>`).join("")}</ul><p>Presente em ${g.frequency} dos ${dna.months.length} meses analisados.</p></details></article>`;
         })
         .join("") ||
       empty(
@@ -507,11 +541,20 @@ function renderDNA() {
   );
 }
 
-
-function openDNADetails(area,month){
-  const detail=dnaBreakdown(rows('transactions'),rows('installments'),rows('categories'),rows('card_payments'),rows('billing_cycles'),{basis:state.dnaBasis,area,month});
-  openDialog(area+' · '+monthLabel(month),
-    `<div class="info-banner">${state.dnaBasis==='cash'?'Saídas das contas · data do pagamento. Nas faturas, os valores mostram a parte de cada compra incluída no pagamento, com os créditos descontados.':'Compras e parcelas no cartão · data da compra ou parcela. Estornos reduzem o total.'}</div><div class="dna-detail-total"><span>${detail.items.length} registros · total da barra</span><strong>${money(detail.total)}</strong></div><div class="dna-detail-list">${detail.items.map(t=>`<article class="dna-detail-row"><div><strong>${esc(t.description||'Sem descrição')}</strong><small>${formatDate(t.date)} · ${esc(categoryName(t.category_id))}</small><small>${esc(t.credit_card_id?byId('credit_cards',t.credit_card_id)?.bank_name||'Cartão':accountName(t.account_id))}${t.allocated?' · pago pela conta '+esc(accountName(t.account_id)):''}</small>${t.allocated?`<small>Compra${t.purchase_date?' de '+formatDate(t.purchase_date):''}: ${money(t.original_amount)} · valor contabilizado neste pagamento ao lado</small>`:''}</div><strong class="${t.contribution<0?'positive':''}" data-contribution="${t.contribution}">${money(t.contribution)}</strong></article>`).join('')||empty('Nenhum gasto neste mês','Esta barra representa um mês sem gastos nesta área.')}</div><div class="form-actions"><button type="button" class="button" data-action="close-dialog">Fechar</button></div>`,{wide:true});
+function openDNADetails(area, month) {
+  const detail = dnaBreakdown(
+    rows("transactions"),
+    rows("installments"),
+    rows("categories"),
+    rows("card_payments"),
+    rows("billing_cycles"),
+    { basis: state.dnaBasis, area, month },
+  );
+  openDialog(
+    area + " · " + monthLabel(month),
+    `<div class="info-banner">${state.dnaBasis === "cash" ? "Saídas das contas · data do pagamento. Nas faturas, os valores mostram a parte de cada compra incluída no pagamento, com os créditos descontados." : "Compras e parcelas no cartão · data da compra ou parcela. Estornos reduzem o total."}</div><div class="dna-detail-total"><span>${detail.items.length} registros · total da barra</span><strong>${money(detail.total)}</strong></div><div class="dna-detail-list">${detail.items.map((t) => `<article class="dna-detail-row"><div><strong>${esc(t.description || "Sem descrição")}</strong><small>${formatDate(t.date)} · ${esc(categoryName(t.category_id))}</small><small>${esc(t.credit_card_id ? byId("credit_cards", t.credit_card_id)?.bank_name || "Cartão" : accountName(t.account_id))}${t.allocated ? " · pago pela conta " + esc(accountName(t.account_id)) : ""}</small>${t.allocated ? `<small>Compra${t.purchase_date ? " de " + formatDate(t.purchase_date) : ""}: ${money(t.original_amount)} · valor contabilizado neste pagamento ao lado</small>` : ""}</div><strong class="${t.contribution < 0 ? "positive" : ""}" data-contribution="${t.contribution}">${money(t.contribution)}</strong></article>`).join("") || empty("Nenhum gasto neste mês", "Esta barra representa um mês sem gastos nesta área.")}</div><div class="form-actions"><button type="button" class="button" data-action="close-dialog">Fechar</button></div>`,
+    { wide: true },
+  );
 }
 
 function renderAccounts() {
@@ -551,30 +594,108 @@ function renderCategories() {
   );
 }
 function renderInvestments() {
-  const initial =
-      rows("investments").reduce((n, i) => n + cents(i.initial_amount), 0) /
-      100,
-    value =
-      rows("investments").reduce((n, i) => n + cents(i.current_value), 0) / 100;
+  return renderInvestmentPortfolio();
+}
+function renderInvestmentPortfolio() {
+  if (
+    rows("investments").some((i) => i.ticker) &&
+    quoteRefreshDue(state.workspace.owner_id, today())
+  ) {
+    investmentQuoteStatus = "Consultando cotações…";
+    refreshInvestmentQuotes(client)
+      .then(async (r) => {
+        investmentQuoteStatus = `${r.updated || 0} cotações atualizadas.${r.failures?.length ? " Há papéis indisponíveis." : ""}`;
+        await loadData();
+      })
+      .catch((e) => {
+        investmentQuoteStatus = e.message;
+        if (state.view === "investments") render();
+      });
+  }
+  const p = portfolioPerformance(
+    rows("investments"),
+    rows("investment_valuations"),
+    rows("investment_transactions"),
+    investmentPeriod,
+    today(),
+  );
+  const series = portfolioHistory(
+      rows("investments"),
+      rows("investment_valuations"),
+      investmentPeriod,
+      today(),
+    )
+      .filter((p) => p.value !== null)
+      .slice(-12),
+    maxPortfolio = Math.max(1, ...series.map((p) => p.value));
+  const percentage = (n) =>
+    n === null
+      ? "Histórico insuficiente"
+      : n.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) + "%";
   return (
     heading(
-      "Seus planos tomando forma",
-      "Acompanhe reservas e investimentos em um só lugar.",
+      "Investimentos",
+      "Saldos, movimentações e evolução da carteira.",
       button("＋ Novo investimento", "new-investment", "", "primary"),
-      "OLHANDO PARA FRENTE",
     ) +
-    `<div class="report-summary">${kpi("Valor de referência", initial, "Valores iniciais cadastrados", "leaf")}${kpi("Valor atual", value, "Atualização manual dos valores", "wallet", true)}${kpi("Variação sobre referência", value - initial, "Pode incluir aportes e resgates; não é rentabilidade", "chart")}</div><div class="entity-grid">${
-      rows("investments")
-        .map(
-          (i) =>
-            `<article class="entity-card"><div class="entity-top"><span class="avatar">${icon("leaf")}</span><span class="pill">${esc(i.type)}</span></div><h3>${esc(i.name)}</h3><p>${esc(i.institution || "Instituição não informada")}</p><div class="entity-amount">${money(i.current_value)}</div><p>Desde ${formatDate(i.purchase_date)}${i.maturity_date ? ` · vence ${formatDate(i.maturity_date)}` : ""}</p><div class="entity-actions">${button("Atualizar", "edit-investment", i.id, "small")}${button("Movimentações", "investment-history", i.id, "small")}${button(icon("trash"), "delete-investment", i.id, "small")}</div></article>`,
-        )
-        .join("") ||
-      empty(
-        "Seu próximo objetivo começa aqui",
-        "Cadastre uma reserva ou investimento.",
-      )
+    `<div class="entity-actions">${investmentPeriods.map(([key, label]) => button(label, "investment-period", key, investmentPeriod === key ? "primary small" : "small")).join("")}${button("Atualizar cotações", "investment-quotes", "", "small")}</div>` +
+    `<div class="report-summary">${kpi("Valor atual", p.value, "Últimos saldos disponíveis", "wallet", true)}${p.gain === null ? '<article class="entity-card"><h3>Ganho no período</h3><p>Histórico insuficiente para calcular a carteira completa.</p></article>' : kpi("Ganho no período", p.gain, "Desconta aportes e resgates; inclui proventos", "chart")}<article class="entity-card"><h3>Rentabilidade estimada</h3><strong>${percentage(p.percent)}</strong><p>Capital ponderado pelas datas dos aportes e resgates.</p></article></div>` +
+    `<article class="entity-card"><h3>Evolução do patrimônio</h3><div class="investment-bars">${series.map((p) => `<button class="investment-bar" data-action="portfolio-point" data-id="${p.date}" title="${esc(formatDate(p.date) + " · " + money(p.value))}"><span style="height:${Math.max(3, (p.value / maxPortfolio) * 100)}px"></span><small>${formatDate(p.date)}</small></button>`).join("") || "<p>Sem avaliações completas neste período.</p>"}</div><p class="form-note">Inclui aportes e resgates. Mantém o último saldo conhecido de cada investimento. Clique para conferir as datas e os valores.</p></article>` +
+    `<p class="form-note">${esc(investmentQuoteStatus)}</p><p class="form-note">Os cálculos usam as datas de avaliação disponíveis. Valores antigos não são reconstruídos automaticamente. Clique nas barras para ver o detalhe.</p><div class="entity-grid">${
+      p.items
+        .map((item) => {
+          const i = byId("investments", item.id),
+            max = Math.max(1, ...item.history.map((v) => Number(v.value)));
+          return `<article class="entity-card"><h3>${esc(i.name)}</h3><p>${esc(i.institution || "")} · ${esc(i.type)}${i.ticker ? " · " + esc(i.ticker) + " · " + esc(i.quantity) + " cotas" : ""}</p><div class="entity-amount">${money(i.current_value)}</div><p>${item.last ? "Avaliado em " + formatDate(item.last.date) : "Sem avaliação registrada"}</p><p>Ganho: ${item.gain === null ? "Histórico insuficiente" : money(item.gain) + " · " + percentage(item.percent)}</p>${item.base ? `<p class="form-note">De ${formatDate(item.base.date)} a ${formatDate(item.last.date)}${item.approximate ? " · datas disponíveis" : ""}</p>` : ""}<div class="investment-bars">${item.history
+            .filter((v) => v.date >= periodStart(investmentPeriod, today()))
+            .slice(-12)
+            .map(
+              (v) =>
+                `<button class="investment-bar" data-action="investment-point" data-id="${esc(v.id)}" title="${esc(formatDate(v.date) + " · " + money(v.value))}"><span style="height:${Math.max(3, (Number(v.value) / max) * 80)}px"></span><small>${esc(v.date.slice(5))}</small></button>`,
+            )
+            .join(
+              "",
+            )}</div><div class="entity-actions">${button("Atualizar saldo", "investment-value", i.id, "primary small")}${button("Histórico", "investment-history", i.id, "small")}${button("Editar cadastro", "edit-investment", i.id, "small")}</div></article>`;
+        })
+        .join("") || empty("Cadastre seu primeiro investimento")
     }</div>`
+  );
+}
+function investmentValuationDialog(id, pointId) {
+  const i = byId("investments", id),
+    v = byId("investment_valuations", pointId);
+  simpleDialog(
+    v ? "Corrigir avaliação" : "Atualizar saldo · " + i.name,
+    inputField("Data da avaliação", "date", v?.date || today(), {
+      type: "date",
+    }) +
+      inputField(
+        "Saldo total nessa data",
+        "value",
+        v?.value ?? i.current_value,
+        { extra: 'inputmode="decimal"' },
+      ),
+    async (form) => {
+      const fd = new FormData(form),
+        value = parseMoney(fd.get("value"));
+      if (!Number.isFinite(value) || value < 0)
+        throw Error("Informe um saldo válido.");
+      await rpc("record_investment_valuation", {
+        p_investment: id,
+        p_date: fd.get("date"),
+        p_value: value,
+        p_expected: i.current_value,
+      });
+    },
+    "Não movimenta contas. Uma avaliação na mesma data corrige o fechamento daquele dia. Datas antigas preservam o saldo mais recente.",
+  );
+}
+function investmentPoint(id) {
+  const v = byId("investment_valuations", id),
+    i = byId("investments", v.investment_id);
+  openDialog(
+    i.name,
+    `<p>${formatDate(v.date)}</p><h2>${money(v.value)}</h2><p>${esc({ manual: "Saldo informado", baseline: "Início do histórico disponível", quote: "Cotação de mercado", balance: "Saldo após edição ou movimentação" }[v.source] || v.source)}</p>${v.price ? `<p>${esc(v.quantity)} cotas × ${money(v.price)}</p>` : ""}${button("Corrigir avaliação", "investment-correct", id, "primary")}`,
   );
 }
 function renderPending() {
@@ -676,8 +797,27 @@ function transactionDialog(
   { duplicate = false, pending = null } = {},
 ) {
   const old = byId("transactions", id);
-  if(old?.billing_cycle_id && !duplicate){
-    simpleDialog("Categoria da compra", '<p class="full form-note">'+esc(old.description)+' · '+money(old.amount)+' · detalhe da fatura, sem nova saída da conta.</p><label class="full">Categoria<select name="category">'+optionList(rows("categories").filter(c=>c.type==='expense'),old.category_id)+'</select></label>', async form=>rpc('categorize_statement_item',{p_id:old.id,p_category:new FormData(form).get('category'),p_expected:old.updated_at}));return;
+  if (old?.billing_cycle_id && !duplicate) {
+    simpleDialog(
+      "Categoria da compra",
+      '<p class="full form-note">' +
+        esc(old.description) +
+        " · " +
+        money(old.amount) +
+        ' · detalhe da fatura, sem nova saída da conta.</p><label class="full">Categoria<select name="category">' +
+        optionList(
+          rows("categories").filter((c) => c.type === "expense"),
+          old.category_id,
+        ) +
+        "</select></label>",
+      async (form) =>
+        rpc("categorize_statement_item", {
+          p_id: old.id,
+          p_category: new FormData(form).get("category"),
+          p_expected: old.updated_at,
+        }),
+    );
+    return;
   }
   if (
     old &&
@@ -965,11 +1105,29 @@ function cardDialog(id) {
     },
   );
 }
-function statementDialog(cardId, cycle = null, pay = false, autoImport = false) {
-  return openStatementEditor({card:byId("credit_cards",cardId),cycle,pay,autoImport,month:state.month,rows,rpc,client,formWrap,showDialog:(title,body,onSubmit)=>openDialog(title,body,{wide:true,onSubmit})});
+function statementDialog(
+  cardId,
+  cycle = null,
+  pay = false,
+  autoImport = false,
+) {
+  return openStatementEditor({
+    card: byId("credit_cards", cardId),
+    cycle,
+    pay,
+    autoImport,
+    month: state.month,
+    rows,
+    rpc,
+    client,
+    formWrap,
+    showDialog: (title, body, onSubmit) =>
+      openDialog(title, body, { wide: true, onSubmit }),
+  });
 }
 function payDialog(id) {
- const cycle=byId("billing_cycles",id);return statementDialog(cycle.credit_card_id,cycle,true);
+  const cycle = byId("billing_cycles", id);
+  return statementDialog(cycle.credit_card_id, cycle, true);
 }
 function investmentDialog(id) {
   const i = byId("investments", id) || {};
@@ -977,6 +1135,21 @@ function investmentDialog(id) {
     id ? "Atualizar investimento" : "Novo investimento",
     inputField("Nome", "name", i.name, { full: true }) +
       inputField("Tipo", "type", i.type || "Renda fixa") +
+      inputField("Papel na B3 (opcional)", "ticker", i.ticker || "", {
+        required: false,
+      }) +
+      inputField(
+        "Quantidade atual (para cotação)",
+        "quantity",
+        i.quantity ?? "",
+        { required: false, extra: 'inputmode="decimal"' },
+      ) +
+      inputField(
+        "Preço médio por papel (opcional)",
+        "average_price",
+        i.average_price ?? "",
+        { required: false, extra: 'inputmode="decimal"' },
+      ) +
       inputField("Instituição", "institution", i.institution, {
         required: false,
       }) +
@@ -1016,6 +1189,7 @@ function investmentDialog(id) {
         "investments",
         {
           name: String(fd.get("name")).trim(),
+          ...investmentMarketFields(fd),
           type: String(fd.get("type")).trim(),
           institution: String(fd.get("institution")).trim() || null,
           initial_amount: initial,
@@ -1030,6 +1204,31 @@ function investmentDialog(id) {
     "Esta atualização registra o valor do investimento; não movimenta automaticamente suas contas.",
   );
 }
+function investmentMarketFields(fd) {
+  const ticker = String(fd.get("ticker") || "")
+    .trim()
+    .toUpperCase();
+  const quantity = String(fd.get("quantity") || "").trim()
+    ? parseMoney(fd.get("quantity"))
+    : null;
+  const average_price = String(fd.get("average_price") || "").trim()
+    ? parseMoney(fd.get("average_price"))
+    : null;
+  if (
+    ticker &&
+    (!/^[A-Z]{4}\d{1,2}$/.test(ticker) ||
+      !Number.isFinite(quantity) ||
+      quantity < 0)
+  )
+    throw Error("Informe um papel válido (ex.: PETR4) e sua quantidade atual.");
+  if (
+    (quantity !== null && (!Number.isFinite(quantity) || quantity < 0)) ||
+    (average_price !== null &&
+      (!Number.isFinite(average_price) || average_price < 0))
+  )
+    throw Error("Quantidade ou preço médio inválido.");
+  return { ticker: ticker || null, quantity, average_price };
+}
 function investmentHistory(id) {
   const i = byId("investments", id);
   const list = rows("investment_transactions")
@@ -1037,7 +1236,18 @@ function investmentHistory(id) {
     .sort((a, b) => b.date.localeCompare(a.date));
   openDialog(
     i.name,
-    `<div class="info-banner">Valor atual: ${money(i.current_value)}</div>${button("＋ Movimentação", "investment-movement", id, "primary small")}<div class="table-wrap" style="margin-top:20px"><table><thead><tr><th>Data</th><th>Tipo</th><th class="amount">Valor</th></tr></thead><tbody>${list.map((t) => `<tr><td>${formatDate(t.date)}</td><td>${esc({ contribution: "Aporte", withdrawal: "Resgate", yield: "Rendimento", dividend: "Dividendo" }[t.type] || t.type)}</td><td class="amount">${money(t.amount)}</td></tr>`).join("")}</tbody></table></div>${list.length ? "" : empty("Nenhuma movimentação registrada")}`,
+    `<div class="info-banner">Valor atual: ${money(i.current_value)}</div>${button("＋ Movimentação", "investment-movement", id, "primary small")}<h3>Avaliações de saldo</h3>${rows(
+      "investment_valuations",
+    )
+      .filter((v) => v.investment_id === id)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map(
+        (v) =>
+          `<p>${formatDate(v.date)} · ${money(v.value)} ${button("Detalhar / corrigir", "investment-point", v.id, "small")}</p>`,
+      )
+      .join(
+        "",
+      )}<h3>Movimentações</h3><div class="table-wrap" style="margin-top:20px"><table><thead><tr><th>Data</th><th>Tipo</th><th class="amount">Valor</th></tr></thead><tbody>${list.map((t) => `<tr><td>${formatDate(t.date)}</td><td>${esc({ contribution: "Aporte", withdrawal: "Resgate", yield: "Rendimento", dividend: "Dividendo" }[t.type] || t.type)}</td><td class="amount">${money(t.amount)}</td></tr>`).join("")}</tbody></table></div>${list.length ? "" : empty("Nenhuma movimentação registrada")}`,
   );
 }
 function investmentMovement(id) {
@@ -1295,7 +1505,7 @@ document.addEventListener("click", async (event) => {
   try {
     switch (action) {
       case "dna-details":
-        openDNADetails(target.dataset.area,target.dataset.month);
+        openDNADetails(target.dataset.area, target.dataset.month);
         break;
       case "toggle-nav": {
         const expanded = $("#navigation").classList.toggle("expanded");
@@ -1340,11 +1550,14 @@ document.addEventListener("click", async (event) => {
         cardDialog(id);
         break;
       case "statement-details": {
- const cycle=byId("billing_cycles",id);statementDialog(cycle.credit_card_id,cycle);break;
- }
- case "import-card-statement":
- statementDialog(id,null,true,true);break;
- case "new-statement":
+        const cycle = byId("billing_cycles", id);
+        statementDialog(cycle.credit_card_id, cycle);
+        break;
+      }
+      case "import-card-statement":
+        statementDialog(id, null, true, true);
+        break;
+      case "new-statement":
         statementDialog(id);
         break;
       case "pay-cycle":
@@ -1353,6 +1566,43 @@ document.addEventListener("click", async (event) => {
       case "new-investment":
         investmentDialog();
         break;
+      case "investment-period":
+        investmentPeriod = id;
+        render();
+        break;
+      case "portfolio-point": {
+        const point = portfolioHistory(
+          rows("investments"),
+          rows("investment_valuations"),
+          investmentPeriod,
+          today(),
+        ).find((p) => p.date === id);
+        openDialog(
+          "Carteira · " + formatDate(id),
+          `<h2>${money(point.value)}</h2>${point.items.map((i) => `<p><strong>${esc(i.name)}</strong> · ${money(i.value)}<br><small>Avaliado em ${formatDate(i.date)}</small></p>`).join("")}`,
+        );
+        break;
+      }
+      case "investment-value":
+        investmentValuationDialog(id);
+        break;
+      case "investment-point":
+        investmentPoint(id);
+        break;
+      case "investment-correct":
+        investmentValuationDialog(
+          byId("investment_valuations", id).investment_id,
+          id,
+        );
+        break;
+      case "investment-quotes": {
+        const result = await refreshInvestmentQuotes(client);
+        await loadData();
+        toast(
+          `${result.updated || 0} cotações atualizadas.${result.failures?.length ? " Alguns papéis não puderam ser atualizados." : ""}`,
+        );
+        break;
+      }
       case "edit-investment":
         investmentDialog(id);
         break;

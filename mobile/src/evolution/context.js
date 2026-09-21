@@ -48,6 +48,7 @@ export function DataProvider({ user, children }) {
           "installments",
           "investments",
           "investment_transactions",
+          "investment_valuations",
           "pending_transactions",
         ];
         const values = await Promise.all(

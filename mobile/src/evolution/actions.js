@@ -408,6 +408,9 @@ export function useActions() {
         name: i.name || "",
         type: i.type || "Renda fixa",
         institution: i.institution || "",
+        ticker: i.ticker || "",
+        quantity: String(i.quantity ?? ""),
+        average_price: String(i.average_price ?? ""),
         initial_amount: String(i.initial_amount || 0),
         current_value: String(i.current_value || 0),
         purchase_date: i.purchase_date || today(),
@@ -416,6 +419,13 @@ export function useActions() {
         field("name", "Nome"),
         field("type", "Tipo"),
         field("institution", "Instituição", "text", { required: false }),
+        field("ticker", "Papel B3 (opcional)", "text", { required: false }),
+        field("quantity", "Quantidade atual de papéis", "money", {
+          required: false,
+        }),
+        field("average_price", "Preço médio por papel", "money", {
+          required: false,
+        }),
         field("initial_amount", "Valor de referência", "money"),
         field("current_value", "Valor atual", "money"),
         field("purchase_date", "Data inicial", "date"),
@@ -424,6 +434,23 @@ export function useActions() {
       onSave: (v) => {
         const initial = numeric(v.initial_amount),
           current = numeric(v.current_value);
+        const ticker = String(v.ticker || "")
+            .trim()
+            .toUpperCase(),
+          quantity = v.quantity ? numeric(v.quantity) : null,
+          average_price = v.average_price ? numeric(v.average_price) : null;
+        if (
+          ticker &&
+          (!/^[A-Z]{4}\d{1,2}$/.test(ticker) ||
+            quantity === null ||
+            quantity < 0)
+        )
+          throw Error("Informe papel e quantidade válidos.");
+        if (
+          (quantity !== null && quantity < 0) ||
+          (average_price !== null && average_price < 0)
+        )
+          throw Error("Quantidade ou preço médio inválido.");
         if (initial < 0 || current < 0)
           throw Error("Os valores não podem ser negativos.");
         return save(
@@ -431,6 +458,9 @@ export function useActions() {
           {
             ...v,
             name: v.name.trim(),
+            ticker: ticker || null,
+            quantity,
+            average_price,
             initial_amount: initial,
             current_value: current,
             updated_at: new Date().toISOString(),
