@@ -97,11 +97,11 @@ export function allocatedCashRows(transactions,payments=[],cycles=[]) {
     if(!cycle||!items.length||cents(cycle.total_spent)<=0)return [t];
     const buckets=new Map();for(const i of items){const key=i.category_id||'';buckets.set(key,(buckets.get(key)||0)+(i.type==='income'?-1:1)*cents(i.amount));}
     const net=[...buckets.values()].reduce((a,b)=>a+b,0),total=cents(cycle.total_spent),paid=cents(t.amount);
-    // If details exceed the statement, keep totals honest until reconciled.
-    if(net>total||[...buckets.values()].some(v=>v<0))return [t];
+    // A net credit in one category can offset purchases in another. Keep it signed.
+    if(net>total)return [t];
     if(net<total)buckets.set('',(buckets.get('')||0)+total-net);
-    let remaining=paid;const groups=[...buckets].filter(([,v])=>v>0);
-    return groups.map(([category_id,value],i)=>{const amount=i===groups.length-1?remaining:Math.min(remaining,Math.round(paid*value/total));remaining-=amount;return {...t,id:t.id+':'+i,category_id:category_id||null,amount:amount/100,description:t.description+' · distribuição da fatura'};});
+    let remaining=paid;const groups=[...buckets].filter(([,v])=>v!==0);
+    return groups.map(([category_id,value],i)=>{const amount=i===groups.length-1?remaining:Math.round(paid*value/total);remaining-=amount;return {...t,id:t.id+':'+i,category_id:category_id||null,amount:amount/100,description:t.description+' · distribuição da fatura'};});
   });
 }
 
@@ -121,7 +121,7 @@ export function dnaBreakdown(transactions, installments, categories, payments, c
     const parts=all.filter(i=>(i.category_id||'')===(t.category_id||'')).map(i=>({...i,weight:itemWeight(i)}));
     if(!t.category_id&&net<cents(cycle.total_spent))parts.push({id:cycle.id+':residual',description:'Parte da fatura sem detalhamento',weight:cents(cycle.total_spent)-net});
     const weight=parts.reduce((sum,i)=>sum+i.weight,0);
-    if(weight<=0)return [{...t,contribution:signed(t)/100}];
+    if(weight===0)return [{...t,contribution:signed(t)/100}];
     let remaining=cents(t.amount);
     return parts.map((item,index)=>{
       const contribution=index===parts.length-1?remaining:Math.round(cents(t.amount)*item.weight/weight);

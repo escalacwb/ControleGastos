@@ -41,7 +41,8 @@ export function StatementForm({ form }) {
     [busy, setBusy] = useState(false),
     [difference, setDifference] = useState(false),
     [pdf, setPdf] = useState(null),
-    [attachments, setAttachments] = useState([]);
+    [attachments, setAttachments] = useState([]),
+    [showSavedItems, setShowSavedItems] = useState(false);
   const [candidates, setCandidates] = useState([]),
     [historyNote, setHistoryNote] = useState(
       "O histórico será conferido antes de registrar qualquer pagamento.",
@@ -126,21 +127,24 @@ export function StatementForm({ form }) {
     request = useRef(Crypto.randomUUID()),
     pdfTask = useRef(null);
   React.useEffect(() => {
-    if (cycle)
+    setAttachments([]);
+    if (sameCycle)
       supabase
         .from("statement_documents")
         .select("id,name")
-        .eq("billing_cycle_id", cycle.id)
+        .eq("billing_cycle_id", sameCycle.id)
         .then(({ data, error }) => {
           if (error) setError("Não foi possível carregar os anexos.");
           else setAttachments(data || []);
         });
-  }, []);
+  }, [sameCycle?.id]);
   const categories = rows("categories").filter(
     (c) =>
       c.type === "expense" &&
       !/reembols|pagamento.*fatura/.test(normalize(c.name)),
   );
+  const savedItems = sameCycle ? rows("transactions").filter((t) => t.billing_cycle_id === sameCycle.id) : [];
+  const savedTotal = savedItems.reduce((sum, t) => sum + (t.type === "income" ? -1 : 1) * cents(t.amount), 0) / 100;
   const set = (name, value) => {
     if (name === "total") automaticTotal.current = false;
     setValues((v) => ({ ...v, [name]: value }));
@@ -441,6 +445,12 @@ export function StatementForm({ form }) {
             conta. Você pode anexar a fatura agora ou depois.
           </Text>
           <Text style={S.muted}>{historyNote}</Text>
+          {!!savedItems.length && <View style={S.card}>
+            <Text style={S.text}>{savedItems.length} compras/créditos já anexados · {money(savedTotal)}</Text>
+            <Text style={S.muted}>Estes itens já detalham a fatura. Não é preciso importar o mesmo arquivo outra vez.</Text>
+            <Button secondary onPress={() => setShowSavedItems((value) => !value)}>{showSavedItems ? "Ocultar itens" : "Ver itens anexados"}</Button>
+            {showSavedItems && savedItems.map((t) => <Text key={t.id} style={S.muted}>{t.description} · {t.type === "income" ? "− " : ""}{money(t.amount)} · {rows("categories").find((c) => c.id === t.category_id)?.name || "Sem categoria"}</Text>)}
+          </View>}
           {!!totalChanged&&<View><Text style={S.text}>Já existe uma fatura nesta referência com total de {money(sameCycle.total_spent)}. {Number(sameCycle.total_paid)>0?'Há pagamento registrado; confira os detalhes.':`Confirmo corrigir o total para ${money(parseMoney(values.total))}, mantendo a mesma fatura e seus detalhes.`}</Text>{!Number(sameCycle.total_paid)&&<Switch value={confirmTotal} onValueChange={setConfirmTotal}/>}</View>}
           {fields.map((f) => (
             <FormField

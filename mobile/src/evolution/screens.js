@@ -663,7 +663,7 @@ export function More() {
                 : "Espaço pessoal"}
             </Text>
             <Text style={S.text}>{user.email}</Text>
-            <Text style={S.muted}>Em Casa · versão 2.2.4</Text>
+            <Text style={S.muted}>Em Casa · versão 2.2.5</Text>
             <Button
               secondary
               onPress={() =>

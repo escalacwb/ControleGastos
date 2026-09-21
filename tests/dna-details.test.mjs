@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {dnaBreakdown,allocatedCashRows} from '../statements.mjs';
-import {spendingDNA,cardSchedule,cents,categoryTotals,inPeriod} from '../finance.mjs';
+import {spendingDNA,cardSchedule,cents,categoryTotals,inPeriod,totals} from '../finance.mjs';
 const categories=[{id:'food',name:'Mercado',spending_area:'Alimentação',type:'expense'},{id:'health',name:'Farmácia',spending_area:'Saúde',type:'expense'}];
 const transactions=[
  {id:'cash',type:'expense',date:'2026-05-12',amount:17.35,category_id:'food',description:'Feira'},
@@ -52,4 +52,22 @@ test('card drilldown follows installment month and excludes cash payment',()=>{
  const installments=[{id:'part',transaction_id:'i1',installment_date:'2026-07-10',installment_amount:20,current_installment:3,total_installments:3}];
  const d=dnaBreakdown(transactions,installments,categories,payments,cycles,{basis:'card',area:'Alimentação',month:'2026-07'});
  assert.equal(d.total,20);assert.equal(d.items.length,1);assert.match(d.items[0].description,/3\/3/);
+});
+test('paid CEF invoices with net negative Extras split into purchases and credits without a second cash expense',()=>{
+ for(const [month,total,travel,extras] of [['2026-06',3858.41,1620.28,-0.06],['2026-08',3989.07,929.34,-0.07]]){
+  const cats=[{id:'travel',name:'VIAGENS'},{id:'extras',name:'EXTRAS'},{id:'other',name:'MERCADO'},{id:'payment',name:'Pagamento de Fatura',spending_area:'Faturas sem detalhamento'}];
+  const cycle={id:'cycle',credit_card_id:'cef',total_spent:total};
+  const payment={id:'cash',type:'expense',date:month+'-26',amount:total,category_id:'payment',account_id:'account',description:'PG. CARTAO CEF'};
+  const tx=[payment,{id:'trip',type:'expense',date:month+'-02',amount:travel,category_id:'travel',credit_card_id:'cef',billing_cycle_id:'cycle',description:'Viagem'},{id:'market',type:'expense',date:month+'-03',amount:Number((total-travel-extras).toFixed(2)),category_id:'other',credit_card_id:'cef',billing_cycle_id:'cycle',description:'Mercado'},{id:'refund',type:'income',date:month+'-04',amount:-extras,category_id:'extras',credit_card_id:'cef',billing_cycle_id:'cycle',description:'Ajuste credito'}];
+  const pay=[{transaction_id:'cash',billing_cycle_id:'cycle'}];
+  const cash=allocatedCashRows(tx,pay,[cycle]);
+  assert.equal(cents(totals(cash).expense),cents(total));
+  assert.equal(cash.reduce((n,t)=>n+cents(t.amount),0),cents(total));
+  assert.equal(categoryTotals(cash,cats).find(g=>g.id==='payment'),undefined);
+  assert.equal(cents(categoryTotals(cash,cats).find(g=>g.id==='extras').value),cents(extras));
+  const detail=dnaBreakdown(tx,[],cats,pay,[cycle],{basis:'cash',area:'EXTRAS',month});
+  assert.equal(detail.items[0].description,'Ajuste credito');
+  assert.equal(cents(detail.items[0].contribution),cents(extras));
+  assert.equal(totals(tx.filter(t=>!t.credit_card_id)).expense,total);
+ }
 });

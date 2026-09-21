@@ -1,5 +1,5 @@
-import { allocatedCashRows, dnaBreakdown } from "./statements.mjs?v=2.2.4";
-import { openStatementEditor } from "./statement-ui.mjs?v=2.2.2";
+import { allocatedCashRows, dnaBreakdown } from "./statements.mjs?v=2.2.5";
+import { openStatementEditor } from "./statement-ui.mjs?v=2.2.5";
 import { investmentUI } from "./investment-ui.mjs";
 import {
   investmentPeriods,
@@ -36,7 +36,7 @@ import {
   spendingDNA,
   spendingArea,
   cardSchedule,
-} from "./finance.mjs?v=2.2.4";
+} from "./finance.mjs?v=2.2.5";
 
 const $ = (selector) => document.querySelector(selector);
 const esc = (value) =>

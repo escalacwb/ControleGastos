@@ -1,5 +1,5 @@
 import { money, cents, parseMoney, today, normalize } from './finance.mjs';
-import { parseStatementCsv, parseStatementPdfLines, pdfPageLines } from './statements.mjs';
+import { parseStatementCsv, parseStatementPdfLines, pdfPageLines } from './statements.mjs?v=2.2.5';
 const esc = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const options = (items,selected='')=>items.map(x=>`<option value="${esc(x.id)}" ${x.id===selected?'selected':''}>${esc(x.name)}</option>`).join('');
 export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,rpc,client,pay=false,autoImport=false}) {
@@ -13,7 +13,7 @@ export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,r
   <label class="upload-zone"><strong>Anexar fatura CSV ou PDF</strong><span>Até 5 MB · confira as compras e categorias antes de salvar</span><input id="statement-file" type="file" accept=".csv,.pdf,text/csv,application/pdf"></label>
   <div id="statement-preview" aria-live="polite"></div>
   <div id="statement-history" class="info-banner" aria-live="polite">O histórico será conferido antes de registrar qualquer pagamento.</div><div class="form-grid"><label class="full">Pagamento<select name="payment_mode" id="statement-payment-mode"><option value="none">Salvar fatura / anexar detalhes, sem novo pagamento</option><option value="new" ${pay&&!autoImport?'selected':''}>Registrar pagamento agora</option><option value="existing">Já lancei o pagamento — vincular sem descontar novamente</option></select></label><div id="statement-payment-fields" class="full"></div></div>
-  <details><summary>Compras e anexos já salvos nesta fatura</summary><div id="statement-saved">${cycle?'Carregando anexos…':'Os arquivos ficam disponíveis após salvar.'}</div>${cycle?`<p>${rows('transactions').filter(t=>t.billing_cycle_id===cycle.id).length} compras detalhadas. As categorias podem ser ajustadas em Lançamentos.</p>`:''}</details>`;
+  <details id="statement-saved-details"><summary id="statement-saved-summary">Compras e anexos já salvos nesta fatura</summary><div id="statement-saved">Os anexos serão conferidos.</div><div id="statement-saved-items"></div></details>`;
   showDialog(cycle?'Fatura · detalhes e pagamento':'Registrar fatura',formWrap(body,'Salvar fatura'),async form=>{
     if(reading)throw Error('Aguarde a leitura do arquivo.');
     if(form.querySelector('#statement-file').files.length&&!document)throw Error('O arquivo selecionado não foi lido. Escolha um CSV ou PDF válido antes de salvar.');
@@ -36,6 +36,7 @@ export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,r
     await rpc('save_statement_bundle',{p_data:{request_id:request,card_id:card.id,cycle_id:resolvedCycle?.id||null,month:fd.get('month')+'-01',due:fd.get('due'),total:amount,expected_total:resolvedCycle?.total_spent??null,confirm_total_revision:!!reviseTotal&&!!fd.get('confirm_total_revision'),confirm_new_payment:mode==='new'&&!!fd.get('confirm_new_payment'),items,document,existing_payment_id:mode==='existing'?fd.get('existing_payment_id'):null,pay_amount:mode==='new'?parseMoney(fd.get('pay_amount')):0,pay_account:fd.get('pay_account'),pay_date:fd.get('pay_date')}});
   },{wide:true});
   const dialog=window.document.querySelector('#dialog');
+  let shownCycleId=null,documentSequence=0;
   const totalNotice=window.document.createElement('div');totalNotice.id='statement-total-revision';dialog.querySelector('#statement-history').after(totalNotice);
   function checkTotal(){const amount=parseMoney(dialog.querySelector('[name=total]').value),month=dialog.querySelector('[name=month]').value,current=cycle||rows('billing_cycles').find(c=>c.credit_card_id===card.id&&c.cycle_start_date.slice(0,7)===month);totalNotice.innerHTML=current&&amount>0&&cents(current.total_spent)!==cents(amount)?`<div class="info-banner">Já existe uma fatura deste cartão nesta referência, com total de <strong>${money(current.total_spent)}</strong>. ${Number(current.total_paid)>0?'Ela tem pagamento registrado; confira seus detalhes.':`Nenhum pagamento foi registrado nela. <label><input type="checkbox" name="confirm_total_revision"> Confirmo corrigir o total para <strong>${money(amount)}</strong>, mantendo a mesma fatura e seus detalhes.</label>`}</div>`:'';}
   const paymentFields=()=>{
@@ -45,6 +46,7 @@ export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,r
   dialog.querySelector('#statement-payment-mode').onchange=paymentFields;paymentFields();
   async function checkHistory(){
     checkTotal();
+    renderSaved();
     const sequence=++historySequence,month=dialog.querySelector('[name=month]').value,total=parseMoney(dialog.querySelector('[name=total]').value);
     if(!month||!(total>0))return;
     const panel=dialog.querySelector('#statement-history');panel.textContent='Conferindo pagamentos anteriores…';
@@ -116,10 +118,24 @@ export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,r
     }catch(e){parsed=null;document=null;preview.textContent=e.message||'Não foi possível ler o arquivo.';}finally{reading=false;}
   };
   if(autoImport)dialog.querySelector('#statement-file').click();
-  if(cycle)(async()=>{
-    const box=dialog.querySelector('#statement-saved');const {data,error}=await client.from('statement_documents').select('id,name,created_at').eq('billing_cycle_id',cycle.id);
-    if(error){box.textContent='Não foi possível consultar os anexos.';return;}
-    box.innerHTML=data.length?data.map(d=>`<button type="button" class="button small" data-document="${d.id}">${esc(d.name)}</button>`).join(' '):'Nenhum anexo salvo.';
-    box.querySelectorAll('[data-document]').forEach(el=>el.onclick=async()=>{el.disabled=true;try{const {data:d,error:e}=await client.from('statement_documents').select('name,mime,content_base64').eq('id',el.dataset.document).single();if(e)throw e;const bytes=Uint8Array.from(atob(d.content_base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:d.mime}));const a=window.document.createElement('a');a.href=url;a.download=d.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);}catch{box.append(' Falha ao baixar anexo.');}finally{el.disabled=false;}});
-  })();
+  function renderSaved(){
+    const selected=dialog.querySelector('[name=month]').value;
+    const current=cycle||rows('billing_cycles').find(c=>c.credit_card_id===card.id&&c.cycle_start_date.slice(0,7)===selected);
+    const items=current?rows('transactions').filter(t=>t.billing_cycle_id===current.id):[];
+    const total=items.reduce((sum,t)=>sum+(t.type==='income'?-1:1)*cents(t.amount),0)/100;
+    dialog.querySelector('#statement-saved-summary').textContent=`Compras e anexos já salvos nesta fatura${items.length?` · ${items.length} itens · ${money(total)}`:''}`;
+    dialog.querySelector('#statement-saved-items').innerHTML=items.length?`<p>Estas compras já estão anexadas. Não é preciso importar a mesma fatura de novo.</p><div class="dna-detail-list">${items.map(t=>`<article class="dna-detail-row"><div><strong>${esc(t.description)}</strong><small>${esc(t.date)} · ${esc(rows('categories').find(c=>c.id===t.category_id)?.name||'Sem categoria')}</small></div><strong class="${t.type==='income'?'positive':''}">${t.type==='income'?'− ':''}${money(t.amount)}</strong></article>`).join('')}</div>`:'';
+    if(items.length)dialog.querySelector('#statement-saved-details').open=true;
+    if(current?.id===shownCycleId)return;
+    shownCycleId=current?.id||null;
+    const sequence=++documentSequence,box=dialog.querySelector('#statement-saved');
+    if(!current){box.textContent='Os arquivos ficam disponíveis após salvar.';return;}
+    box.textContent='Carregando anexos…';
+    client.from('statement_documents').select('id,name,created_at').eq('billing_cycle_id',current.id).then(({data,error})=>{
+      if(sequence!==documentSequence||!dialog.open)return;
+      if(error){box.textContent='Não foi possível consultar os anexos.';return;}
+      box.innerHTML=data.length?data.map(d=>`<button type="button" class="button small" data-document="${d.id}">${esc(d.name)}</button>`).join(' '):'Nenhum anexo salvo.';
+      box.querySelectorAll('[data-document]').forEach(el=>el.onclick=async()=>{el.disabled=true;try{const {data:d,error:e}=await client.from('statement_documents').select('name,mime,content_base64').eq('id',el.dataset.document).single();if(e)throw e;const bytes=Uint8Array.from(atob(d.content_base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:d.mime}));const a=window.document.createElement('a');a.href=url;a.download=d.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);}catch{box.append(' Falha ao baixar anexo.');}finally{el.disabled=false;}});
+    });
+  }
 }
