@@ -1,5 +1,5 @@
 import { allocatedCashRows, dnaBreakdown } from "./statements.mjs";
-import { openStatementEditor } from "./statement-ui.mjs";
+import { openStatementEditor } from "./statement-ui.mjs?v=2.2.2";
 import { investmentUI } from "./investment-ui.mjs";
 import {
   investmentPeriods,

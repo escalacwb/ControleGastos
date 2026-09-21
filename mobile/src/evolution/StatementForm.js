@@ -47,6 +47,10 @@ export function StatementForm({ form }) {
       "O histórico será conferido antes de registrar qualquer pagamento.",
     ),
     [confirmNew, setConfirmNew] = useState(false);
+  const [confirmTotal,setConfirmTotal]=useState(false);
+  const sameCycle=cycle||rows('billing_cycles').find(c=>c.credit_card_id===card.id&&c.cycle_start_date.slice(0,7)===values.month);
+  const totalChanged=sameCycle&&parseMoney(values.total)>0&&cents(sameCycle.total_spent)!==cents(parseMoney(values.total));
+  React.useEffect(()=>setConfirmTotal(false),[values.month,values.total]);
   React.useEffect(() => {
     let active = true;
     const total = parseMoney(values.total);
@@ -353,10 +357,11 @@ export function StatementForm({ form }) {
         );
       if (
         resolvedCycle &&
-        Math.abs(cents(resolvedCycle.total_spent) - cents(total)) > 5
+        cents(resolvedCycle.total_spent) !== cents(total) &&
+        (!confirmTotal || Number(resolvedCycle.total_paid)>0)
       )
         throw Error(
-          "Já existe uma fatura com outro total. Abra Detalhar / anexar nessa fatura.",
+          "Confira e confirme a correção do total da fatura existente. Faturas com pagamento registrado precisam ser conferidas nos detalhes.",
         );
       await rpc("save_statement_bundle", {
         p_data: {
@@ -365,7 +370,9 @@ export function StatementForm({ form }) {
           cycle_id: resolvedCycle?.id || null,
           month: values.month + "-01",
           due: values.due,
-          total: resolvedCycle ? Number(resolvedCycle.total_spent) : total,
+          total,
+          expected_total: resolvedCycle?.total_spent??null,
+          confirm_total_revision: !!totalChanged&&confirmTotal,
           confirm_new_payment: values.mode === "new" && confirmNew,
           items,
           document,
@@ -434,6 +441,7 @@ export function StatementForm({ form }) {
             conta. Você pode anexar a fatura agora ou depois.
           </Text>
           <Text style={S.muted}>{historyNote}</Text>
+          {!!totalChanged&&<View><Text style={S.text}>Já existe uma fatura nesta referência com total de {money(sameCycle.total_spent)}. {Number(sameCycle.total_paid)>0?'Há pagamento registrado; confira os detalhes.':`Confirmo corrigir o total para ${money(parseMoney(values.total))}, mantendo a mesma fatura e seus detalhes.`}</Text>{!Number(sameCycle.total_paid)&&<Switch value={confirmTotal} onValueChange={setConfirmTotal}/>}</View>}
           {fields.map((f) => (
             <FormField
               key={f.name}
