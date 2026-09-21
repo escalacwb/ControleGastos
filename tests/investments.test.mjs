@@ -6,7 +6,7 @@ import {
   portfolioHistory,
   periodStart,
 } from "../investments.mjs";
-const i = { id: "a", name: "Reserva", current_value: 12500 };
+const i = { id: "a", name: "Reserva", current_value: 12500, initial_amount:10000, purchase_date:'2025-12-31' };
 const values = [
   { investment_id: "a", date: "2025-12-31", value: 10000 },
   { investment_id: "a", date: "2026-01-31", value: 12500 },
@@ -61,7 +61,7 @@ test("rendimento incorporado não é descontado como aporte", () => {
   );
 });
 test("histórico insuficiente e mês sem atualização não inventam retorno", () => {
-  assert.equal(performance(i, [values[1]], [], "all", "2026-01-31").gain, null);
+  assert.equal(performance(i, [values[1]], [], "all", "2026-01-31").gain, 2500);
   assert.equal(performance(i, values, [], "month", "2026-02-10").gain, null);
 });
 test("não agrega rentabilidade de períodos diferentes", () => {
@@ -74,7 +74,7 @@ test("não agrega rentabilidade de períodos diferentes", () => {
       { investment_id: "b", date: "2026-01-31", value: 110 },
     ],
     [],
-    "all",
+    "month",
     "2026-01-31",
   );
   assert.equal(p.gain, null);

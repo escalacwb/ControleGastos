@@ -1,60 +1,85 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, Alert, TouchableOpacity } from "react-native";
+import { View, Text, Modal, ScrollView, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Picker } from "@react-native-picker/picker";
+import { WebView } from "react-native-webview";
 import { useData } from "./context";
 import { useActions } from "./actions";
 import { Card, Button, S } from "./ui";
 import { money, today, formatDate, parseMoney } from "../lib/finance";
 import {
   portfolioPerformance,
-  portfolioHistory,
-  periodStart,
+  investmentPerformance,
+  investmentChart,
   investmentPeriods,
-  refreshInvestmentQuotes,
-  quoteRefreshDue,
+  marketTicker,
+  marketLineHTML,
+  marketRange,
 } from "../lib/investments";
-import { supabase } from "../lib/supabase";
-
 export function InvestmentPortfolio() {
-  const { rows, setForm, rpc, refresh, workspace } = useData(),
+  const { rows, setForm, rpc, refresh } = useData(),
     a = useActions();
-  const [period, setPeriod] = useState("all"),
-    [busy, setBusy] = useState(false);
-  const [quoteStatus, setQuoteStatus] = useState("");
-  const hasTickers = rows("investments").some((i) => i.ticker);
+  const [selected, setSelected] = useState(null),
+    [kind, setKind] = useState("comparison"),
+    [period, setPeriod] = useState("all");
+  const [marketHTML, setMarketHTML] = useState("<p>Consultando o mercado…</p>");
   useEffect(() => {
-    if (hasTickers && quoteRefreshDue(workspace.owner_id, today())) {
-      setQuoteStatus("Consultando cotações…");
-      refreshInvestmentQuotes(supabase)
-        .then(async (r) => {
-          setQuoteStatus(
-            `${r.updated || 0} cotações atualizadas. ${r.failures?.length || 0} indisponíveis.`,
-          );
-          await refresh();
+    let active = true;
+    if (selected && kind === "market") {
+      setMarketHTML("<p>Consultando o mercado…</p>");
+      rpc("get_investment_market", {
+        p_investment: selected,
+        p_range: marketRange(period),
+      })
+        .then((q) => {
+          if (active)
+            setMarketHTML(
+              marketLineHTML(
+                q,
+                rows("investments").find((i) => i.id === selected),
+              ),
+            );
         })
-        .catch((e) => setQuoteStatus(e.message));
+        .catch(() => {
+          if (active)
+            setMarketHTML(
+              "<p>Consulta temporariamente indisponível. Tente novamente.</p>",
+            );
+        });
     }
-  }, [hasTickers, workspace?.owner_id]);
+    return () => {
+      active = false;
+    };
+  }, [selected, kind, period]);
+  const updateQuotes = async () => {
+    try {
+      const r = await rpc("refresh_market_investments", {});
+      await refresh();
+      Alert.alert(
+        "Cotações",
+        `${r.updated} posições atualizadas. ${r.failures.map((f) => f.name + ": " + f.reason).join("\n")}`,
+      );
+    } catch (e) {
+      Alert.alert("Cotações", e.message);
+    }
+  };
+  useEffect(() => {
+    if (rows("investments").some((i) => i.quantity && marketTicker(i)))
+      updateQuotes();
+  }, []);
   const p = portfolioPerformance(
     rows("investments"),
     rows("investment_valuations"),
     rows("investment_transactions"),
-    period,
+    "all",
     today(),
   );
-  const series = portfolioHistory(
-      rows("investments"),
-      rows("investment_valuations"),
-      period,
-      today(),
-    )
-      .filter((p) => p.value !== null)
-      .slice(-8),
-    maximum = Math.max(1, ...series.map((p) => p.value));
   const pct = (n) =>
     n === null
-      ? "Histórico insuficiente"
+      ? "—"
       : n.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) + "%";
   function valueForm(i, v) {
+    setSelected(null);
     setForm({
       title: v ? "Corrigir avaliação" : "Atualizar saldo · " + i.name,
       initial: {
@@ -75,7 +100,7 @@ export function InvestmentPortfolio() {
           required: true,
         },
       ],
-      note: "Não movimenta contas. Na mesma data, corrige o fechamento. Uma data antiga preserva o saldo mais recente.",
+      note: "Não movimenta contas. Datas antigas preservam o saldo mais recente.",
       onSave: async (values) => {
         const value = parseMoney(values.value);
         if (!Number.isFinite(value) || value < 0)
@@ -89,186 +114,242 @@ export function InvestmentPortfolio() {
       },
     });
   }
-  async function quotes() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const r = await refreshInvestmentQuotes(supabase);
-      await refresh();
-      Alert.alert(
-        "Cotações",
-        `${r.updated || 0} atualizadas. ${r.failures?.length || 0} indisponíveis.`,
-      );
-    } catch (e) {
-      Alert.alert("Cotações", e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const i = rows("investments").find((i) => i.id === selected),
+    r = i
+      ? investmentPerformance(
+          i,
+          rows("investment_valuations"),
+          rows("investment_transactions"),
+          "all",
+          today(),
+        )
+      : null;
+  const points = i
+      ? investmentChart(
+          i,
+          rows("investment_valuations"),
+          rows("investment_transactions"),
+          kind,
+          period,
+          today(),
+        )
+      : [],
+    max = Math.max(1, ...points.map((p) => Math.abs(p.value)));
   return (
     <>
-      <View style={S.wrap}>
-        {investmentPeriods.map(([key, label]) => (
-          <Button
-            key={key}
-            secondary={key !== period}
-            onPress={() => setPeriod(key)}
-          >
-            {label}
-          </Button>
-        ))}
-      </View>
       <Card title="Sua carteira">
+        <Text style={S.muted}>
+          Valor de compra:{" "}
+          {money(
+            rows("investments").reduce(
+              (n, i) => n + Number(i.initial_amount),
+              0,
+            ),
+          )}
+        </Text>
         <Text style={S.value}>{money(p.value)}</Text>
         <Text style={S.text}>
-          Ganho: {p.gain === null ? "Histórico insuficiente" : money(p.gain)}
-        </Text>
-        <Text style={S.text}>Rentabilidade estimada: {pct(p.percent)}</Text>
-        <Text style={S.muted}>
-          Desconta aportes e resgates e inclui proventos. Usa as datas de
-          avaliação disponíveis; períodos sem histórico completo não são
-          estimados.
+          Ganho desde a compra: {money(p.gain)} · {pct(p.percent)}
         </Text>
       </Card>
       <Button onPress={() => a.investment()}>＋ Novo investimento</Button>
-      <Button secondary onPress={quotes}>
-        {busy ? "Consultando…" : "Atualizar cotações"}
+      <Button secondary onPress={updateQuotes}>
+        Atualizar pela cotação
       </Button>
-      <Text style={S.muted}>{quoteStatus}</Text>
-      <Card title="Evolução do patrimônio">
-        <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 4 }}>
-          {series.map((p) => (
-            <TouchableOpacity
-              key={p.date}
-              accessibilityRole="button"
-              accessibilityLabel={`${formatDate(p.date)}: ${money(p.value)}`}
-              style={{ flex: 1, alignItems: "center" }}
-              onPress={() =>
-                Alert.alert(
-                  "Carteira · " + formatDate(p.date),
-                  `${money(p.value)}\n\n` +
-                    p.items
-                      .map(
-                        (i) =>
-                          `${i.name}: ${money(i.value)}\nAvaliado em ${formatDate(i.date)}`,
-                      )
-                      .join("\n\n"),
-                )
-              }
-            >
-              <View
-                style={{
-                  height: Math.max(3, (p.value / maximum) * 95),
-                  backgroundColor: "#205b4e",
-                  width: "90%",
-                  borderRadius: 4,
-                }}
-              />
-              <Text style={S.muted}>{p.date.slice(5)}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <Text style={S.muted}>
-          Inclui aportes e resgates e mantém o último saldo conhecido. Toque nas
-          barras para conferir os valores e as datas.
-        </Text>
-      </Card>
       {p.items.map((item) => {
-        const i = rows("investments").find((i) => i.id === item.id),
-          max = Math.max(1, ...item.history.map((v) => Number(v.value)));
+        const x = rows("investments").find((i) => i.id === item.id);
         return (
-          <Card key={i.id} title={i.name}>
-            <Text style={S.value}>{money(i.current_value)}</Text>
+          <Card key={x.id} title={x.name}>
             <Text style={S.muted}>
-              {i.institution} · {i.type}
-              {i.ticker ? ` · ${i.ticker} · ${i.quantity} cotas` : ""}
+              {x.institution} · {x.type}
             </Text>
             <Text style={S.text}>
-              Ganho:{" "}
-              {item.gain === null
-                ? "Histórico insuficiente"
-                : money(item.gain) + " · " + pct(item.percent)}
+              Compra em {formatDate(x.purchase_date)}: {money(x.initial_amount)}
             </Text>
-            <Text style={S.muted}>
-              {item.base ? `${formatDate(item.base.date)} a ` : ""}
-              {item.last ? formatDate(item.last.date) : "Sem avaliação"}
-            </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "flex-end",
-                gap: 4,
-                marginVertical: 12,
-              }}
+            <Text style={S.value}>{money(x.current_value)}</Text>
+            <Text
+              style={[S.text, { color: item.gain < 0 ? "#a83737" : "#205b4e" }]}
             >
-              {item.history
-                .filter((v) => v.date >= periodStart(period, today()))
-                .slice(-8)
-                .map((v) => (
-                  <TouchableOpacity
-                    key={v.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${formatDate(v.date)}: ${money(v.value)}. Detalhar avaliação`}
-                    style={{ flex: 1, alignItems: "center" }}
-                    onPress={() =>
-                      Alert.alert(
-                        formatDate(v.date),
-                        `${money(v.value)}\n${v.source === "quote" ? "Cotação de mercado" : "Saldo registrado"}${v.price ? "\n" + v.quantity + " cotas × " + money(v.price) : ""}`,
-                        [
-                          { text: "Fechar" },
-                          { text: "Corrigir", onPress: () => valueForm(i, v) },
-                        ],
-                      )
-                    }
-                  >
-                    <View
-                      style={{
-                        height: Math.max(3, (Number(v.value) / max) * 75),
-                        width: "90%",
-                        backgroundColor: "#205b4e",
-                        borderRadius: 4,
-                      }}
-                    />
-                    <Text style={S.muted}>{v.date.slice(5)}</Text>
-                  </TouchableOpacity>
-                ))}
-            </View>
+              {item.gain < 0 ? "Perda" : "Ganho"}: {money(item.gain)} ·{" "}
+              {pct(item.percent)}
+            </Text>
             <View style={S.wrap}>
-              <Button onPress={() => valueForm(i)}>Atualizar saldo</Button>
-              <Button secondary onPress={() => a.movement(i)}>
+              <Button
+                onPress={() => {
+                  setKind("comparison");
+                  setPeriod("all");
+                  setSelected(x.id);
+                }}
+              >
+                Ver gráficos
+              </Button>
+              <Button secondary onPress={() => valueForm(x)}>
+                Atualizar saldo
+              </Button>
+              <Button secondary onPress={() => a.movement(x)}>
                 Aporte ou resgate
               </Button>
-              <Button secondary onPress={() => a.investment(i)}>
-                Editar cadastro
+              <Button secondary onPress={() => a.investment(x)}>
+                Editar
               </Button>
             </View>
-            <Text style={S.text}>Histórico de avaliações</Text>
-            {[...item.history].reverse().map((v) => (
-              <Button secondary key={v.id} onPress={() => valueForm(i, v)}>
-                {formatDate(v.date)} · {money(v.value)} · corrigir
-              </Button>
-            ))}
-            <Text style={S.text}>Movimentações</Text>
-            {rows("investment_transactions")
-              .filter((t) => t.investment_id === i.id)
-              .sort((a, b) => b.date.localeCompare(a.date))
-              .map((t) => (
-                <Text key={t.id} style={S.muted}>
-                  {formatDate(t.date)} ·{" "}
-                  {
-                    {
-                      contribution: "Aporte",
-                      withdrawal: "Resgate",
-                      yield: "Rendimento",
-                      dividend: "Provento",
-                    }[t.type]
-                  }{" "}
-                  · {money(t.amount)}
-                </Text>
-              ))}
           </Card>
         );
       })}
+      <Modal
+        visible={!!i}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelected(null)}
+      >
+        {i && (
+          <View style={S.modalOverlay}>
+            <SafeAreaView
+              edges={["bottom"]}
+              style={[S.modal, { height: "92%" }]}
+            >
+              <View style={S.modalHeader}>
+                <Text style={[S.text, { flex: 1, fontWeight: "700" }]}>
+                  Gráficos · {i.name}
+                </Text>
+                <Button secondary onPress={() => setSelected(null)}>
+                  Fechar
+                </Button>
+              </View>
+              <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+                <Text style={S.text}>
+                  Compra: {money(i.initial_amount)} · Atual informado:{" "}
+                  {money(i.current_value)}
+                </Text>
+                <Text style={S.text}>
+                  Ganho desde a compra: {money(r.gain)} · {pct(r.percent)}
+                </Text>
+                <Text style={S.muted}>Gráfico</Text>
+                <Picker selectedValue={kind} onValueChange={setKind}>
+                  {[
+                    ["comparison", "Compra × valor atual"],
+                    ["balance", "Evolução do saldo"],
+                    ["gain", "Evolução do ganho"],
+                    ["market", "Cotação do papel na bolsa"],
+                    ["history", "Histórico e movimentações"],
+                  ].map(([v, l]) => (
+                    <Picker.Item key={v} label={l} value={v} />
+                  ))}
+                </Picker>
+                {["balance", "gain", "market"].includes(kind) && (
+                  <Picker selectedValue={period} onValueChange={setPeriod}>
+                    {investmentPeriods.map(([v, l]) => (
+                      <Picker.Item key={v} value={v} label={l} />
+                    ))}
+                  </Picker>
+                )}
+                {kind === "market" ? (
+                  marketTicker(i) ? (
+                    <>
+                      <Text style={S.muted}>
+                        Cotação de mercado do papel. Pode ter atraso. O ganho
+                        acima usa o saldo informado; este gráfico não altera o
+                        saldo automaticamente.
+                      </Text>
+                      <WebView
+                        key={marketTicker(i)}
+                        source={{
+                          html: marketHTML,
+                          baseUrl:
+                            "https://escalacwb.github.io/ControleGastos/",
+                        }}
+                        style={{ height: 440 }}
+                        javaScriptEnabled
+                      />
+                    </>
+                  ) : (
+                    <Text style={S.text}>
+                      Informe o código do papel (ex.: PETR4) no cadastro para
+                      consultar o mercado.
+                    </Text>
+                  )
+                ) : kind === "history" ? (
+                  <>
+                    {rows("investment_valuations")
+                      .filter((v) => v.investment_id === i.id)
+                      .sort((a, b) => b.date.localeCompare(a.date))
+                      .map((v) => (
+                        <Button
+                          secondary
+                          key={v.id}
+                          onPress={() => valueForm(i, v)}
+                        >
+                          {formatDate(v.date)} · {money(v.value)} · corrigir
+                        </Button>
+                      ))}
+                    {rows("investment_transactions")
+                      .filter((t) => t.investment_id === i.id)
+                      .sort((a, b) => b.date.localeCompare(a.date))
+                      .map((t) => (
+                        <Text key={t.id} style={S.text}>
+                          {formatDate(t.date)} ·{" "}
+                          {
+                            {
+                              contribution: "Aporte",
+                              withdrawal: "Resgate",
+                              yield: "Rendimento",
+                              dividend: "Provento",
+                            }[t.type]
+                          }{" "}
+                          · {money(t.amount)}
+                        </Text>
+                      ))}
+                  </>
+                ) : (
+                  <>
+                    <ScrollView horizontal>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "flex-end",
+                          gap: 18,
+                          minHeight: 220,
+                        }}
+                      >
+                        {points.map((v, index) => (
+                          <View
+                            key={index}
+                            style={{ alignItems: "center", width: 115 }}
+                          >
+                            <Text style={S.text}>{money(v.value)}</Text>
+                            <View
+                              style={{
+                                width: 60,
+                                height: Math.max(
+                                  3,
+                                  (Math.abs(v.value) / max) * 150,
+                                ),
+                                backgroundColor:
+                                  v.value < 0 ? "#a83737" : "#205b4e",
+                                borderRadius: 5,
+                              }}
+                            />
+                            <Text style={S.muted}>
+                              {kind === "comparison"
+                                ? v.label
+                                : formatDate(v.date)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </ScrollView>
+                    <Text style={S.muted}>
+                      {points.length
+                        ? "Somente valores conhecidos. Não inventamos cotações entre as datas registradas."
+                        : "Não há saldo registrado neste período."}
+                    </Text>
+                  </>
+                )}
+              </ScrollView>
+            </SafeAreaView>
+          </View>
+        )}
+      </Modal>
     </>
   );
 }

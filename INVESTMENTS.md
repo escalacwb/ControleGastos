@@ -1,15 +1,15 @@
-# Investimentos
+# Investimentos 2.2.1
 
-Avaliações de saldo são fechamentos por dia. A atualização de uma mesma data corrige o fechamento; uma data antiga não substitui o saldo mais recente. As contas bancárias não são movimentadas por avaliações.
+O valor de referencia cadastrado representa o valor da compra. O ganho desde a compra usa valor atual menos compra, desconta aportes posteriores, soma resgates e proventos. O percentual desde a compra usa o capital aplicado (compra mais aportes). O total da carteira pode incluir investimentos comprados em datas diferentes.
 
-Os investimentos anteriores à migração começam com o saldo disponível no dia da migração. Não atribuímos esse valor retroativamente à data de compra. Para completar períodos anteriores, informe saldos de extratos com as datas correspondentes.
+A lista mostra compra, valor atual e ganho. Ver graficos abre um modal com comparacao, evolucao do saldo, evolucao do ganho e cotacao de mercado. Os periodos ficam dentro desse modal.
 
-Ganho = saldo final − saldo inicial − aportes + resgates + proventos recebidos. A rentabilidade percentual é uma estimativa pelo método Modified Dietz (capital ponderado pelas datas dos fluxos). Rendimento incorporado já está no saldo final. Períodos sem avaliações suficientes não exibem rentabilidade. A carteira só agrega resultados com as mesmas datas inicial e final; cada investimento mantém seu resultado individual.
+Avaliacoes sao fechamentos diarios. Corrigir uma data substitui seu fechamento; registrar saldo antigo nao sobrescreve o atual. Nao movimenta contas bancarias.
 
-## Cotações B3
+## Mercado ativo
 
-O cadastro aceita ticker, quantidade atual e preço médio. A função `supabase/functions/investment-quotes/index.ts` consulta a brapi com autenticação do usuário, filtra o espaço financeiro e preserva os saldos em caso de indisponibilidade. O segredo `BRAPI_TOKEN` deve ficar no Supabase, nunca no site ou APK.
+As funcoes SQL get_investment_market e refresh_market_investments consultam a interface publica de graficos do Yahoo Finance pelo Supabase (extensao http), com cache de 15 minutos por papel e periodo. Nao dependem de chave brapi ou deploy de Edge Function. Esta interface publica pode ficar indisponivel; falhas preservam os saldos.
 
-Ativação administrativa: configurar `BRAPI_TOKEN` e publicar a função `investment-quotes` no projeto Supabase. A publicação desta função exige acesso de gerenciamento do projeto, além das credenciais de banco. Sem essa configuração, o botão informa indisponibilidade e continua sendo possível atualizar os saldos manualmente.
+Somente usuarios autenticados consultam investimentos de seu proprio espaco familiar. Codigos sao validados, o host de consulta e fixo e existe timeout. A data da cotacao e exibida; pode haver atraso.
 
-Documentação do provedor: https://brapi.dev/docs/acoes . Quantidades precisam ser atualizadas após compras, vendas ou desdobramentos. O provedor não sincroniza a custódia nem a quantidade de papéis.
+A atualizacao da posicao exige quantidade de papeis. Sem quantidade, o grafico de mercado continua disponivel e o saldo nao e alterado. O sistema nao presume quantidade com base em cotacao historica, nem inventa compras ou vendas. Com quantidade preenchida, atualiza ao abrir investimentos ou no botao Atualizar pela cotacao. Dividendos, desdobramentos e alteracoes de quantidade precisam ser registrados.

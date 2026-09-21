@@ -1,5 +1,6 @@
 import { allocatedCashRows, dnaBreakdown } from "./statements.mjs";
 import { openStatementEditor } from "./statement-ui.mjs";
+import { investmentUI } from "./investment-ui.mjs";
 import {
   investmentPeriods,
   portfolioPerformance,
@@ -594,72 +595,28 @@ function renderCategories() {
   );
 }
 function renderInvestments() {
-  return renderInvestmentPortfolio();
-}
-function renderInvestmentPortfolio() {
   if (
-    rows("investments").some((i) => i.ticker) &&
+    rows("investments").some((i) => i.quantity) &&
     quoteRefreshDue(state.workspace.owner_id, today())
-  ) {
-    investmentQuoteStatus = "Consultando cotações…";
+  )
     refreshInvestmentQuotes(client)
-      .then(async (r) => {
-        investmentQuoteStatus = `${r.updated || 0} cotações atualizadas.${r.failures?.length ? " Há papéis indisponíveis." : ""}`;
-        await loadData();
-      })
-      .catch((e) => {
-        investmentQuoteStatus = e.message;
-        if (state.view === "investments") render();
-      });
-  }
-  const p = portfolioPerformance(
-    rows("investments"),
-    rows("investment_valuations"),
-    rows("investment_transactions"),
-    investmentPeriod,
-    today(),
-  );
-  const series = portfolioHistory(
-      rows("investments"),
-      rows("investment_valuations"),
-      investmentPeriod,
-      today(),
-    )
-      .filter((p) => p.value !== null)
-      .slice(-12),
-    maxPortfolio = Math.max(1, ...series.map((p) => p.value));
-  const percentage = (n) =>
-    n === null
-      ? "Histórico insuficiente"
-      : n.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) + "%";
-  return (
-    heading(
-      "Investimentos",
-      "Saldos, movimentações e evolução da carteira.",
-      button("＋ Novo investimento", "new-investment", "", "primary"),
-    ) +
-    `<div class="entity-actions">${investmentPeriods.map(([key, label]) => button(label, "investment-period", key, investmentPeriod === key ? "primary small" : "small")).join("")}${button("Atualizar cotações", "investment-quotes", "", "small")}</div>` +
-    `<div class="report-summary">${kpi("Valor atual", p.value, "Últimos saldos disponíveis", "wallet", true)}${p.gain === null ? '<article class="entity-card"><h3>Ganho no período</h3><p>Histórico insuficiente para calcular a carteira completa.</p></article>' : kpi("Ganho no período", p.gain, "Desconta aportes e resgates; inclui proventos", "chart")}<article class="entity-card"><h3>Rentabilidade estimada</h3><strong>${percentage(p.percent)}</strong><p>Capital ponderado pelas datas dos aportes e resgates.</p></article></div>` +
-    `<article class="entity-card"><h3>Evolução do patrimônio</h3><div class="investment-bars">${series.map((p) => `<button class="investment-bar" data-action="portfolio-point" data-id="${p.date}" title="${esc(formatDate(p.date) + " · " + money(p.value))}"><span style="height:${Math.max(3, (p.value / maxPortfolio) * 100)}px"></span><small>${formatDate(p.date)}</small></button>`).join("") || "<p>Sem avaliações completas neste período.</p>"}</div><p class="form-note">Inclui aportes e resgates. Mantém o último saldo conhecido de cada investimento. Clique para conferir as datas e os valores.</p></article>` +
-    `<p class="form-note">${esc(investmentQuoteStatus)}</p><p class="form-note">Os cálculos usam as datas de avaliação disponíveis. Valores antigos não são reconstruídos automaticamente. Clique nas barras para ver o detalhe.</p><div class="entity-grid">${
-      p.items
-        .map((item) => {
-          const i = byId("investments", item.id),
-            max = Math.max(1, ...item.history.map((v) => Number(v.value)));
-          return `<article class="entity-card"><h3>${esc(i.name)}</h3><p>${esc(i.institution || "")} · ${esc(i.type)}${i.ticker ? " · " + esc(i.ticker) + " · " + esc(i.quantity) + " cotas" : ""}</p><div class="entity-amount">${money(i.current_value)}</div><p>${item.last ? "Avaliado em " + formatDate(item.last.date) : "Sem avaliação registrada"}</p><p>Ganho: ${item.gain === null ? "Histórico insuficiente" : money(item.gain) + " · " + percentage(item.percent)}</p>${item.base ? `<p class="form-note">De ${formatDate(item.base.date)} a ${formatDate(item.last.date)}${item.approximate ? " · datas disponíveis" : ""}</p>` : ""}<div class="investment-bars">${item.history
-            .filter((v) => v.date >= periodStart(investmentPeriod, today()))
-            .slice(-12)
-            .map(
-              (v) =>
-                `<button class="investment-bar" data-action="investment-point" data-id="${esc(v.id)}" title="${esc(formatDate(v.date) + " · " + money(v.value))}"><span style="height:${Math.max(3, (Number(v.value) / max) * 80)}px"></span><small>${esc(v.date.slice(5))}</small></button>`,
-            )
-            .join(
-              "",
-            )}</div><div class="entity-actions">${button("Atualizar saldo", "investment-value", i.id, "primary small")}${button("Histórico", "investment-history", i.id, "small")}${button("Editar cadastro", "edit-investment", i.id, "small")}</div></article>`;
-        })
-        .join("") || empty("Cadastre seu primeiro investimento")
-    }</div>`
-  );
+      .then(() => loadData())
+      .catch((e) => toast(e.message, true));
+  return investmentScreens().render();
+}
+function investmentScreens() {
+  return investmentUI({
+    rows,
+    esc,
+    button,
+    money,
+    formatDate,
+    today,
+    heading,
+    kpi,
+    openDialog,
+    rpc,
+  });
 }
 function investmentValuationDialog(id, pointId) {
   const i = byId("investments", id),
@@ -1569,6 +1526,9 @@ document.addEventListener("click", async (event) => {
       case "investment-period":
         investmentPeriod = id;
         render();
+        break;
+      case "investment-chart":
+        investmentScreens().open(id);
         break;
       case "portfolio-point": {
         const point = portfolioHistory(
