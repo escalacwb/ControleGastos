@@ -301,7 +301,7 @@ export function useActions() {
       initial: {
         name: c.name || "",
         type: transactionType(c.type) || "expense",
-        spending_area: c.spending_area || (c.name ? spendingArea(c) : ""),
+        spending_area: c.name ? spendingArea(c) : "",
       },
       fields: [
         field("name", "Nome"),

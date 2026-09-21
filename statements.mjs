@@ -1,4 +1,4 @@
-import { normalize, parseCsv, csvDate, parseMoney, cents, cardSchedule, spendingArea, transactionType } from './finance.mjs';
+import { normalize, parseCsv, csvDate, parseMoney, cents, cardSchedule, spendingArea, transactionType } from './finance.mjs?v=2.2.4';
 
 export const isStatementPayment = description => /^(pagamentos validos normais|pagamento recebido|pagamento efetuado|pagamento de fatura|pagamento da fatura|pagamento fatura|inclusao de pagamento|obrigado pelo pagamento|total da fatura anterior)\b/.test(normalize(description).trim());
 const rules = [

@@ -1,4 +1,4 @@
-import { allocatedCashRows, dnaBreakdown } from "./statements.mjs?v=2.2.3";
+import { allocatedCashRows, dnaBreakdown } from "./statements.mjs?v=2.2.4";
 import { openStatementEditor } from "./statement-ui.mjs?v=2.2.2";
 import { investmentUI } from "./investment-ui.mjs";
 import {
@@ -36,7 +36,7 @@ import {
   spendingDNA,
   spendingArea,
   cardSchedule,
-} from "./finance.mjs";
+} from "./finance.mjs?v=2.2.4";
 
 const $ = (selector) => document.querySelector(selector);
 const esc = (value) =>
@@ -983,7 +983,7 @@ function categoryDialog(id) {
       inputField(
         "Área no DNA dos gastos",
         "spending_area",
-        c.spending_area || spendingArea(c.name ? c : null),
+        spendingArea(c.name ? c : null),
         {
           required: false,
           full: true,
@@ -997,7 +997,8 @@ function categoryDialog(id) {
         "Saúde e cuidados",
         "Filhos e educação",
         "Transporte",
-        "Lazer e viagens",
+        "Lazer e cultura",
+        "Viagens",
         "Compras pessoais",
         "Animais",
         "Serviços e assinaturas",

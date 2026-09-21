@@ -237,15 +237,18 @@ export function cardSchedule(rows, installments = []) {
     });
 }
 export function spendingArea(category) {
-  if (category?.spending_area) return category.spending_area;
   const n = normalize(category?.name);
+  if (normalize(category?.spending_area) === 'lazer e viagens')
+    return /viage/.test(n) ? 'Viagens' : 'Lazer e cultura';
+  if (category?.spending_area) return category.spending_area;
   const groups = [
     ["Moradia", /habit|morad|aluguel|condomin|energia|agua|luz|domestic|casa/],
     ["Alimentação", /alimenta|mercado|restaurante|feira|padaria|delivery/],
     ["Saúde e cuidados", /saude|farmac|medic|beleza|academia/],
     ["Filhos e educação", /crianca|infantil|escola|educa|filho/],
     ["Transporte", /veicul|combust|transporte|uber|estacion|carro/],
-    ["Lazer e viagens", /lazer|cultura|viage|cinema/],
+    ["Viagens", /viage/],
+    ["Lazer e cultura", /lazer|cultura|cinema/],
     ["Compras pessoais", /vestuar|roupa|calcad|compra/],
     ["Animais", /anima|pet|veterin/],
     [
