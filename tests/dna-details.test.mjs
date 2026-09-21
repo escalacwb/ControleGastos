@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {dnaBreakdown,allocatedCashRows} from '../statements.mjs';
-import {spendingDNA,cardSchedule,cents} from '../finance.mjs';
+import {spendingDNA,cardSchedule,cents,categoryTotals,inPeriod} from '../finance.mjs';
 const categories=[{id:'food',name:'Mercado',spending_area:'Alimentação',type:'expense'},{id:'health',name:'Farmácia',spending_area:'Saúde',type:'expense'}];
 const transactions=[
  {id:'cash',type:'expense',date:'2026-05-12',amount:17.35,category_id:'food',description:'Feira'},
@@ -15,6 +15,19 @@ const transactions=[
 ];
 const payments=[{transaction_id:'p1',billing_cycle_id:'cycle'},{transaction_id:'p2',billing_cycle_id:'cycle'}];
 const cycles=[{id:'cycle',credit_card_id:'card',total_spent:100}];
+test('category report details reconcile by category and exact date range, including refunds and residuals',()=>{
+ const cats=[...categories,{id:'otherfood',name:'Restaurante',spending_area:'Alimentação'}];
+ const tx=[...transactions,{id:'other',date:'2026-05-19',type:'expense',category_id:'otherfood',amount:9}];
+ for(const basis of ['cash','card'])for(const [start,end] of [['2026-04-01','2026-06-30'],['2026-05-15','2026-05-21']]){
+  const source=basis==='cash'?allocatedCashRows(tx,payments,cycles):cardSchedule(tx,[]);
+  for(const group of categoryTotals(inPeriod(source,start,end),cats)){
+   const d=dnaBreakdown(tx,[],cats,payments,cycles,{basis,categoryId:group.id,start,end});
+   assert.equal(cents(d.total),cents(group.value));
+   assert.equal(d.items.reduce((n,t)=>n+cents(t.contribution),0),cents(group.value));
+   assert.ok(d.items.every(t=>(t.category_id||'')===group.id&&t.date>=start&&t.date<=end));
+  }
+ }
+});
 test('every DNA detail reconciles with its bar in both bases, including empty months',()=>{
  for(const basis of ['cash','card']){
   const source=basis==='cash'?allocatedCashRows(transactions,payments,cycles):cardSchedule(transactions,[]);

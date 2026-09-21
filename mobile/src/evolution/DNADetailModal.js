@@ -9,7 +9,7 @@ export function DNADetailModal({detail,onClose,rows}){
   const name=(table,id,fallback)=>rows(table).find(r=>r.id===id)?.name||fallback;
   return <Modal visible transparent animationType="slide" onRequestClose={onClose}>
     <View style={S.modalOverlay}><SafeAreaView edges={['bottom']} style={[S.modal,{height:'90%'}]}>
-      <View style={S.modalHeader}><Text style={[S.text,{flex:1,fontWeight:'700',fontSize:18}]}>{detail.area} · {monthLabel(detail.month)}</Text><Button secondary onPress={onClose}>Fechar</Button></View>
+      <View style={S.modalHeader}><Text style={[S.text,{flex:1,fontWeight:'700',fontSize:18}]}>{detail.categoryName?`${detail.categoryName} · ${formatDate(detail.start)} a ${formatDate(detail.end)}`:`${detail.area} · ${monthLabel(detail.month)}`}</Text><Button secondary onPress={onClose}>Fechar</Button></View>
       <View style={{padding:18,gap:8}}>
         <Text style={S.muted}>{detail.basis==='cash'?'Saídas das contas · data do pagamento. Faturas mostram a parte de cada compra incluída no pagamento, descontando créditos.':'Compras e parcelas no cartão · data da compra ou parcela. Estornos reduzem o total.'}</Text>
         <Text style={S.text}>{detail.items.length} registros · total da barra</Text><Text style={S.value}>{money(detail.total)}</Text>

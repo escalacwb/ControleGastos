@@ -418,7 +418,7 @@ export function Reports() {
             </>
           )}
           <Card title="Gastos por categoria">
-            <Bars items={categoryTotals(list, rows("categories"))} />
+            <Bars items={categoryTotals(list, rows("categories"))} onPress={g=>setDetail({...dnaBreakdown(rows('transactions'),rows('installments'),rows('categories'),rows('card_payments'),rows('billing_cycles'),{basis,categoryId:g.id,start:r.start,end:r.end}),categoryName:g.name,start:r.start,end:r.end,basis})} />
           </Card>
           <Button secondary onPress={() => a.exportCsv(list)}>
             Exportar este relatório
@@ -663,7 +663,7 @@ export function More() {
                 : "Espaço pessoal"}
             </Text>
             <Text style={S.text}>{user.email}</Text>
-            <Text style={S.muted}>Em Casa · versão 2.2.2</Text>
+            <Text style={S.muted}>Em Casa · versão 2.2.3</Text>
             <Button
               secondary
               onPress={() =>

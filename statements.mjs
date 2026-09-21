@@ -107,9 +107,9 @@ export function allocatedCashRows(transactions,payments=[],cycles=[]) {
 
 // Reuse the chart's source, then explain each category allocation with its purchases.
 // Distribute rounding inside each allocation so the dialog reconciles to the bar.
-export function dnaBreakdown(transactions, installments, categories, payments, cycles, {basis,area,month}) {
+export function dnaBreakdown(transactions, installments, categories, payments, cycles, {basis,area,month,categoryId,start,end}) {
   const source=basis==='card'?cardSchedule(transactions,installments):allocatedCashRows(transactions,payments,cycles);
-  const selected=source.filter(t=>t.date.slice(0,7)===month && spendingArea(categories.find(c=>c.id===t.category_id))===area && (transactionType(t.type)==='expense'||(t.credit_card_id&&transactionType(t.type)==='income')));
+  const selected=source.filter(t=>(month?t.date.slice(0,7)===month:t.date>=start&&t.date<=end) && (categoryId!==undefined?(t.category_id||'')===(categoryId||''):spendingArea(categories.find(c=>c.id===t.category_id))===area) && (transactionType(t.type)==='expense'||(t.credit_card_id&&transactionType(t.type)==='income')));
   const signed=t=>cents(t.amount)*(transactionType(t.type)==='income'&&t.credit_card_id?-1:1);
   const items=selected.flatMap(t=>{
     const payment=basis==='cash'&&payments.find(p=>t.id.startsWith(p.transaction_id+':'));
