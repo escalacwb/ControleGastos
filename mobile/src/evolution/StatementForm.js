@@ -158,7 +158,7 @@ export function StatementForm({ form }) {
   const opts = (list) => list.map((x) => ({ value: x.id, label: x.name }));
   const fields = [
     { name: "month", label: "Referência (AAAA-MM)", disabled: !!cycle },
-    { name: "due", label: "Vencimento", type: "date", disabled: !!cycle },
+    { name: "due", label: "Vencimento", type: "date" },
     {
       name: "total",
       label: "Total da fatura (R$)",

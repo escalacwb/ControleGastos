@@ -1,5 +1,5 @@
 import { money, cents, parseMoney, today, normalize } from './finance.mjs';
-import { parseStatementCsv, parseStatementPdfLines, pdfPageLines } from './statements.mjs?v=2.2.5';
+import { parseStatementCsv, parseStatementPdfLines, pdfPageLines } from './statements.mjs?v=2.2.6';
 const esc = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const options = (items,selected='')=>items.map(x=>`<option value="${esc(x.id)}" ${x.id===selected?'selected':''}>${esc(x.name)}</option>`).join('');
 export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,rpc,client,pay=false,autoImport=false}) {
@@ -9,7 +9,7 @@ export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,r
   const categories=rows('categories').filter(c=>c.type==='expense'&&!/reembols|pagamento.*fatura/.test(normalize(c.name)));
   const total=cycle?.total_spent||'';
   const body=`<div class="info-banner">${esc(card.bank_name)} · As compras detalham a fatura e não descontam dinheiro da conta. Só o pagamento entra no total de saídas.</div>
-  <div class="form-grid"><label>Referência<input name="month" type="month" value="${cycle?.cycle_start_date.slice(0,7)||month}" required ${cycle?'readonly':''}></label><label>Vencimento<input name="due" type="date" value="${cycle?.due_date||month+'-'+String(Math.min(card.due_day||10,28)).padStart(2,'0')}" required ${cycle?'readonly':''}></label><label class="full">Total da fatura (R$)<input name="total" inputmode="decimal" value="${total}" required ${cycle?'readonly':''}></label></div>
+  <div class="form-grid"><label>Referência<input name="month" type="month" value="${cycle?.cycle_start_date.slice(0,7)||month}" required ${cycle?'readonly':''}></label><label>Vencimento<input name="due" type="date" value="${cycle?.due_date||month+'-'+String(Math.min(card.due_day||10,28)).padStart(2,'0')}" required></label><label class="full">Total da fatura (R$)<input name="total" inputmode="decimal" value="${total}" required ${cycle?'readonly':''}></label></div>
   <label class="upload-zone"><strong>Anexar fatura CSV ou PDF</strong><span>Até 5 MB · confira as compras e categorias antes de salvar</span><input id="statement-file" type="file" accept=".csv,.pdf,text/csv,application/pdf"></label>
   <div id="statement-preview" aria-live="polite"></div>
   <div id="statement-history" class="info-banner" aria-live="polite">O histórico será conferido antes de registrar qualquer pagamento.</div><div class="form-grid"><label class="full">Pagamento<select name="payment_mode" id="statement-payment-mode"><option value="none">Salvar fatura / anexar detalhes, sem novo pagamento</option><option value="new" ${pay&&!autoImport?'selected':''}>Registrar pagamento agora</option><option value="existing">Já lancei o pagamento — vincular sem descontar novamente</option></select></label><div id="statement-payment-fields" class="full"></div></div>
