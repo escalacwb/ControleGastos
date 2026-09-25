@@ -317,6 +317,8 @@ function categoryMarkup(list) {
   if (!list.length)
     return empty("Tudo tranquilo por aqui", "Nenhuma despesa neste período.");
   const total = list.reduce((n, c) => n + c.value, 0);
+  if (total <= 0 || list.some((c) => c.value < 0))
+    return `<div class="category-legend">${list.map((c, i) => `<div class="category-legend-item"><span class="dot" style="background:${palette[i % palette.length]}"></span><span title="${esc(c.name)}">${esc(c.name)}</span><strong class="${c.value < 0 ? "positive" : ""}">${money(c.value)}</strong></div>`).join("")}</div><p class="subtle-note">Os valores já consideram os abatimentos lançados em cada categoria. Total líquido: <strong>${money(total)}</strong>.</p>`;
   const shown = list.slice(0, 4);
   if (list.length > 4)
     shown.push({
@@ -341,10 +343,11 @@ function transactionTable(items, { compact = false } = {}) {
   return `<div class="table-wrap"><table class="${compact ? "" : "transaction-table"}"><thead><tr><th>Lançamento</th><th>Categoria</th><th>Data</th><th class="amount">Valor</th>${compact ? "" : '<th><span class="muted">Ações</span></th>'}</tr></thead><tbody>${items
     .map((t) => {
       const type = transactionType(t.type);
+      const isExpenseAdjustment = type === "expense" && Number(t.amount) < 0;
       const parts = rows("installments").filter(
         (p) => p.transaction_id === t.id,
       ).length;
-      return `<tr><td><div class="transaction-name"><span class="transaction-symbol ${type}">${type === "income" ? "↙" : type === "transfer" ? "⇄" : "↗"}</span><div><strong>${esc(t.description || "Sem descrição")}</strong><small>${esc(t.credit_card_id ? byId("credit_cards", t.credit_card_id)?.bank_name || "Cartão" : accountName(t.account_id))}${type === "transfer" ? ` → ${esc(accountName(t.transfer_to_account_id))}` : ""}${parts ? ` · ${parts} parcelas` : ""}${t.credit_card_id ? " · detalhe do cartão · fora do total de saídas" : ""}</small></div></div></td><td><span class="pill">${esc(type === "transfer" ? "Transferência" : categoryName(t.category_id))}</span></td><td>${formatDate(t.date)}</td><td class="amount ${type === "income" ? "positive" : type === "expense" ? "negative" : ""}">${type === "income" ? "+ " : type === "expense" ? "− " : ""}${money(t.amount)}</td>${compact ? "" : `<td><div class="row-actions"><button class="icon-button" data-action="edit-transaction" data-id="${t.id}" title="Editar" aria-label="Editar ${esc(t.description)}">${icon("edit")}</button><button class="icon-button" data-action="duplicate-transaction" data-id="${t.id}" title="Repetir lançamento" aria-label="Repetir ${esc(t.description)}">${icon("copy")}</button><button class="icon-button" data-action="delete-transaction" data-id="${t.id}" title="Excluir" aria-label="Excluir ${esc(t.description)}">${icon("trash")}</button></div></td>`}</tr>`;
+      return `<tr><td><div class="transaction-name"><span class="transaction-symbol ${isExpenseAdjustment ? "income" : type}">${type === "income" || isExpenseAdjustment ? "↙" : type === "transfer" ? "⇄" : "↗"}</span><div><strong>${esc(t.description || "Sem descrição")}</strong><small>${esc(t.credit_card_id ? byId("credit_cards", t.credit_card_id)?.bank_name || "Cartão" : accountName(t.account_id))}${type === "transfer" ? ` → ${esc(accountName(t.transfer_to_account_id))}` : ""}${isExpenseAdjustment ? " · abatimento de despesa" : ""}${parts ? ` · ${parts} parcelas` : ""}${t.credit_card_id ? " · detalhe do cartão · fora do total de saídas" : ""}</small></div></div></td><td><span class="pill">${esc(type === "transfer" ? "Transferência" : categoryName(t.category_id))}</span></td><td>${formatDate(t.date)}</td><td class="amount ${type === "income" || isExpenseAdjustment ? "positive" : type === "expense" ? "negative" : ""}">${type === "income" || isExpenseAdjustment ? "+ " : type === "expense" ? "− " : ""}${money(Math.abs(Number(t.amount) || 0))}</td>${compact ? "" : `<td><div class="row-actions"><button class="icon-button" data-action="edit-transaction" data-id="${t.id}" title="Editar" aria-label="Editar ${esc(t.description)}">${icon("edit")}</button><button class="icon-button" data-action="duplicate-transaction" data-id="${t.id}" title="Repetir lançamento" aria-label="Repetir ${esc(t.description)}">${icon("copy")}</button><button class="icon-button" data-action="delete-transaction" data-id="${t.id}" title="Excluir" aria-label="Excluir ${esc(t.description)}">${icon("trash")}</button></div></td>`}</tr>`;
     })
     .join("")}</tbody></table></div>`;
 }
@@ -500,7 +503,7 @@ function renderReports() {
         button("Imprimir", "print", "", "small"),
       "VISÃO CLARA",
     ) +
-    `<div class="filters"><label>Visão<select id="report-basis"><option value="cash" ${state.reportBasis === "cash" ? "selected" : ""}>Movimentação das contas</option><option value="card" ${state.reportBasis === "card" ? "selected" : ""}>Compras e parcelas no cartão</option></select></label><label>De<input id="report-start" type="date" value="${state.reportStart}"></label><label>Até<input id="report-end" type="date" value="${state.reportEnd}"></label><label>Atalho<select id="report-preset"><option value="">Escolher período</option><option value="month">Este mês</option><option value="last">Mês anterior</option><option value="year">Este ano</option><option value="all">Todo o histórico</option></select></label></div><div class="info-banner">${state.reportBasis === "cash" ? "Esta visão mostra o dinheiro que entrou e saiu das contas. Transferências entre suas contas não são despesas. Faturas entram no pagamento, distribuídas entre as categorias dos itens anexados." : "Esta visão mostra as compras do cartão. Compras parceladas são distribuídas pelas datas das parcelas. Pagamentos de faturas ficam fora para evitar dupla contagem."}</div><div class="report-summary">${kpi("Entradas", sum.income, "No período selecionado", "down")}${kpi("Despesas", sum.expense, `${list.filter((t) => transactionType(t.type) === "expense").length} lançamentos`, "up")}${kpi(state.reportBasis === "card" ? "Total de compras" : "Resultado", state.reportBasis === "card" ? sum.expense : sum.balance, state.reportBasis === "card" ? "Inclui parcelas no período" : "Entradas menos saídas", "chart", true)}</div><div class="bottom-grid"><section class="panel"><div class="panel-heading"><h3>Despesas por categoria</h3><span class="pill">${groups.length} categorias</span></div>${groups.map((g, i) => `<button type="button" class="report-category report-category-button" data-action="report-category-detail" data-id="${esc(g.id)}" aria-label="${esc(g.name)}: ${money(g.value)}. Ver lancamentos"><div class="line"><strong>${esc(g.name)}</strong><span>${money(g.value)} · ${Math.round((g.value / (sum.expense || 1)) * 100)}%</span></div><div class="progress"><span style="width:${(g.value / (groups[0]?.value || 1)) * 100}%;background:${palette[i % palette.length]}"></span></div></button>`).join("") || empty("Sem despesas neste período")}</section><section class="panel"><div class="panel-heading"><h3>Resumo prático</h3></div><div class="account-row"><div class="bill-copy"><strong>Maior concentração</strong><small>${esc(groups[0]?.name || "Sem dados")}</small></div><div class="bill-value">${money(groups[0]?.value)}</div></div><div class="account-row"><div class="bill-copy"><strong>Sem categoria</strong><small>Classifique para melhorar seus relatórios.</small></div><div class="bill-value">${money(groups.find((g) => g.id === "")?.value)}</div></div><div class="account-row"><div class="bill-copy"><strong>Compras no cartão</strong><small>Consulte a visão de cartões para detalhar.</small></div><div class="bill-value">${money(totals(inPeriod(cardSchedule(rows("transactions"), rows("installments")), state.reportStart, state.reportEnd)).expense)}</div></div><p class="subtle-note">Quer entender o custo habitual da casa? O DNA dos gastos compara meses completos por área, sem misturar o mês em andamento à média.</p><a class="button text" href="#dna">Conhecer meu DNA dos gastos →</a></section></div><section class="panel recent-panel"><div class="panel-heading"><h3>Lançamentos do período</h3><span class="muted">${list.length} registros · exporte para ver todos</span></div>${transactionTable(list.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 15), { compact: true })}</section>`
+    `<div class="filters"><label>Visão<select id="report-basis"><option value="cash" ${state.reportBasis === "cash" ? "selected" : ""}>Movimentação das contas</option><option value="card" ${state.reportBasis === "card" ? "selected" : ""}>Compras e parcelas no cartão</option></select></label><label>De<input id="report-start" type="date" value="${state.reportStart}"></label><label>Até<input id="report-end" type="date" value="${state.reportEnd}"></label><label>Atalho<select id="report-preset"><option value="">Escolher período</option><option value="month">Este mês</option><option value="last">Mês anterior</option><option value="year">Este ano</option><option value="all">Todo o histórico</option></select></label></div><div class="info-banner">${state.reportBasis === "cash" ? "Esta visão mostra o dinheiro que entrou e saiu das contas. Transferências entre suas contas não são despesas. Faturas entram no pagamento, distribuídas entre as categorias dos itens anexados." : "Esta visão mostra as compras do cartão. Compras parceladas são distribuídas pelas datas das parcelas. Pagamentos de faturas ficam fora para evitar dupla contagem."}</div><div class="report-summary">${kpi("Entradas", sum.income, "No período selecionado", "down")}${kpi("Despesas", sum.expense, `${list.filter((t) => transactionType(t.type) === "expense").length} lançamentos`, "up")}${kpi(state.reportBasis === "card" ? "Total de compras" : "Resultado", state.reportBasis === "card" ? sum.expense : sum.balance, state.reportBasis === "card" ? "Inclui parcelas no período" : "Entradas menos saídas", "chart", true)}</div><div class="bottom-grid"><section class="panel"><div class="panel-heading"><h3>Despesas por categoria</h3><span class="pill">${groups.length} categorias</span></div>${groups.map((g, i) => `<button type="button" class="report-category report-category-button" data-action="report-category-detail" data-id="${esc(g.id)}" aria-label="${esc(g.name)}: ${money(g.value)}. Ver lancamentos"><div class="line"><strong>${esc(g.name)}</strong><span class="${g.value < 0 ? "positive" : ""}">${money(g.value)} · ${Math.round((g.value / (sum.expense || 1)) * 100)}%</span></div><div class="progress"><span style="width:${Math.max(0, Math.min(100, (g.value / Math.max(1, groups[0]?.value || 1)) * 100))}%;background:${palette[i % palette.length]}"></span></div></button>`).join("") || empty("Sem despesas neste período")}</section><section class="panel"><div class="panel-heading"><h3>Resumo prático</h3></div><div class="account-row"><div class="bill-copy"><strong>Maior concentração</strong><small>${esc(groups[0]?.name || "Sem dados")}</small></div><div class="bill-value">${money(groups[0]?.value)}</div></div><div class="account-row"><div class="bill-copy"><strong>Sem categoria</strong><small>Classifique para melhorar seus relatórios.</small></div><div class="bill-value">${money(groups.find((g) => g.id === "")?.value)}</div></div><div class="account-row"><div class="bill-copy"><strong>Compras no cartão</strong><small>Consulte a visão de cartões para detalhar.</small></div><div class="bill-value">${money(totals(inPeriod(cardSchedule(rows("transactions"), rows("installments")), state.reportStart, state.reportEnd)).expense)}</div></div><p class="subtle-note">Abatimentos aparecem em verde e reduzem o total da categoria. Quer entender o custo habitual da casa? O DNA dos gastos compara meses completos por área, sem misturar o mês em andamento à média.</p><a class="button text" href="#dna">Conhecer meu DNA dos gastos →</a></section></div><section class="panel recent-panel"><div class="panel-heading"><h3>Lançamentos do período</h3><span class="muted">${list.length} registros · exporte para ver todos</span></div>${transactionTable(list.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 15), { compact: true })}</section>`
   );
 }
 function renderDNA() {
@@ -833,7 +836,7 @@ function transactionDialog(
       )
       .join(
         "",
-      )}</div><input type="hidden" name="type" value="${selectedType}"><div class="form-grid">${inputField("Descrição", "description", t.description, { full: true, extra: 'maxlength="250" placeholder="Ex.: mercado da semana"' })}${inputField("Valor (R$)", "amount", t.amount, { extra: 'inputmode="decimal" placeholder="0,00"' })}${inputField("Data", "date", t.date, { type: "date" })}${selectedType === "expense" ? `<label>Forma de lançamento<select name="method" id="field-method"><option value="cash" ${method === "cash" ? "selected" : ""}>Conta / dinheiro</option><option value="card" ${method === "card" ? "selected" : ""}>Compra no cartão</option></select></label>` : ""}<label>${method === "card" && selectedType === "expense" ? "Cartão" : "Conta de origem"}<select name="account" id="field-account" required>${optionList(method === "card" && selectedType === "expense" ? rows("credit_cards").filter((c) => c.is_active) : bankAccounts(), method === "card" ? t.credit_card_id : t.account_id)}</select></label>${
+      )}</div><input type="hidden" name="type" value="${selectedType}"><div class="form-grid">${inputField("Descrição", "description", t.description, { full: true, extra: 'maxlength="250" placeholder="Ex.: mercado da semana"' })}${inputField("Valor (R$)", "amount", t.amount, { extra: `inputmode="decimal" placeholder="${selectedType === "expense" && method === "cash" ? "Ex.: 1000,00 ou -300,00" : "0,00"}"` })}${inputField("Data", "date", t.date, { type: "date" })}${selectedType === "expense" ? `<label>Forma de lançamento<select name="method" id="field-method"><option value="cash" ${method === "cash" ? "selected" : ""}>Conta / dinheiro</option><option value="card" ${method === "card" ? "selected" : ""}>Compra no cartão</option></select></label>` : ""}<label>${method === "card" && selectedType === "expense" ? "Cartão" : "Conta de origem"}<select name="account" id="field-account" required>${optionList(method === "card" && selectedType === "expense" ? rows("credit_cards").filter((c) => c.is_active) : bankAccounts(), method === "card" ? t.credit_card_id : t.account_id)}</select></label>${
       selectedType === "transfer"
         ? `<label>Conta de destino<select name="destination" required>${optionList(bankAccounts(), t.transfer_to_account_id)}</select></label>`
         : `<label class="${selectedType === "income" ? "full" : ""}">Categoria<select name="category" id="field-category">${optionList(
@@ -859,7 +862,9 @@ function transactionDialog(
         pending ? "Confirmar lançamento" : "Salvar lançamento",
         method === "card"
           ? "A compra organiza seus gastos. O dinheiro sai da conta quando você registra o pagamento da fatura."
-          : "",
+          : selectedType === "expense"
+            ? "Para abatimento ou reembolso, use um valor negativo. Ele devolve saldo à conta e reduz o gasto da categoria escolhida."
+            : "",
       ),
       { onSubmit: submit },
     );
@@ -868,10 +873,12 @@ function transactionDialog(
     const fd = new FormData(form),
       type = fd.get("type"),
       amount = parseMoney(fd.get("amount"));
-    if (!Number.isFinite(amount) || amount <= 0)
-      throw Error("Informe um valor positivo, como 125,90.");
-    if (!validDate(fd.get("date"))) throw Error("Informe uma data válida.");
     const isCard = fd.get("method") === "card" && type === "expense";
+    if (!Number.isFinite(amount) || amount === 0)
+      throw Error("Informe um valor diferente de zero, como 125,90 ou -30,00.");
+    if (amount < 0 && (type !== "expense" || isCard))
+      throw Error("Valor negativo é permitido apenas em despesa lançada na conta.");
+    if (!validDate(fd.get("date"))) throw Error("Informe uma data válida.");
     const card = isCard ? byId("credit_cards", fd.get("account")) : null;
     const data = {
       type,
@@ -1347,7 +1354,7 @@ async function readCsv(file) {
   const select = (name, index) =>
     `<select id="import-${name}">${headers.map((h, i) => `<option value="${i}" ${i === index ? "selected" : ""}>${esc(h || "Coluna " + (i + 1))}</option>`).join("")}</select>`;
   $("#import-preview").innerHTML =
-    `<div class="form-grid"><label>Coluna de data${select("date", guessed(["data", "date"]))}</label><label>Coluna de descrição${select("description", guessed(["descri", "description", "historico", "estabelecimento"]))}</label><label>Coluna de valor${select("amount", guessed(["valor", "amount", "total"]))}</label><label>Tipo<select id="import-type"><option value="expense">Todos como despesa</option><option value="income">Todos como receita</option><option value="signed">Negativo = despesa; positivo = receita</option></select></label><label>Destino<select id="import-target"><optgroup label="Contas">${bankAccounts()
+    `<div class="form-grid"><label>Coluna de data${select("date", guessed(["data", "date"]))}</label><label>Coluna de descrição${select("description", guessed(["descri", "description", "historico", "estabelecimento"]))}</label><label>Coluna de valor${select("amount", guessed(["valor", "amount", "total"]))}</label><label>Tipo<select id="import-type"><option value="expense">Todos como despesa</option><option value="income">Todos como receita</option><option value="signed">Negativo = despesa; positivo = receita</option><option value="expense_signed">Manter sinal como despesa/abatimento</option></select></label><label>Destino<select id="import-target"><optgroup label="Contas">${bankAccounts()
       .map((a) => `<option value="account:${a.id}">${esc(a.name)}</option>`)
       .join("")}</optgroup><optgroup label="Compras no cartão">${rows(
       "credit_cards",
@@ -1398,7 +1405,9 @@ function previewImport() {
         ? value < 0
           ? "expense"
           : "income"
-        : requestedType;
+        : requestedType === "expense_signed"
+          ? "expense"
+          : requestedType;
     if (
       !Number.isFinite(value) ||
       value === 0 ||
@@ -1409,11 +1418,16 @@ function previewImport() {
       invalid++;
       continue;
     }
+    const importedAmount = requestedType === "expense_signed" ? value : Math.abs(value);
+    if (importedAmount < 0 && (type !== "expense" || card)) {
+      invalid++;
+      continue;
+    }
     const t = {
       date,
       description,
       type,
-      amount: Math.abs(value),
+      amount: importedAmount,
       account_id: card?.account_id || targetId,
       credit_card_id: card?.id || null,
       category_id: transactionType(cat?.type) === type ? cat.id : null,

@@ -42,7 +42,7 @@ const typeOptions = [
   { value: "transfer", label: "Transferências" },
 ];
 function Bars({ items, onPress }) {
-  const max = Math.max(1, ...items.map((i) => i.value));
+  const max = Math.max(1, ...items.map((i) => Math.abs(i.value)));
   return items.length ? (
     items.map((i) => (
       <TouchableOpacity
@@ -57,11 +57,11 @@ function Bars({ items, onPress }) {
       >
         <View style={S.row}>
           <Text style={[S.text, { flex: 1 }]}>{i.name}</Text>
-          <Text style={[S.text, { fontWeight: "600" }]}>{money(i.value)}</Text>
+          <Text style={[S.text, { fontWeight: "600" }, i.value < 0 ? S.positive : null]}>{money(i.value)}</Text>
         </View>
         <View style={S.barTrack}>
           <View
-            style={[S.bar, { width: Math.max(1, (i.value / max) * 100) + "%" }]}
+            style={[S.bar, i.value < 0 ? { backgroundColor: "#2f7d5c" } : null, { width: Math.max(1, (Math.abs(i.value) / max) * 100) + "%" }]}
           />
         </View>
       </TouchableOpacity>
@@ -73,7 +73,8 @@ function Bars({ items, onPress }) {
 function TransactionRow({ item, actions = true }) {
   const { rows } = useData(),
     a = useActions(),
-    type = transactionType(item.type);
+    type = transactionType(item.type),
+    isExpenseAdjustment = type === "expense" && Number(item.amount) < 0;
   const category = rows("categories").find((c) => c.id === item.category_id),
     account = rows("accounts").find((c) => c.id === item.account_id),
     card = rows("credit_cards").find((c) => c.id === item.credit_card_id);
@@ -93,15 +94,15 @@ function TransactionRow({ item, actions = true }) {
           style={[
             S.text,
             { fontWeight: "700" },
-            type === "income"
+            type === "income" || isExpenseAdjustment
               ? S.positive
               : type === "expense"
                 ? S.negative
                 : null,
           ]}
         >
-          {type === "income" ? "+ " : type === "expense" ? "− " : ""}
-          {money(item.amount)}
+          {type === "income" || isExpenseAdjustment ? "+ " : type === "expense" ? "− " : ""}
+          {money(Math.abs(Number(item.amount) || 0))}
         </Text>
       </View>
       <Text style={S.muted}>
@@ -109,7 +110,8 @@ function TransactionRow({ item, actions = true }) {
           ? "Transferência → " +
             (rows("accounts").find((x) => x.id === item.transfer_to_account_id)
               ?.name || "Conta")
-          : category?.name || "Sem categoria"}
+          : (category?.name || "Sem categoria") +
+            (isExpenseAdjustment ? " · abatimento de despesa" : "")}
         {card ? " · detalhe do cartão · fora das saídas" : ""}
       </Text>
       {actions && (

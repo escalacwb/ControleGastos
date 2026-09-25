@@ -352,6 +352,8 @@ export function FormField({ field, value, onChange }) {
           keyboardType={
             field.type === "money"
               ? "decimal-pad"
+              : field.type === "signedMoney"
+                ? "default"
               : field.type === "number"
                 ? "number-pad"
                 : "default"

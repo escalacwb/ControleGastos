@@ -6,6 +6,7 @@ import {
   monthRange,
   addMonthsClamped,
   totals,
+  categoryTotals,
   reportingRows,
   parseCsv,
   csvCell,
@@ -41,6 +42,27 @@ test("cash report excludes card purchases and internal transfers, normalizes leg
     balance: 0.2,
     count: 4,
   });
+});
+test("negative expense returns cash and reduces category, reports and DNA", () => {
+  const rows = [
+    { date: "2026-01-10", type: "expense", amount: 1000, category_id: "market" },
+    { date: "2026-01-11", type: "expense", amount: -300, category_id: "market" },
+  ];
+  assert.deepEqual(totals(rows), {
+    income: 0,
+    expense: 700,
+    balance: -700,
+    count: 2,
+  });
+  assert.equal(categoryTotals(rows, [{ id: "market", name: "Mercado" }])[0].value, 700);
+  const dna = spendingDNA(
+    rows,
+    [{ id: "market", name: "Mercado", spending_area: "Alimentação" }],
+    "2026-02",
+    1,
+  );
+  assert.equal(dna.average, 700);
+  assert.equal(dna.areas[0].monthly[0], 700);
 });
 test("installments retain every cent and replace rather than double count parent purchase", () => {
   assert.deepEqual(installmentAmounts(100, 3), [33.34, 33.33, 33.33]);

@@ -34,6 +34,14 @@ const positive = (value) => {
     throw Error("Informe um valor positivo, como 125,90.");
   return n;
 };
+const transactionAmount = (value, type, method) => {
+  const n = parseMoney(value);
+  if (!Number.isFinite(n) || n === 0)
+    throw Error("Informe um valor diferente de zero, como 125,90 ou -30,00.");
+  if (n < 0 && (type !== "expense" || method === "card"))
+    throw Error("Valor negativo é permitido apenas em despesa lançada na conta.");
+  return n;
+};
 const numeric = (value) => {
   const n = parseMoney(value);
   if (!Number.isFinite(n)) throw Error("Informe um valor válido.");
@@ -117,7 +125,17 @@ export function useActions() {
           option("income", "Receita"),
           option("transfer", "Transferência"),
         ]),
-        field("amount", "Valor (R$)", "money"),
+        field(
+          "amount",
+          "Valor (R$)",
+          v.type === "expense" && v.method !== "card" ? "signedMoney" : "money",
+          v.type === "expense" && v.method !== "card"
+            ? {
+                placeholder: "Ex.: 1000,00 ou -300,00",
+                hint: "Use valor negativo para devolver saldo à conta e reduzir o gasto desta categoria.",
+              }
+            : {},
+        ),
         field("description", "Descrição"),
         field("date", "Data", "date"),
         ...(v.type === "expense"
@@ -179,7 +197,7 @@ export function useActions() {
             : null;
         const data = {
           type: v.type,
-          amount: positive(v.amount),
+          amount: transactionAmount(v.amount, v.type, v.method),
           description: v.description.trim(),
           date: v.date,
           account_id: card?.account_id || v.account,
