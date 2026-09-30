@@ -64,6 +64,29 @@ test("negative expense returns cash and reduces category, reports and DNA", () =
   assert.equal(dna.average, 700);
   assert.equal(dna.areas[0].monthly[0], 700);
 });
+test("income assigned to an expense category offsets it without changing cash-flow semantics", () => {
+  const categories = [
+    { id: "market", name: "Mercado", type: "expense", spending_area: "Alimentação" },
+    { id: "income", name: "RECEITAS", type: "income" },
+  ];
+  const rows = [
+    { date: "2026-01-10", type: "expense", amount: 1000, category_id: "market" },
+    { date: "2026-01-11", type: "income", amount: 300, category_id: "market" },
+  ];
+  assert.deepEqual(totals(rows), {
+    income: 300,
+    expense: 1000,
+    balance: -700,
+    count: 2,
+  });
+  assert.equal(categoryTotals(rows, categories)[0].value, 700);
+  const dna = spendingDNA(rows, categories, "2026-02", 1);
+  assert.equal(dna.average, 700);
+  assert.equal(dna.areas[0].monthly[0], 700);
+  assert.deepEqual(categoryTotals([
+    { date: "2026-01-12", type: "income", amount: 300, category_id: "income" },
+  ], categories), []);
+});
 test("installments retain every cent and replace rather than double count parent purchase", () => {
   assert.deepEqual(installmentAmounts(100, 3), [33.34, 33.33, 33.33]);
   const schedule = cardSchedule(

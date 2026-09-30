@@ -52,6 +52,15 @@ export function useActions() {
   const accounts = rows("accounts").filter(
     (a) => !["credit", "credit_card"].includes(a.type),
   );
+  const incomeCategories = rows("categories").filter(
+    (c) => transactionType(c.type) === "income",
+  );
+  const expenseCategories = rows("categories").filter(
+    (c) => transactionType(c.type) === "expense",
+  );
+  const defaultIncomeCategory =
+    incomeCategories.find((c) => /^receitas?$/.test(normalize(c.name))) ||
+    incomeCategories[0];
   const opts = (list, label = "name") => [
     option("", "Selecione"),
     ...list.map((a) => option(a.id, a[label])),
@@ -115,16 +124,36 @@ export function useActions() {
         date: duplicate ? today() : old?.date || extracted.date || today(),
         account: old?.account_id || accounts[0]?.id || "",
         card: old?.credit_card_id || rows("credit_cards")[0]?.id || "",
-        category: old?.category_id || "",
+        category:
+          old?.category_id ||
+          (transactionType(extracted.type) === "income"
+            ? defaultIncomeCategory?.id || ""
+            : ""),
         destination: old?.transfer_to_account_id || "",
         installments: "1",
       },
       fields: (v) => [
-        select("type", "Tipo", [
-          option("expense", "Despesa"),
-          option("income", "Receita"),
-          option("transfer", "Transferência"),
-        ]),
+        select(
+          "type",
+          "Tipo",
+          [
+            option("expense", "Despesa"),
+            option("income", "Receita"),
+            option("transfer", "Transferência"),
+          ],
+          {
+            onChangeValues: (next, value, previous) => ({
+              ...next,
+              method: value === "expense" ? previous.method || "cash" : "cash",
+              category:
+                value === previous.type
+                  ? previous.category
+                  : value === "income"
+                    ? defaultIncomeCategory?.id || ""
+                    : "",
+            }),
+          },
+        ),
         field(
           "amount",
           "Valor (R$)",
@@ -172,12 +201,17 @@ export function useActions() {
               select(
                 "category",
                 "Categoria",
-                [
-                  option("", "Sem categoria"),
-                  ...rows("categories")
-                    .filter((c) => transactionType(c.type) === v.type)
-                    .map((c) => option(c.id, c.name)),
-                ],
+                v.type === "income"
+                  ? [
+                      ...incomeCategories.map((c) => option(c.id, c.name)),
+                      ...expenseCategories.map((c) =>
+                        option(c.id, `Abater despesa: ${c.name}`),
+                      ),
+                    ]
+                  : [
+                      option("", "Sem categoria"),
+                      ...expenseCategories.map((c) => option(c.id, c.name)),
+                    ],
                 { required: false },
               ),
             ]),
@@ -189,7 +223,7 @@ export function useActions() {
             ]
           : []),
       ],
-      note: "Compras no cartão não reduzem o saldo da conta. Registre o pagamento na tela de faturas.",
+      note: "Receitas usam RECEITAS por padrão. Para reembolso ou rateio, escolha 'Abater despesa' e a categoria será reduzida no relatório e no DNA. Compras no cartão só reduzem a conta ao pagar a fatura.",
       onSave: async (v) => {
         const card =
           v.type === "expense" && v.method === "card"
@@ -205,10 +239,16 @@ export function useActions() {
           category_id:
             v.type === "transfer"
               ? null
-              : rows("categories").find(
-                  (c) =>
-                    c.id === v.category && transactionType(c.type) === v.type,
-                )?.id || null,
+              : rows("categories").find((c) => {
+                  if (c.id !== v.category) return false;
+                  const categoryType = transactionType(c.type);
+                  return (
+                    categoryType === v.type ||
+                    (v.type === "income" && categoryType === "expense")
+                  );
+                })?.id ||
+                (v.type === "income" ? defaultIncomeCategory?.id : null) ||
+                null,
           transfer_to_account_id: v.type === "transfer" ? v.destination : null,
           client_request_id: request,
         };

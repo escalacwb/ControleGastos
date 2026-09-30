@@ -450,7 +450,12 @@ export function FormModal() {
                 value={values[f.name]}
                 onChange={(value) => {
                   dirty.current = true;
-                  setValues((v) => ({ ...v, [f.name]: value }));
+                  setValues((v) => {
+                    const next = { ...v, [f.name]: value };
+                    return typeof f.onChangeValues === "function"
+                      ? f.onChangeValues(next, value, v)
+                      : next;
+                  });
                 }}
               />
             ))}

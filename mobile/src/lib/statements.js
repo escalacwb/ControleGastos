@@ -1,4 +1,4 @@
-import { normalize, parseCsv, csvDate, parseMoney, cents, cardSchedule, spendingArea, transactionType } from './finance';
+import { normalize, parseCsv, csvDate, parseMoney, cents, cardSchedule, spendingArea, expenseContribution } from './finance';
 
 export const isStatementPayment = description => /^(pagamentos validos normais|pagamento recebido|pagamento efetuado|pagamento de fatura|pagamento da fatura|pagamento fatura|inclusao de pagamento|obrigado pelo pagamento|total da fatura anterior)\b/.test(normalize(description).trim());
 const rules = [
@@ -109,8 +109,8 @@ export function allocatedCashRows(transactions,payments=[],cycles=[]) {
 // Distribute rounding inside each allocation so the dialog reconciles to the bar.
 export function dnaBreakdown(transactions, installments, categories, payments, cycles, {basis,area,month,categoryId,start,end}) {
   const source=basis==='card'?cardSchedule(transactions,installments):allocatedCashRows(transactions,payments,cycles);
-  const selected=source.filter(t=>(month?t.date.slice(0,7)===month:t.date>=start&&t.date<=end) && (categoryId!==undefined?(t.category_id||'')===(categoryId||''):spendingArea(categories.find(c=>c.id===t.category_id))===area) && (transactionType(t.type)==='expense'||(t.credit_card_id&&transactionType(t.type)==='income')));
-  const signed=t=>cents(t.amount)*(transactionType(t.type)==='income'&&t.credit_card_id?-1:1);
+  const selected=source.filter(t=>(month?t.date.slice(0,7)===month:t.date>=start&&t.date<=end) && (categoryId!==undefined?(t.category_id||'')===(categoryId||''):spendingArea(categories.find(c=>c.id===t.category_id))===area) && expenseContribution(t,categories)!==0);
+  const signed=t=>expenseContribution(t,categories);
   const items=selected.flatMap(t=>{
     const payment=basis==='cash'&&payments.find(p=>t.id.startsWith(p.transaction_id+':'));
     const cycle=payment&&cycles.find(c=>c.id===payment.billing_cycle_id);

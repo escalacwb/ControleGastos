@@ -1,5 +1,5 @@
-import { allocatedCashRows, dnaBreakdown } from "./statements.mjs?v=2.2.6";
-import { openStatementEditor } from "./statement-ui.mjs?v=2.2.6";
+import { allocatedCashRows, dnaBreakdown } from "./statements.mjs?v=2.2.8";
+import { openStatementEditor } from "./statement-ui.mjs?v=2.2.8";
 import { investmentUI } from "./investment-ui.mjs";
 import {
   investmentPeriods,
@@ -36,7 +36,7 @@ import {
   spendingDNA,
   spendingArea,
   cardSchedule,
-} from "./finance.mjs?v=2.2.6";
+} from "./finance.mjs?v=2.2.8";
 
 const $ = (selector) => document.querySelector(selector);
 const esc = (value) =>
@@ -170,6 +170,32 @@ function optionList(items, selected = "", blank = "Selecione…") {
       )
       .join("")
   );
+}
+function defaultIncomeCategory() {
+  const list = rows("categories").filter(
+    (c) => transactionType(c.type) === "income",
+  );
+  return list.find((c) => /^receitas?$/.test(normalize(c.name))) || list[0];
+}
+function transactionCategoryOptions(type, selected = "") {
+  const categories = rows("categories");
+  const options = (items, prefix = "") =>
+    items
+      .map(
+        (item) =>
+          `<option value="${esc(item.id)}"${item.id === selected ? " selected" : ""}>${esc(prefix + item.name)}</option>`,
+      )
+      .join("");
+  const expense = categories.filter(
+    (c) => transactionType(c.type) === "expense",
+  );
+  if (type === "income") {
+    const income = categories.filter(
+      (c) => transactionType(c.type) === "income",
+    );
+    return `<optgroup label="Receita comum">${options(income)}</optgroup><optgroup label="Abater uma categoria de despesa">${options(expense)}</optgroup>`;
+  }
+  return `<option value="">Sem categoria</option>${options(expense)}`;
 }
 function bankAccounts() {
   return rows("accounts").filter(
@@ -344,10 +370,14 @@ function transactionTable(items, { compact = false } = {}) {
     .map((t) => {
       const type = transactionType(t.type);
       const isExpenseAdjustment = type === "expense" && Number(t.amount) < 0;
+      const isCategoryReimbursement =
+        type === "income" &&
+        !t.credit_card_id &&
+        transactionType(byId("categories", t.category_id)?.type) === "expense";
       const parts = rows("installments").filter(
         (p) => p.transaction_id === t.id,
       ).length;
-      return `<tr><td><div class="transaction-name"><span class="transaction-symbol ${isExpenseAdjustment ? "income" : type}">${type === "income" || isExpenseAdjustment ? "↙" : type === "transfer" ? "⇄" : "↗"}</span><div><strong>${esc(t.description || "Sem descrição")}</strong><small>${esc(t.credit_card_id ? byId("credit_cards", t.credit_card_id)?.bank_name || "Cartão" : accountName(t.account_id))}${type === "transfer" ? ` → ${esc(accountName(t.transfer_to_account_id))}` : ""}${isExpenseAdjustment ? " · abatimento de despesa" : ""}${parts ? ` · ${parts} parcelas` : ""}${t.credit_card_id ? " · detalhe do cartão · fora do total de saídas" : ""}</small></div></div></td><td><span class="pill">${esc(type === "transfer" ? "Transferência" : categoryName(t.category_id))}</span></td><td>${formatDate(t.date)}</td><td class="amount ${type === "income" || isExpenseAdjustment ? "positive" : type === "expense" ? "negative" : ""}">${type === "income" || isExpenseAdjustment ? "+ " : type === "expense" ? "− " : ""}${money(Math.abs(Number(t.amount) || 0))}</td>${compact ? "" : `<td><div class="row-actions"><button class="icon-button" data-action="edit-transaction" data-id="${t.id}" title="Editar" aria-label="Editar ${esc(t.description)}">${icon("edit")}</button><button class="icon-button" data-action="duplicate-transaction" data-id="${t.id}" title="Repetir lançamento" aria-label="Repetir ${esc(t.description)}">${icon("copy")}</button><button class="icon-button" data-action="delete-transaction" data-id="${t.id}" title="Excluir" aria-label="Excluir ${esc(t.description)}">${icon("trash")}</button></div></td>`}</tr>`;
+      return `<tr><td><div class="transaction-name"><span class="transaction-symbol ${isExpenseAdjustment ? "income" : type}">${type === "income" || isExpenseAdjustment ? "↙" : type === "transfer" ? "⇄" : "↗"}</span><div><strong>${esc(t.description || "Sem descrição")}</strong><small>${esc(t.credit_card_id ? byId("credit_cards", t.credit_card_id)?.bank_name || "Cartão" : accountName(t.account_id))}${type === "transfer" ? ` → ${esc(accountName(t.transfer_to_account_id))}` : ""}${isExpenseAdjustment ? " · abatimento de despesa" : ""}${isCategoryReimbursement ? " · reembolso que abate a categoria" : ""}${parts ? ` · ${parts} parcelas` : ""}${t.credit_card_id ? " · detalhe do cartão · fora do total de saídas" : ""}</small></div></div></td><td><span class="pill">${esc(type === "transfer" ? "Transferência" : categoryName(t.category_id))}</span></td><td>${formatDate(t.date)}</td><td class="amount ${type === "income" || isExpenseAdjustment ? "positive" : type === "expense" ? "negative" : ""}">${type === "income" || isExpenseAdjustment ? "+ " : type === "expense" ? "− " : ""}${money(Math.abs(Number(t.amount) || 0))}</td>${compact ? "" : `<td><div class="row-actions"><button class="icon-button" data-action="edit-transaction" data-id="${t.id}" title="Editar" aria-label="Editar ${esc(t.description)}">${icon("edit")}</button><button class="icon-button" data-action="duplicate-transaction" data-id="${t.id}" title="Repetir lançamento" aria-label="Repetir ${esc(t.description)}">${icon("copy")}</button><button class="icon-button" data-action="delete-transaction" data-id="${t.id}" title="Excluir" aria-label="Excluir ${esc(t.description)}">${icon("trash")}</button></div></td>`}</tr>`;
     })
     .join("")}</tbody></table></div>`;
 }
@@ -375,7 +405,7 @@ function renderOverview() {
       periodPicker(),
       "VISÃO GERAL",
     ) +
-    `<div class="kpi-grid">${kpi("Saldo disponível", balance, "Saldo atual das suas contas", "wallet", true)}${kpi("Entradas do mês", sum.income, `${monthly.filter((t) => transactionType(t.type) === "income").length} lançamentos de receita`, "down")}${kpi("Saídas do mês", sum.expense, "Pagamentos e despesas das contas", "up")}${kpi("Faturas a pagar", debt, `${unpaid.length} fatura${unpaid.length === 1 ? "" : "s"} com saldo em aberto`, "card")}</div><div class="overview-grid"><section class="panel"><div class="panel-heading"><div><h3>O ritmo das suas finanças</h3><p>Entradas e saídas das contas · últimos 6 meses</p></div><div class="legend"><span>Entradas</span><span>Saídas</span></div></div>${trendMarkup()}<div class="chart-summary"><span>Resultado do mês<strong class="${sum.balance < 0 ? "negative" : "positive"}">${money(sum.balance)}</strong></span><span>Média mensal de saídas<strong>${money(dna.average)}</strong></span><a href="#reports" class="button text small">Ver relatório →</a></div></section><section class="panel"><div class="panel-heading"><div><h3>Para onde vai o dinheiro?</h3><p>Saídas por categoria · mês selecionado</p></div></div>${categoryMarkup(categoryTotals(monthly, rows("categories")))}<p class="subtle-note">Faturas detalhadas distribuem o valor pago entre as categorias. A soma permanece igual às saídas da conta.</p></section></div><section class="panel recent-panel"><div class="panel-heading"><div><h3>Últimos lançamentos</h3><p>Os movimentos mais recentes do mês.</p></div><a class="button text small" href="#transactions">Ver todos →</a></div>${transactionTable(
+    `<div class="kpi-grid">${kpi("Saldo disponível", balance, "Saldo atual das suas contas", "wallet", true)}${kpi("Entradas do mês", sum.income, `${monthly.filter((t) => transactionType(t.type) === "income").length} lançamentos de receita`, "down")}${kpi("Saídas do mês", sum.expense, "Pagamentos e despesas das contas", "up")}${kpi("Faturas a pagar", debt, `${unpaid.length} fatura${unpaid.length === 1 ? "" : "s"} com saldo em aberto`, "card")}</div><div class="overview-grid"><section class="panel"><div class="panel-heading"><div><h3>O ritmo das suas finanças</h3><p>Entradas e saídas das contas · últimos 6 meses</p></div><div class="legend"><span>Entradas</span><span>Saídas</span></div></div>${trendMarkup()}<div class="chart-summary"><span>Resultado do mês<strong class="${sum.balance < 0 ? "negative" : "positive"}">${money(sum.balance)}</strong></span><span>Média mensal de saídas<strong>${money(dna.average)}</strong></span><a href="#reports" class="button text small">Ver relatório →</a></div></section><section class="panel"><div class="panel-heading"><div><h3>Para onde vai o dinheiro?</h3><p>Gasto líquido por categoria · mês selecionado</p></div></div>${categoryMarkup(categoryTotals(monthly, rows("categories")))}<p class="subtle-note">As categorias descontam reembolsos vinculados. Entradas e saídas continuam mostrando a movimentação real das contas.</p></section></div><section class="panel recent-panel"><div class="panel-heading"><div><h3>Últimos lançamentos</h3><p>Os movimentos mais recentes do mês.</p></div><a class="button text small" href="#transactions">Ver todos →</a></div>${transactionTable(
       inPeriod(rows("transactions"), range.start, range.end)
         .sort(
           (a, b) =>
@@ -521,6 +551,11 @@ function renderDNA() {
     state.month,
     state.dnaMonths,
   );
+  const selectedRange = monthRange(state.month);
+  const selectedNetExpense = categoryTotals(
+    inPeriod(source, selectedRange.start, selectedRange.end),
+    rows("categories"),
+  ).reduce((sum, group) => sum + group.value, 0);
   const now = state.month === today().slice(0, 7);
   return (
     heading(
@@ -529,7 +564,7 @@ function renderDNA() {
       periodPicker(),
       "UM RETRATO DA SUA ROTINA",
     ) +
-    `<div class="filters"><label>O que analisar<select id="dna-basis"><option value="cash" ${state.dnaBasis === "cash" ? "selected" : ""}>Saídas das contas</option><option value="card" ${state.dnaBasis === "card" ? "selected" : ""}>Compras e parcelas no cartão</option></select></label><label>Histórico<select id="dna-window">${[3, 6, 12].map((n) => `<option value="${n}" ${state.dnaMonths === n ? "selected" : ""}>Últimos ${n} meses completos</option>`).join("")}</select></label></div><div class="report-summary">${kpi("Custo médio mensal", dna.average, `${dna.months.length} meses completos analisados`, "wallet", true)}${kpi("Parte habitual estimada", dna.habitual, "Áreas presentes em pelo menos 2/3 dos meses", "dna")}${kpi("No mês selecionado", totals(inPeriod(source, monthRange(state.month).start, monthRange(state.month).end)).expense, now ? "Mês em andamento · comparação parcial" : "Total do mês selecionado", "chart")}</div><div class="info-banner">Média = soma dos gastos ÷ meses analisados, incluindo meses sem gastos. “Habitual” indica frequência no histórico, não uma conta fixa contratada. ${state.dnaBasis === "cash" ? "Faturas detalhadas distribuem os pagamentos por categoria; o que falta detalhar aparece sem categoria." : "Somente compras e parcelas detalhadas. Faturas sem itens importados não aparecem nesta visão."} As áreas podem ser ajustadas em Categorias.</div>${dna.months.length < 3 ? '<div class="info-banner warning">Histórico ainda curto: as estimativas ficam mais úteis a partir de três meses completos.</div>' : ""}<div class="dna-grid">${
+    `<div class="filters"><label>O que analisar<select id="dna-basis"><option value="cash" ${state.dnaBasis === "cash" ? "selected" : ""}>Saídas das contas</option><option value="card" ${state.dnaBasis === "card" ? "selected" : ""}>Compras e parcelas no cartão</option></select></label><label>Histórico<select id="dna-window">${[3, 6, 12].map((n) => `<option value="${n}" ${state.dnaMonths === n ? "selected" : ""}>Últimos ${n} meses completos</option>`).join("")}</select></label></div><div class="report-summary">${kpi("Custo médio mensal", dna.average, `${dna.months.length} meses completos analisados`, "wallet", true)}${kpi("Parte habitual estimada", dna.habitual, "Áreas presentes em pelo menos 2/3 dos meses", "dna")}${kpi("Gasto líquido no mês", selectedNetExpense, now ? "Mês em andamento · já desconta reembolsos" : "Total líquido do mês selecionado", "chart")}</div><div class="info-banner">Média = soma dos gastos líquidos ÷ meses analisados, incluindo meses sem gastos. Receitas ligadas a categorias de despesa são abatidas da categoria e da área. “Habitual” indica frequência no histórico, não uma conta fixa contratada. ${state.dnaBasis === "cash" ? "Faturas detalhadas distribuem os pagamentos por categoria; o que falta detalhar aparece sem categoria." : "Somente compras e parcelas detalhadas. Faturas sem itens importados não aparecem nesta visão."} As áreas podem ser ajustadas em Categorias.</div>${dna.months.length < 3 ? '<div class="info-banner warning">Histórico ainda curto: as estimativas ficam mais úteis a partir de três meses completos.</div>' : ""}<div class="dna-grid">${
       dna.areas
         .map((g) => {
           const max = Math.max(1, ...g.monthly);
@@ -824,6 +859,8 @@ function transactionDialog(
   const requestId = crypto.randomUUID();
   let selectedType = transactionType(t.type);
   let method = t.credit_card_id ? "card" : "cash";
+  if (!t.category_id && selectedType === "income")
+    t.category_id = defaultIncomeCategory()?.id || "";
   function fields() {
     return `<div class="segmented" role="group" aria-label="Tipo de lançamento">${[
       ["expense", "Despesa"],
@@ -839,13 +876,10 @@ function transactionDialog(
       )}</div><input type="hidden" name="type" value="${selectedType}"><div class="form-grid">${inputField("Descrição", "description", t.description, { full: true, extra: 'maxlength="250" placeholder="Ex.: mercado da semana"' })}${inputField("Valor (R$)", "amount", t.amount, { extra: `inputmode="decimal" placeholder="${selectedType === "expense" && method === "cash" ? "Ex.: 1000,00 ou -300,00" : "0,00"}"` })}${inputField("Data", "date", t.date, { type: "date" })}${selectedType === "expense" ? `<label>Forma de lançamento<select name="method" id="field-method"><option value="cash" ${method === "cash" ? "selected" : ""}>Conta / dinheiro</option><option value="card" ${method === "card" ? "selected" : ""}>Compra no cartão</option></select></label>` : ""}<label>${method === "card" && selectedType === "expense" ? "Cartão" : "Conta de origem"}<select name="account" id="field-account" required>${optionList(method === "card" && selectedType === "expense" ? rows("credit_cards").filter((c) => c.is_active) : bankAccounts(), method === "card" ? t.credit_card_id : t.account_id)}</select></label>${
       selectedType === "transfer"
         ? `<label>Conta de destino<select name="destination" required>${optionList(bankAccounts(), t.transfer_to_account_id)}</select></label>`
-        : `<label class="${selectedType === "income" ? "full" : ""}">Categoria<select name="category" id="field-category">${optionList(
-            rows("categories").filter(
-              (c) => transactionType(c.type) === selectedType,
-            ),
+        : `<label class="${selectedType === "income" ? "full" : ""}">Categoria<select name="category" id="field-category">${transactionCategoryOptions(
+            selectedType,
             t.category_id,
-            "Sem categoria",
-          )}</select></label>`
+          )}</select>${selectedType === "income" ? "<small>Use uma categoria de despesa somente para reembolso ou rateio; ela reduzirá o gasto líquido dessa categoria.</small>" : ""}</label>`
     }${method === "card" && selectedType === "expense" && (!id || duplicate) && !pending ? `<label>Número de parcelas<select name="installments">${Array.from({ length: 24 }, (_, i) => `<option value="${i + 1}">${i === 0 ? "À vista" : `${i + 1} parcelas`}</option>`).join("")}</select><small>O valor informado é o total da compra.</small></label>` : ""}</div>`;
   }
   function repaint() {
@@ -864,7 +898,9 @@ function transactionDialog(
           ? "A compra organiza seus gastos. O dinheiro sai da conta quando você registra o pagamento da fatura."
           : selectedType === "expense"
             ? "Para abatimento ou reembolso, use um valor negativo. Ele devolve saldo à conta e reduz o gasto da categoria escolhida."
-            : "",
+            : selectedType === "income"
+              ? "Receitas comuns usam a categoria RECEITAS. Para um reembolso, escolha abaixo a categoria de despesa que deve ser abatida."
+              : "",
       ),
       { onSubmit: submit },
     );
@@ -925,7 +961,16 @@ function transactionDialog(
       credit_card_id: method === "card" ? fd.get("account") : null,
       category_id: fd.get("category"),
     });
+    const previousType = selectedType;
     selectedType = target.dataset.transactionType;
+    if (selectedType === "income" && previousType !== "income")
+      t.category_id = defaultIncomeCategory()?.id || "";
+    else if (
+      selectedType === "expense" &&
+      transactionType(byId("categories", t.category_id)?.type) !== "expense"
+    )
+      t.category_id = "";
+    else if (selectedType === "transfer") t.category_id = "";
     if (selectedType !== "expense") method = "cash";
     repaint();
     dialogDirty = true;

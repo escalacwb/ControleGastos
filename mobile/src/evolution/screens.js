@@ -78,6 +78,10 @@ function TransactionRow({ item, actions = true }) {
   const category = rows("categories").find((c) => c.id === item.category_id),
     account = rows("accounts").find((c) => c.id === item.account_id),
     card = rows("credit_cards").find((c) => c.id === item.credit_card_id);
+  const isCategoryReimbursement =
+    type === "income" &&
+    !card &&
+    transactionType(category?.type) === "expense";
   return (
     <View style={S.transaction}>
       <View style={S.row}>
@@ -111,7 +115,10 @@ function TransactionRow({ item, actions = true }) {
             (rows("accounts").find((x) => x.id === item.transfer_to_account_id)
               ?.name || "Conta")
           : (category?.name || "Sem categoria") +
-            (isExpenseAdjustment ? " · abatimento de despesa" : "")}
+            (isExpenseAdjustment ? " · abatimento de despesa" : "") +
+            (isCategoryReimbursement
+              ? " · reembolso que abate a categoria"
+              : "")}
         {card ? " · detalhe do cartão · fora das saídas" : ""}
       </Text>
       {actions && (
@@ -181,11 +188,11 @@ export function Overview() {
         <Kpi title="Entradas do mês" value={sum.income} />
       </View>
       <Button onPress={() => a.transaction()}>＋ Novo lançamento</Button>
-      <Card title="Para onde vai o dinheiro?">
+      <Card title="Gasto líquido por categoria">
         <Bars items={categoryTotals(monthly, rows("categories")).slice(0, 7)} />
         <Text style={S.muted}>
-          Compras no cartão ficam separadas nos relatórios. Aqui entram os
-          pagamentos das faturas.
+          Reembolsos ligados a uma categoria reduzem o gasto dela. Entradas e
+          saídas continuam mostrando a movimentação real da conta.
         </Text>
       </Card>
       <Card title="Faturas a pagar">
@@ -401,7 +408,7 @@ export function Reports() {
       />
       <Text style={S.muted}>
         {basis === "cash"
-          ? "Inclui pagamentos de faturas. Compras no cartão não são somadas novamente."
+          ? "Inclui pagamentos de faturas. Receitas ligadas a categorias de despesa reduzem o gasto líquido da categoria."
           : "Mostra compras e parcelas detalhadas por data. Faturas sem itens lançados não aparecem aqui."}
       </Text>
       {view === "report" ? (
@@ -419,7 +426,7 @@ export function Reports() {
               <Kpi title="Resultado do mês" value={sum.balance} />
             </>
           )}
-          <Card title="Gastos por categoria">
+          <Card title="Gasto líquido por categoria">
             <Bars items={categoryTotals(list, rows("categories"))} onPress={g=>setDetail({...dnaBreakdown(rows('transactions'),rows('installments'),rows('categories'),rows('card_payments'),rows('billing_cycles'),{basis,categoryId:g.id,start:r.start,end:r.end}),categoryName:g.name,start:r.start,end:r.end,basis})} />
           </Card>
           <Button secondary onPress={() => a.exportCsv(list)}>
