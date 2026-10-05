@@ -151,6 +151,7 @@ export function InvestmentPortfolio() {
         <Text style={S.text}>
           Ganho desde a compra: {money(p.gain)} · {pct(p.percent)}
         </Text>
+        <Text style={S.text}>Ganho realizado em vendas: {money(p.items.reduce((n, x) => n + (x.realizedGain || 0), 0))}</Text>
       </Card>
       <Button onPress={() => a.investment()}>＋ Novo investimento</Button>
       <Button secondary onPress={updateQuotes}>
@@ -161,7 +162,7 @@ export function InvestmentPortfolio() {
         const mode = x.quote_mode || (x.type === "stocks" ? "stock" : "manual");
         const last = rows("investment_valuations").filter(v => v.investment_id === x.id).sort((a,b) => a.date.localeCompare(b.date)).at(-1);
         const source = last?.source === "quote" ? "Cotação de " + formatDate(last.date) : "Último saldo informado";
-        const pricing = mode === "stock"
+        const pricing = Number(x.quantity) === 0 && x.quantity !== null ? "Posição encerrada · histórico preservado" : mode === "stock"
           ? (Number(x.quantity) > 0 ? x.quantity + " papéis · " + source : "Informe a quantidade de papéis em Editar")
           : mode === "treasury"
             ? (Number(x.quantity) > 0 && x.maturity_date && x.treasury_title ? x.quantity + " títulos · " + source : "Informe quantidade e vencimento exato em Editar")
@@ -182,6 +183,7 @@ export function InvestmentPortfolio() {
               {item.gain < 0 ? "Perda" : "Ganho"}: {money(item.gain)} ·{" "}
               {pct(item.percent)}
             </Text>
+            {item.realizedGain ? <Text style={S.muted}>Ganho realizado em vendas: {money(item.realizedGain)}</Text> : null}
             <View style={S.wrap}>
               <Button
                 onPress={() => {
@@ -195,9 +197,16 @@ export function InvestmentPortfolio() {
               <Button secondary onPress={() => valueForm(x)}>
                 {mode === "manual" ? "Atualizar saldo" : "Corrigir saldo"}
               </Button>
-              <Button secondary onPress={() => a.movement(x)}>
-                Aporte ou resgate
-              </Button>
+              {mode === "manual" ? (
+                <Button secondary onPress={() => a.movement(x)}>
+                  Aporte ou resgate
+                </Button>
+              ) : (
+                <>
+                  <Button secondary onPress={() => a.trade(x, "buy")}>Comprar</Button>
+                  <Button secondary onPress={() => a.trade(x, "sale")}>Vender</Button>
+                </>
+              )}
               <Button secondary onPress={() => a.investment(x)}>
                 Editar
               </Button>
@@ -303,9 +312,12 @@ export function InvestmentPortfolio() {
                               withdrawal: "Resgate",
                               yield: "Rendimento",
                               dividend: "Provento",
+                              buy: "Compra",
+                              sale: "Venda",
                             }[t.type]
                           }{" "}
-                          · {money(t.amount)}
+                          · {t.quantity ? t.quantity + " unidades · " : ""}{money(t.amount)}
+                          {t.realized_gain != null ? " · Ganho realizado " + money(t.realized_gain) : ""}
                         </Text>
                       ))}
                   </>

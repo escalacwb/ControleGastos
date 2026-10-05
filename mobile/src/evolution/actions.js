@@ -515,9 +515,9 @@ export function useActions() {
         const averagePrice = v.average_price ? numeric(v.average_price) : null;
         if (initial < 0 || current < 0) throw Error("Os valores não podem ser negativos.");
         if (!v.purchase_date || v.purchase_date > today()) throw Error("Informe a data real da compra; ela não pode estar no futuro.");
-        if (mode === "stock" && (!/^[A-Z]{4}\d{1,2}$/.test(ticker) || !Number.isInteger(quantity) || quantity <= 0))
+        if (mode === "stock" && (!/^[A-Z]{4}\d{1,2}$/.test(ticker) || !Number.isInteger(quantity) || quantity < 0 || (!i.id && quantity === 0)))
           throw Error("Informe o código B3 e a quantidade inteira de papéis.");
-        if (mode === "treasury" && (!v.treasury_title || !v.maturity_date || v.maturity_date <= v.purchase_date || !Number.isFinite(quantity) || quantity <= 0))
+        if (mode === "treasury" && (!v.treasury_title || !v.maturity_date || v.maturity_date <= v.purchase_date || !Number.isFinite(quantity) || quantity < 0 || (!i.id && quantity === 0)))
           throw Error("Informe o título, vencimento exato e quantidade de títulos.");
         if (mode === "stock" && averagePrice !== null && averagePrice < 0) throw Error("Preço médio inválido.");
         await save("investments", {
@@ -577,6 +577,35 @@ export function useActions() {
           p_description: v.description,
           p_request: request,
         }),
+    });
+  };
+  const trade = (i, side) => {
+    const request = Crypto.randomUUID();
+    setForm({
+      title: (side === "sale" ? "Vender" : "Comprar") + " · " + i.name,
+      initial: { quantity: "", unit_price: "", fees: "0", date: today(), account: "", description: "" },
+      fields: () => [
+        field("quantity", "Quantidade", "number"),
+        field("unit_price", "Preço por unidade (R$)", "money"),
+        field("fees", "Custos / taxas (R$)", "money"),
+        field("date", "Data da operação", "date"),
+        select("account", "Lançar na conta", [option("", "Não, já registrei em outro lugar"), ...accounts.map((a) => option(a.id, a.name))]),
+        field("description", "Observação", "text", { required: false }),
+      ],
+      note: "A operação atualiza a quantidade e preserva o histórico. Escolha uma conta apenas se o dinheiro ainda não foi lançado nela.",
+      onSave: async (v) => {
+        const quantity = parseMoney(v.quantity), price = parseMoney(v.unit_price), fees = parseMoney(v.fees);
+        if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(price) || price <= 0 || !Number.isFinite(fees) || fees < 0)
+          throw Error("Informe quantidade, preço e custos válidos.");
+        if (i.quote_mode === "stock" && !Number.isInteger(quantity)) throw Error("A quantidade de ações deve ser inteira.");
+        if (side === "sale" && quantity > Number(i.quantity)) throw Error("A venda excede a posição atual.");
+        return rpc("record_investment_trade", {
+          p_investment: i.id, p_side: side, p_quantity: quantity, p_unit_price: price,
+          p_fees: fees, p_date: v.date, p_account: v.account || null,
+          p_description: v.description, p_request: request,
+          p_expected_quantity: i.quantity, p_expected_value: i.current_value,
+        });
+      },
     });
   };
   const rejectPending = (p) =>
@@ -806,6 +835,7 @@ export function useActions() {
     pay,
     investment,
     movement,
+    trade,
     rejectPending,
     importCsv,
     exportCsv,

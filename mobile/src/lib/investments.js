@@ -78,9 +78,10 @@ export function investmentPerformance(
     flows
       .filter((m) => m.type === type)
       .reduce((n, m) => n + Number(m.amount), 0);
-  const contributions = sum("contribution"),
-    withdrawals = sum("withdrawal"),
+  const contributions = sum("contribution") + sum("buy"),
+    withdrawals = sum("withdrawal") + sum("sale"),
     dividends = sum("dividend");
+  const realizedGain = round(flows.filter((m) => m.type === "sale").reduce((n, m) => n + Number(m.realized_gain || 0), 0));
   const gain = round(
     Number(last.value) -
       Number(base.value) -
@@ -94,9 +95,9 @@ export function investmentPerformance(
     flows.reduce(
       (n, m) =>
         n +
-        (["contribution", "withdrawal"].includes(m.type)
+        (["contribution", "withdrawal", "buy", "sale"].includes(m.type)
           ? (Number(m.amount) *
-              (m.type === "contribution" ? 1 : -1) *
+              (["contribution", "buy"].includes(m.type) ? 1 : -1) *
               (new Date(last.date) - new Date(m.date))) /
             duration
           : 0),
@@ -114,6 +115,7 @@ export function investmentPerformance(
     contributions,
     withdrawals,
     dividends,
+    realizedGain,
     history,
     last,
     base,
@@ -303,7 +305,7 @@ export function investmentChart(i, valuations, movements, kind, period, end) {
                   .reduce(
                     (n, m) =>
                       n +
-                      ({ contribution: 1, withdrawal: -1, dividend: -1 }[
+                      ({ contribution: 1, withdrawal: -1, dividend: -1, buy: 1, sale: -1 }[
                         m.type
                       ] || 0) *
                         Number(m.amount),

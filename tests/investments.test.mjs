@@ -81,6 +81,24 @@ test("não agrega rentabilidade de períodos diferentes", () => {
 });
 test("janela de 12 meses trata ano bissexto", () =>
   assert.equal(periodStart("12m", "2024-02-29"), "2023-02-28"));
+
+test("venda parcial preserva ganho realizado e saldo remanescente", () => {
+  const position = { id: "s", name: "Papel", initial_amount: 1000, current_value: 600, purchase_date: "2026-01-01", updated_at: "2026-02-02" };
+  const trades = [{ investment_id: "s", type: "sale", amount: 690, realized_gain: 190, date: "2026-02-02", quantity: 5 }];
+  const result = performance(position, [{ investment_id: "s", date: "2026-02-02", value: 600 }], trades, "all", "2026-02-02");
+  assert.equal(result.gain, 290);
+  assert.equal(result.realizedGain, 190);
+  assert.equal(result.value, 600);
+});
+
+test("posição totalmente vendida mantém ganho no histórico com saldo zero", () => {
+  const position = { id: "s", name: "Papel", initial_amount: 1000, current_value: 0, purchase_date: "2026-01-01", updated_at: "2026-02-02" };
+  const trades = [{ investment_id: "s", type: "sale", amount: 1190, realized_gain: 190, date: "2026-02-02", quantity: 10 }];
+  const result = performance(position, [{ investment_id: "s", date: "2026-02-02", value: 0 }], trades, "all", "2026-02-02");
+  assert.equal(result.gain, 190);
+  assert.equal(result.realizedGain, 190);
+  assert.equal(result.value, 0);
+});
 test("gráfico da carteira reconcilia valores e mantém a data real do saldo manual", () => {
   const j = { id: "b", name: "Outro", purchase_date: "2025-01-01" };
   const series = portfolioHistory(

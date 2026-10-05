@@ -1,6 +1,6 @@
-import { allocatedCashRows, dnaBreakdown } from "./statements.mjs?v=2.2.9";
-import { openStatementEditor } from "./statement-ui.mjs?v=2.2.9";
-import { investmentUI } from "./investment-ui.mjs?v=2.2.9";
+import { allocatedCashRows, dnaBreakdown } from "./statements.mjs?v=2.2.10";
+import { openStatementEditor } from "./statement-ui.mjs?v=2.2.10";
+import { investmentUI } from "./investment-ui.mjs?v=2.2.10";
 import {
   investmentPeriods,
   portfolioPerformance,
@@ -36,7 +36,7 @@ import {
   spendingDNA,
   spendingArea,
   cardSchedule,
-} from "./finance.mjs?v=2.2.9";
+} from "./finance.mjs?v=2.2.10";
 
 const $ = (selector) => document.querySelector(selector);
 const esc = (value) =>
@@ -1176,9 +1176,9 @@ function investmentDialog(id) {
       if (!Number.isFinite(initial) || initial < 0 || (mode === "manual" && (!Number.isFinite(current) || current < 0)))
         throw Error("Informe valores válidos e não negativos.");
       if (!purchaseDate || purchaseDate > today()) throw Error("Informe a data real da compra; ela não pode estar no futuro.");
-      if (mode === "stock" && (!/^[A-Z]{4}\d{1,2}$/.test(ticker) || !Number.isInteger(quantity) || quantity <= 0))
+      if (mode === "stock" && (!/^[A-Z]{4}\d{1,2}$/.test(ticker) || !Number.isInteger(quantity) || quantity < 0 || (!id && quantity === 0)))
         throw Error("Informe o código B3 e a quantidade inteira de papéis.");
-      if (mode === "treasury" && (!treasuryTitle || !maturityDate || maturityDate <= purchaseDate || !Number.isFinite(quantity) || quantity <= 0))
+      if (mode === "treasury" && (!treasuryTitle || !maturityDate || maturityDate <= purchaseDate || !Number.isFinite(quantity) || quantity < 0 || (!id && quantity === 0)))
         throw Error("Informe o título, o vencimento exato e a quantidade de títulos.");
       const averagePrice = String(fd.get("average_price") || "").trim() ? parseMoney(fd.get("average_price")) : null;
       if (mode === "stock" && averagePrice !== null && (!Number.isFinite(averagePrice) || averagePrice < 0))
@@ -1230,7 +1230,7 @@ function investmentHistory(id) {
     .sort((a, b) => b.date.localeCompare(a.date));
   openDialog(
     i.name,
-    `<div class="info-banner">Valor atual: ${money(i.current_value)}</div>${button("＋ Movimentação", "investment-movement", id, "primary small")}<h3>Avaliações de saldo</h3>${rows(
+    `<div class="info-banner">Valor atual: ${money(i.current_value)}${i.quote_mode !== "manual" ? ` · ${esc(String(i.quantity ?? "—"))} unidades` : ""}</div>${i.quote_mode === "manual" ? button("＋ Movimentação", "investment-movement", id, "primary small") : button("Comprar", "investment-trade-buy", id, "primary small") + button("Vender", "investment-trade-sale", id, "small")}<h3>Avaliações de saldo</h3>${rows(
       "investment_valuations",
     )
       .filter((v) => v.investment_id === id)
@@ -1241,7 +1241,37 @@ function investmentHistory(id) {
       )
       .join(
         "",
-      )}<h3>Movimentações</h3><div class="table-wrap" style="margin-top:20px"><table><thead><tr><th>Data</th><th>Tipo</th><th class="amount">Valor</th></tr></thead><tbody>${list.map((t) => `<tr><td>${formatDate(t.date)}</td><td>${esc({ contribution: "Aporte", withdrawal: "Resgate", yield: "Rendimento", dividend: "Dividendo" }[t.type] || t.type)}</td><td class="amount">${money(t.amount)}</td></tr>`).join("")}</tbody></table></div>${list.length ? "" : empty("Nenhuma movimentação registrada")}`,
+      )}<h3>Movimentações</h3><div class="table-wrap" style="margin-top:20px"><table><thead><tr><th>Data</th><th>Tipo</th><th>Quantidade</th><th class="amount">Valor líquido</th><th class="amount">Ganho realizado</th></tr></thead><tbody>${list.map((t) => `<tr><td>${formatDate(t.date)}</td><td>${esc({ contribution: "Aporte", withdrawal: "Resgate", yield: "Rendimento", dividend: "Dividendo", buy: "Compra", sale: "Venda" }[t.type] || t.type)}${t.unit_price ? `<small> · ${money(t.unit_price)}/un. · custos ${money(t.fees || 0)}</small>` : ""}</td><td>${t.quantity ?? "—"}</td><td class="amount">${money(t.amount)}</td><td class="amount">${t.realized_gain == null ? "—" : money(t.realized_gain)}</td></tr>`).join("")}</tbody></table></div>${list.length ? "" : empty("Nenhuma movimentação registrada")}`,
+  );
+}
+function investmentTrade(id, side) {
+  const i = byId("investments", id);
+  if (!i || i.quote_mode === "manual") return;
+  simpleDialog(
+    `${side === "sale" ? "Vender" : "Comprar"} · ${i.name}`,
+    `<div class="info-banner">Posição atual: ${esc(String(i.quantity ?? "—"))} unidades · ${money(i.current_value)}</div>` +
+      inputField("Quantidade", "quantity", "", { extra: 'inputmode="decimal"' }) +
+      inputField("Preço por unidade (R$)", "unit_price", "", { extra: 'inputmode="decimal"' }) +
+      inputField("Custos / taxas (R$)", "fees", 0, { extra: 'inputmode="decimal"' }) +
+      inputField("Data da operação", "date", today(), { type: "date" }) +
+      `<label class="full">Lançar ${side === "sale" ? "entrada" : "saída"} na conta<select name="account"><option value="">Não, já registrei em outro lugar</option>${optionList(bankAccounts())}</select></label>` +
+      inputField("Observação", "description", "", { full: true, required: false }),
+    async (form) => {
+      const fd = new FormData(form);
+      const quantity = parseMoney(fd.get("quantity")), unitPrice = parseMoney(fd.get("unit_price")), fees = parseMoney(fd.get("fees"));
+      if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0 || !Number.isFinite(fees) || fees < 0)
+        throw Error("Informe quantidade, preço e custos válidos.");
+      if (i.quote_mode === "stock" && !Number.isInteger(quantity)) throw Error("A quantidade de ações deve ser inteira.");
+      if (side === "sale" && quantity > Number(i.quantity)) throw Error("A venda excede a quantidade atual.");
+      await rpc("record_investment_trade", {
+        p_investment: id, p_side: side, p_quantity: quantity, p_unit_price: unitPrice,
+        p_fees: fees, p_date: fd.get("date"), p_account: fd.get("account") || null,
+        p_description: fd.get("description"),
+        p_request: form.dataset.requestId || (form.dataset.requestId = crypto.randomUUID()),
+        p_expected_quantity: i.quantity, p_expected_value: i.current_value,
+      });
+    },
+    "A operação muda a quantidade e preserva o histórico. Escolha uma conta só se a movimentação bancária ainda não foi lançada.",
   );
 }
 function investmentMovement(id) {
@@ -1619,6 +1649,12 @@ document.addEventListener("click", async (event) => {
         break;
       case "investment-movement":
         investmentMovement(id);
+        break;
+      case "investment-trade-buy":
+        investmentTrade(id, "buy");
+        break;
+      case "investment-trade-sale":
+        investmentTrade(id, "sale");
         break;
       case "review-pending":
         transactionDialog(null, { pending: byId("pending_transactions", id) });

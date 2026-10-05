@@ -6,7 +6,7 @@ import {
   marketTicker,
   marketLineHTML,
   marketRange,
-} from "./investments.mjs";
+} from "./investments.mjs?v=2.2.10";
 export function investmentUI({
   rows,
   esc,
@@ -43,18 +43,18 @@ export function investmentUI({
         rows("investments").reduce((n, i) => n + Number(i.initial_amount), 0),
         "Referência cadastrada",
         "wallet",
-      )}${kpi("Valor atual", p.value, "Cotação ou último saldo informado", "wallet", true)}${kpi("Ganho desde a compra", p.gain || 0, pct(p.percent), "chart")}</div><div class="entity-grid">${p.items
+      )}${kpi("Valor atual", p.value, "Cotação ou último saldo informado", "wallet", true)}${kpi("Ganho acumulado", p.gain || 0, pct(p.percent), "chart")}${kpi("Ganho realizado", p.items.reduce((n, x) => n + (x.realizedGain || 0), 0), "Vendas registradas", "chart")}</div><div class="entity-grid">${p.items
         .map((item) => {
           const i = rows("investments").find((i) => i.id === item.id);
           const mode = i.quote_mode || (i.type === "stocks" ? "stock" : "manual");
           const last = rows("investment_valuations").filter((v) => v.investment_id === i.id).sort((a,b) => a.date.localeCompare(b.date)).at(-1);
           const source = last?.source === "quote" ? "Cotação de " + formatDate(last.date) : "Último saldo informado";
-          const details = mode === "stock"
+          const details = i.quantity === 0 || i.quantity === "0" ? "Posição encerrada · histórico preservado" : mode === "stock"
             ? (Number(i.quantity) > 0 ? i.quantity + " papéis · " + source : "Informe a quantidade de papéis em Editar para ativar a cotação")
             : mode === "treasury"
               ? (Number(i.quantity) > 0 && i.maturity_date && i.treasury_title ? i.quantity + " títulos · " + source : "Informe a quantidade e o vencimento exato para ativar o preço oficial")
               : "Atualização manual do saldo";
-          return `<article class="entity-card"><h3>${esc(i.name)}</h3><p>${esc(i.institution || "")} · ${esc(i.type)}</p><p>Compra em ${formatDate(i.purchase_date)} · ${money(i.initial_amount)}</p><div class="entity-amount">${money(i.current_value)}</div><p class="form-note">${esc(details)}</p><p style="color:${item.gain < 0 ? "#a83737" : "#205b4e"}"><strong>${item.gain < 0 ? "Perda" : "Ganho"}: ${money(item.gain)} · ${pct(item.percent)}</strong></p><p class="form-note">Sobre o valor de compra, considerando as movimentações registradas.</p><div class="entity-actions">${button("Ver gráficos", "investment-chart", i.id, "primary small")}${button(mode === "manual" ? "Atualizar saldo" : "Corrigir saldo", "investment-value", i.id, "small")}${button("Histórico", "investment-history", i.id, "small")}${button("Editar", "edit-investment", i.id, "small")}</div></article>`;
+          return `<article class="entity-card"><h3>${esc(i.name)}</h3><p>${esc(i.institution || "")} · ${esc(i.type)}</p><p>Compra em ${formatDate(i.purchase_date)} · ${money(i.initial_amount)}</p><div class="entity-amount">${money(i.current_value)}</div><p class="form-note">${esc(details)}</p><p style="color:${item.gain < 0 ? "#a83737" : "#205b4e"}"><strong>${item.gain < 0 ? "Perda" : "Ganho"}: ${money(item.gain)} · ${pct(item.percent)}</strong></p>${item.realizedGain ? `<p class="form-note">Ganho realizado em vendas: ${money(item.realizedGain)}</p>` : ""}<p class="form-note">Sobre o valor de compra, considerando as movimentações registradas.</p><div class="entity-actions">${button("Ver gráficos", "investment-chart", i.id, "primary small")}${button(mode === "manual" ? "Atualizar saldo" : "Corrigir saldo", "investment-value", i.id, "small")}${button("Histórico", "investment-history", i.id, "small")}${mode === "manual" ? "" : button(Number(i.quantity) === 0 && i.quantity != null ? "Comprar" : "Vender", Number(i.quantity) === 0 && i.quantity != null ? "investment-trade-buy" : "investment-trade-sale", i.id, "small")}${button("Editar", "edit-investment", i.id, "small")}</div></article>`;
         })
         .join("")}</div>`
     );

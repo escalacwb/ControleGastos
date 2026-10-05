@@ -1,4 +1,8 @@
-# Investimentos 2.2.9
+# Investimentos 2.2.10
+
+Em ações e Tesouro, use **Comprar** ou **Vender** na posição. Informe quantidade, preço por unidade, custos e data. A venda reduz a quantidade e o saldo atual; venda integral zera a posição sem apagar avaliações e transações. O valor líquido e o ganho realizado ficam no Histórico. Quando o preço médio não foi informado, a primeira venda usa o custo inicial dividido pela quantidade atual como base estimada; confira o preço médio no cadastro antes de vender se houve compras anteriores não registradas.
+
+O lançamento na conta é opcional. Se o dinheiro já entrou em outro lançamento, deixe **Não, já registrei em outro lugar** para não duplicar o saldo. Se ainda não entrou, escolha a conta para registrar o líquido da venda uma única vez. Compras seguem a mesma regra para a saída. Fundos e outros investimentos manuais continuam com Aporte/Resgate por valor; o saldo pode ser atualizado manualmente. Operações gravadas não podem ser editadas pelo lançamento bancário isolado, pois isso quebraria a quantidade da posição.
 
 O cadastro separa ações/papéis da B3, Tesouro Direto e fundos/outros. Ações usam código B3 e quantidade inteira; Tesouro usa tipo de título, vencimento exato e quantidade fracionária. O saldo atual é a quantidade multiplicada pela cotação datada, sem alterar contas bancárias. Enquanto faltarem esses dados, os saldos antigos ficam preservados e a tela indica o que preencher. O Trend Investback permanece manual até haver identificação da classe/CNPJ e fonte de cotas confiável.
 

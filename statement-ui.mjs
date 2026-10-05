@@ -1,5 +1,5 @@
 import { money, cents, parseMoney, today, normalize } from './finance.mjs';
-import { parseStatementCsv, parseStatementPdfLines, pdfPageLines } from './statements.mjs?v=2.2.9';
+import { parseStatementCsv, parseStatementPdfLines, pdfPageLines } from './statements.mjs?v=2.2.10';
 const esc = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const options = (items,selected='')=>items.map(x=>`<option value="${esc(x.id)}" ${x.id===selected?'selected':''}>${esc(x.name)}</option>`).join('');
 export function openStatementEditor({card,cycle,month,rows,showDialog,formWrap,rpc,client,pay=false,autoImport=false}) {
