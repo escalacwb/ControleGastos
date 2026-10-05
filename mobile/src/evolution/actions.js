@@ -461,70 +461,84 @@ export function useActions() {
     );
   const investment = (i = {}) =>
     setForm({
-      title: i.id ? "Atualizar investimento" : "Novo investimento",
+      title: i.id ? "Editar investimento" : "Novo investimento",
       initial: {
         name: i.name || "",
-        type: i.type || "Renda fixa",
+        quote_mode: i.quote_mode || (i.type === "stocks" ? "stock" : "manual"),
+        type: i.type || "Fundo de investimento",
         institution: i.institution || "",
-        ticker: i.ticker || "",
+        ticker: i.ticker || (/^[A-Z]{4}\d{1,2}$/.test(i.name || "") ? i.name : ""),
         quantity: String(i.quantity ?? ""),
         average_price: String(i.average_price ?? ""),
+        treasury_title: i.treasury_title || "",
+        maturity_date: i.maturity_date || "",
         initial_amount: String(i.initial_amount || 0),
         current_value: String(i.current_value || 0),
         purchase_date: i.purchase_date || today(),
       },
-      fields: [
-        field("name", "Nome"),
-        field("type", "Tipo"),
-        field("institution", "Instituição", "text", { required: false }),
-        field("ticker", "Papel B3 (opcional)", "text", { required: false }),
-        field("quantity", "Quantidade atual de papéis", "money", {
-          required: false,
-        }),
-        field("average_price", "Preço médio por papel", "money", {
-          required: false,
-        }),
-        field("initial_amount", "Valor de referência", "money"),
-        field("current_value", "Valor atual", "money"),
-        field("purchase_date", "Data inicial", "date"),
-      ],
-      note: "Atualiza o patrimônio informado. Para movimentar uma conta, use Aporte ou resgate.",
-      onSave: (v) => {
-        const initial = numeric(v.initial_amount),
-          current = numeric(v.current_value);
-        const ticker = String(v.ticker || "")
-            .trim()
-            .toUpperCase(),
-          quantity = v.quantity ? numeric(v.quantity) : null,
-          average_price = v.average_price ? numeric(v.average_price) : null;
-        if (
-          ticker &&
-          (!/^[A-Z]{4}\d{1,2}$/.test(ticker) ||
-            quantity === null ||
-            quantity < 0)
-        )
-          throw Error("Informe papel e quantidade válidos.");
-        if (
-          (quantity !== null && quantity < 0) ||
-          (average_price !== null && average_price < 0)
-        )
-          throw Error("Quantidade ou preço médio inválido.");
-        if (initial < 0 || current < 0)
-          throw Error("Os valores não podem ser negativos.");
-        return save(
-          "investments",
-          {
-            ...v,
-            name: v.name.trim(),
-            ticker: ticker || null,
-            quantity,
-            average_price,
-            initial_amount: initial,
-            current_value: current,
-            updated_at: new Date().toISOString(),
-          },
-          i.id,
-        );
+      fields: (values) => {
+        const mode = values.quote_mode || "manual";
+        return [
+          field("name", "Nome"),
+          select("quote_mode", "Como atualizar o saldo?", [
+            option("stock", "Ação / papel B3 · cotação automática"),
+            option("treasury", "Tesouro Direto · preço oficial"),
+            option("manual", "Fundo ou outro · saldo manual"),
+          ]),
+          ...(mode === "manual" ? [field("type", "Tipo")] : []),
+          field("institution", "Instituição", "text", { required: false }),
+          ...(mode === "stock" ? [
+            field("ticker", "Código do papel na B3"),
+            field("quantity", "Quantidade atual de papéis", "money"),
+            field("average_price", "Preço médio por papel", "money", { required: false }),
+          ] : []),
+          ...(mode === "treasury" ? [
+            select("treasury_title", "Título do Tesouro", [
+              option("", "Selecione"), option("Tesouro Selic", "Tesouro Selic"),
+              option("Tesouro IPCA+", "Tesouro IPCA+"), option("Tesouro Prefixado", "Tesouro Prefixado"),
+            ]),
+            field("maturity_date", "Vencimento exato do título", "date"),
+            field("quantity", "Quantidade atual de títulos", "money"),
+          ] : []),
+          field("initial_amount", "Valor total aplicado na compra", "money"),
+          ...(mode === "manual" ? [field("current_value", "Saldo atual informado", "money")] : []),
+          field("purchase_date", "Data real da compra", "date"),
+          field("_pricing_note", "Ações e Tesouro usam quantidade × cotação. Fundos mantêm saldo manual. Nenhuma atualização movimenta contas.", "note", { required: false }),
+        ];
+      },
+      onSave: async (v) => {
+        const mode = v.quote_mode || "manual";
+        const initial = numeric(v.initial_amount);
+        const current = mode === "manual" ? numeric(v.current_value) : Number(i.current_value ?? initial);
+        const quantity = v.quantity ? numeric(v.quantity) : null;
+        const ticker = String(v.ticker || "").trim().toUpperCase();
+        const averagePrice = v.average_price ? numeric(v.average_price) : null;
+        if (initial < 0 || current < 0) throw Error("Os valores não podem ser negativos.");
+        if (!v.purchase_date || v.purchase_date > today()) throw Error("Informe a data real da compra; ela não pode estar no futuro.");
+        if (mode === "stock" && (!/^[A-Z]{4}\d{1,2}$/.test(ticker) || !Number.isInteger(quantity) || quantity <= 0))
+          throw Error("Informe o código B3 e a quantidade inteira de papéis.");
+        if (mode === "treasury" && (!v.treasury_title || !v.maturity_date || v.maturity_date <= v.purchase_date || !Number.isFinite(quantity) || quantity <= 0))
+          throw Error("Informe o título, vencimento exato e quantidade de títulos.");
+        if (mode === "stock" && averagePrice !== null && averagePrice < 0) throw Error("Preço médio inválido.");
+        await save("investments", {
+          name: v.name.trim(),
+          quote_mode: mode,
+          type: mode === "stock" ? "stocks" : mode === "treasury" ? "fixed_income" : String(v.type || "other").trim(),
+          institution: String(v.institution || "").trim() || null,
+          ticker: mode === "stock" ? ticker : null,
+          quantity: mode === "manual" ? null : quantity,
+          average_price: mode === "stock" ? averagePrice : null,
+          treasury_title: mode === "treasury" ? v.treasury_title : null,
+          maturity_date: mode === "treasury" ? v.maturity_date : (i.maturity_date || null),
+          initial_amount: initial,
+          current_value: current,
+          purchase_date: v.purchase_date,
+          updated_at: new Date().toISOString(),
+        }, i.id);
+        if (mode !== "manual") {
+          try { await rpc("refresh_market_investments", {}); }
+          catch { Alert.alert("Cotação", "Cadastro salvo. Tente atualizar pela cotação mais tarde."); }
+        }
       },
     });
   const movement = (i) => {

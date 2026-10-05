@@ -1,4 +1,10 @@
-# Investimentos 2.2.1
+# Investimentos 2.2.9
+
+O cadastro separa ações/papéis da B3, Tesouro Direto e fundos/outros. Ações usam código B3 e quantidade inteira; Tesouro usa tipo de título, vencimento exato e quantidade fracionária. O saldo atual é a quantidade multiplicada pela cotação datada, sem alterar contas bancárias. Enquanto faltarem esses dados, os saldos antigos ficam preservados e a tela indica o que preencher. O Trend Investback permanece manual até haver identificação da classe/CNPJ e fonte de cotas confiável.
+
+O Tesouro utiliza o CSV diário oficial do Tesouro Transparente, filtrado pelo tipo e vencimento do título. O PU Base Manhã é o preço de marcação a mercado da posição; a cotação pode estar defasada nos fins de semana e feriados. A fonte é consultada ao abrir investimentos ou no botão de atualização, com cache no banco. Caso o preço do título não esteja publicado recentemente, o saldo é mantido e o motivo é exibido. Impostos e taxas pessoais não são estimados.
+
+Os saldos anteriores e históricos manuais não são substituídos por estimativas. Para atualizar uma posição existente, informe a quantidade real e corrija a data de compra caso esteja errada. Acompanhamento de rentabilidade com compras e resgates em dias diferentes exige registrar essas movimentações. A ação só é atualizada enquanto o aplicativo é usado; não existe coleta em segundo plano com o aplicativo fechado.
 
 O valor de referencia cadastrado representa o valor da compra. O ganho desde a compra usa valor atual menos compra, desconta aportes posteriores, soma resgates e proventos. O percentual desde a compra usa o capital aplicado (compra mais aportes). O total da carteira pode incluir investimentos comprados em datas diferentes.
 

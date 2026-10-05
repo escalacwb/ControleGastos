@@ -43,17 +43,25 @@ export function investmentUI({
         rows("investments").reduce((n, i) => n + Number(i.initial_amount), 0),
         "Referência cadastrada",
         "wallet",
-      )}${kpi("Valor atual", p.value, "Últimos saldos informados", "wallet", true)}${kpi("Ganho desde a compra", p.gain || 0, pct(p.percent), "chart")}</div><div class="entity-grid">${p.items
+      )}${kpi("Valor atual", p.value, "Cotação ou último saldo informado", "wallet", true)}${kpi("Ganho desde a compra", p.gain || 0, pct(p.percent), "chart")}</div><div class="entity-grid">${p.items
         .map((item) => {
           const i = rows("investments").find((i) => i.id === item.id);
-          return `<article class="entity-card"><h3>${esc(i.name)}</h3><p>${esc(i.institution || "")} · ${esc(i.type)}</p><p>Compra em ${formatDate(i.purchase_date)} · ${money(i.initial_amount)}</p><div class="entity-amount">${money(i.current_value)}</div><p style="color:${item.gain < 0 ? "#a83737" : "#205b4e"}"><strong>${item.gain < 0 ? "Perda" : "Ganho"}: ${money(item.gain)} · ${pct(item.percent)}</strong></p><p class="form-note">Sobre o valor de compra, considerando as movimentações registradas.</p><div class="entity-actions">${button("Ver gráficos", "investment-chart", i.id, "primary small")}${button("Atualizar saldo", "investment-value", i.id, "small")}${button("Histórico", "investment-history", i.id, "small")}${button("Editar", "edit-investment", i.id, "small")}</div></article>`;
+          const mode = i.quote_mode || (i.type === "stocks" ? "stock" : "manual");
+          const last = rows("investment_valuations").filter((v) => v.investment_id === i.id).sort((a,b) => a.date.localeCompare(b.date)).at(-1);
+          const source = last?.source === "quote" ? "Cotação de " + formatDate(last.date) : "Último saldo informado";
+          const details = mode === "stock"
+            ? (Number(i.quantity) > 0 ? i.quantity + " papéis · " + source : "Informe a quantidade de papéis em Editar para ativar a cotação")
+            : mode === "treasury"
+              ? (Number(i.quantity) > 0 && i.maturity_date && i.treasury_title ? i.quantity + " títulos · " + source : "Informe a quantidade e o vencimento exato para ativar o preço oficial")
+              : "Atualização manual do saldo";
+          return `<article class="entity-card"><h3>${esc(i.name)}</h3><p>${esc(i.institution || "")} · ${esc(i.type)}</p><p>Compra em ${formatDate(i.purchase_date)} · ${money(i.initial_amount)}</p><div class="entity-amount">${money(i.current_value)}</div><p class="form-note">${esc(details)}</p><p style="color:${item.gain < 0 ? "#a83737" : "#205b4e"}"><strong>${item.gain < 0 ? "Perda" : "Ganho"}: ${money(item.gain)} · ${pct(item.percent)}</strong></p><p class="form-note">Sobre o valor de compra, considerando as movimentações registradas.</p><div class="entity-actions">${button("Ver gráficos", "investment-chart", i.id, "primary small")}${button(mode === "manual" ? "Atualizar saldo" : "Corrigir saldo", "investment-value", i.id, "small")}${button("Histórico", "investment-history", i.id, "small")}${button("Editar", "edit-investment", i.id, "small")}</div></article>`;
         })
         .join("")}</div>`
     );
   }
   function open(id, kind = "comparison", period = "all") {
     const i = rows("investments").find((i) => i.id === id),
-      ticker = marketTicker(i),
+      ticker = i.quote_mode === "stock" ? marketTicker(i) : "",
       r = investmentPerformance(
         i,
         rows("investment_valuations"),
@@ -76,7 +84,7 @@ export function investmentUI({
         ["comparison", "Compra × valor atual"],
         ["balance", "Evolução do saldo"],
         ["gain", "Evolução do ganho"],
-        ["market", "Cotação do papel na bolsa"],
+        ...(i.quote_mode === "stock" ? [["market", "Cotação do papel na bolsa"]] : []),
       ]
         .map(
           ([v, l]) =>

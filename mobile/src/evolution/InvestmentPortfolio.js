@@ -64,7 +64,7 @@ export function InvestmentPortfolio() {
     }
   };
   useEffect(() => {
-    if (rows("investments").some((i) => i.quantity && marketTicker(i)))
+    if (rows("investments").some((i) => i.quantity && (i.quote_mode === "treasury" || marketTicker(i))))
       updateQuotes();
   }, []);
   const p = portfolioPerformance(
@@ -158,6 +158,14 @@ export function InvestmentPortfolio() {
       </Button>
       {p.items.map((item) => {
         const x = rows("investments").find((i) => i.id === item.id);
+        const mode = x.quote_mode || (x.type === "stocks" ? "stock" : "manual");
+        const last = rows("investment_valuations").filter(v => v.investment_id === x.id).sort((a,b) => a.date.localeCompare(b.date)).at(-1);
+        const source = last?.source === "quote" ? "Cotação de " + formatDate(last.date) : "Último saldo informado";
+        const pricing = mode === "stock"
+          ? (Number(x.quantity) > 0 ? x.quantity + " papéis · " + source : "Informe a quantidade de papéis em Editar")
+          : mode === "treasury"
+            ? (Number(x.quantity) > 0 && x.maturity_date && x.treasury_title ? x.quantity + " títulos · " + source : "Informe quantidade e vencimento exato em Editar")
+            : "Atualização manual do saldo";
         return (
           <Card key={x.id} title={x.name}>
             <Text style={S.muted}>
@@ -167,6 +175,7 @@ export function InvestmentPortfolio() {
               Compra em {formatDate(x.purchase_date)}: {money(x.initial_amount)}
             </Text>
             <Text style={S.value}>{money(x.current_value)}</Text>
+            <Text style={S.muted}>{pricing}</Text>
             <Text
               style={[S.text, { color: item.gain < 0 ? "#a83737" : "#205b4e" }]}
             >
@@ -184,7 +193,7 @@ export function InvestmentPortfolio() {
                 Ver gráficos
               </Button>
               <Button secondary onPress={() => valueForm(x)}>
-                Atualizar saldo
+                {mode === "manual" ? "Atualizar saldo" : "Corrigir saldo"}
               </Button>
               <Button secondary onPress={() => a.movement(x)}>
                 Aporte ou resgate
@@ -230,7 +239,7 @@ export function InvestmentPortfolio() {
                     ["comparison", "Compra × valor atual"],
                     ["balance", "Evolução do saldo"],
                     ["gain", "Evolução do ganho"],
-                    ["market", "Cotação do papel na bolsa"],
+                    ...(i.quote_mode === "stock" ? [["market", "Cotação do papel na bolsa"]] : []),
                     ["history", "Histórico e movimentações"],
                   ].map(([v, l]) => (
                     <Picker.Item key={v} label={l} value={v} />
@@ -247,9 +256,9 @@ export function InvestmentPortfolio() {
                   marketTicker(i) ? (
                     <>
                       <Text style={S.muted}>
-                        Cotação de mercado do papel. Pode ter atraso. O ganho
-                        acima usa o saldo informado; este gráfico não altera o
-                        saldo automaticamente.
+                        Cotação de mercado do papel. Pode ter atraso. O saldo é
+                        atualizado pela quantidade cadastrada ao abrir a carteira
+                        ou tocar em Atualizar pela cotação.
                       </Text>
                       <WebView
                         key={marketTicker(i)}
