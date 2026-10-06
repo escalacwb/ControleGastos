@@ -314,11 +314,11 @@ export function marketLineHTML(quote, investment) {
       : "<p>Informe a quantidade de papéis para calcular sua posição pela cotação.</p>";
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:15px system-ui;color:#173b32;margin:12px}svg{width:100%;height:auto}p{line-height:1.5}</style></head><body><p>Cotação mais recente: <strong>${fmt(price)}</strong><br>${new Date(quote.meta.regularMarketTime * 1000).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} · Yahoo Finance</p>${gain}<svg viewBox="0 0 720 270" role="img" aria-label="Histórico de cotação"><text x="5" y="25">${fmt(max)}</text><text x="5" y="240">${fmt(min)}</text><polyline points="${coords}" fill="none" stroke="#205b4e" stroke-width="3"/>${points.map((p, index) => `<circle cx="${40 + (index / Math.max(1, points.length - 1)) * 640}" cy="${220 - ((p.value - min) / span) * 170}" r="3" fill="#205b4e"><title>${p.date}: ${fmt(p.value)}</title></circle>`).join("")}<text x="40" y="265">${points[0].date}</text><text x="590" y="265">${points.at(-1).date}</text></svg><p>Preço de cada papel. As cotações podem ter atraso. O histórico de preços não presume compras ou vendas suas.</p></body></html>`;
 }
-const quoteAttempts = new Set();
-export function quoteRefreshDue(owner, date) {
+const quoteAttempts = new Map();
+export function quoteRefreshDue(owner, date, now = Date.now()) {
   const key = owner + ":" + date;
-  if (quoteAttempts.has(key)) return false;
-  quoteAttempts.add(key);
+  if (now - (quoteAttempts.get(key) ?? -Infinity) < 3 * 60 * 60 * 1000) return false;
+  quoteAttempts.set(key, now);
   return true;
 }
 export function marketTicker(i) {

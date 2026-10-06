@@ -10,8 +10,8 @@ import {
   investmentGroupNames,
   investmentGroup,
   periodStart,
-} from "./investments.mjs?v=2.2.13";
-import { investmentGroupChartHTML, investmentSeriesChartHTML } from "./mobile/src/lib/investment-group-chart.js?v=2.2.13";
+} from "./investments.mjs?v=2.2.14";
+import { investmentGroupChartHTML, investmentSeriesChartHTML } from "./mobile/src/lib/investment-group-chart.js?v=2.2.14";
 export function investmentUI({
   rows,
   esc,
