@@ -6,6 +6,51 @@ export const investmentPeriods = [
   ["all", "Desde o início"],
 ];
 const round = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+export function investmentGroup(investment) {
+  if (investment.quote_mode === "treasury" || investment.type === "fixed_income") return "fixed";
+  if (investment.quote_mode === "stock" || investment.type === "stocks") return "variable";
+  return "other";
+}
+export const investmentGroupNames = { fixed: "Renda fixa", variable: "Renda variável", other: "Fundos e outros" };
+export function investmentGroupHistory(investments, valuations, movements, group, end) {
+  const assets = investments.filter((i) => investmentGroup(i) === group);
+  const ids = new Set(assets.map((i) => i.id));
+  const dates = [...new Set([
+    ...assets.map((i) => i.purchase_date),
+    ...valuations.filter((v) => ids.has(v.investment_id)).map((v) => v.date),
+    ...movements.filter((m) => ids.has(m.investment_id)).map((m) => m.date),
+  ].filter((date) => date && date <= end))].sort();
+  return dates.map((date) => {
+    let current = 0, invested = 0, activeCost = 0, received = 0, realizedGain = 0;
+    for (const asset of assets.filter((i) => i.purchase_date <= date)) {
+      const history = valuations.filter((v) => v.investment_id === asset.id && v.date <= date)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      const assetMovements = movements.filter((m) => m.investment_id === asset.id && m.date <= date);
+      const principal = Number(asset.initial_amount || 0);
+      current += Number(history.at(-1)?.value ?? principal);
+      invested += principal;
+      activeCost += principal;
+      for (const movement of assetMovements) {
+        const amount = Number(movement.amount || 0);
+        if (movement.type === "buy" || movement.type === "contribution") {
+          invested += amount;
+          activeCost += amount;
+        } else if (movement.type === "sale") {
+          received += amount;
+          activeCost -= Number(movement.cost_basis || 0);
+          realizedGain += Number(movement.realized_gain || 0);
+        } else if (movement.type === "withdrawal") {
+          received += amount;
+          activeCost -= amount;
+        } else if (movement.type === "dividend") {
+          received += amount;
+        }
+      }
+    }
+    const gain = round(current + received - invested);
+    return { date, current: round(current), invested: round(invested), activeCost: round(Math.max(0, activeCost)), received: round(received), realizedGain: round(realizedGain), gain, percent: invested > 0 ? round(gain / invested * 100) : null };
+  });
+}
 export function periodStart(period, end) {
   const d = new Date(end + "T12:00:00Z");
   if (period === "all") return "0000-01-01";
@@ -43,13 +88,21 @@ export function investmentPerformance(
       : history.filter((v) => v.date < start).at(-1);
   let last = history.at(-1);
   if (period === "all") {
+    const lastMovementDate = movements
+      .filter((m) => m.investment_id === investment.id && m.date <= end)
+      .map((m) => m.date)
+      .sort()
+      .at(-1);
     base = {
       date: investment.purchase_date,
       value: Number(investment.initial_amount),
       source: "purchase",
     };
     last = {
-      date: last?.date || String(investment.updated_at || end).slice(0, 10),
+      date: [last?.date, lastMovementDate, investment.purchase_date]
+        .filter(Boolean)
+        .sort()
+        .at(-1),
       value: Number(investment.current_value),
     };
   }

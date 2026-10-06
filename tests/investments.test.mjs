@@ -5,6 +5,7 @@ import {
   portfolioPerformance,
   portfolioHistory,
   periodStart,
+  investmentGroupHistory,
 } from "../investments.mjs";
 const i = { id: "a", name: "Reserva", current_value: 12500, initial_amount:10000, purchase_date:'2025-12-31' };
 const values = [
@@ -98,6 +99,36 @@ test("posição totalmente vendida mantém ganho no histórico com saldo zero", 
   assert.equal(result.gain, 190);
   assert.equal(result.realizedGain, 190);
   assert.equal(result.value, 0);
+});
+test("venda conta no rendimento mesmo se um fechamento automático ficou no dia seguinte", () => {
+  const position = { id: "s", name: "Tesouro", initial_amount: 25013.08, current_value: 0, purchase_date: "2025-11-08", updated_at: "2026-10-06" };
+  const trades = [{ investment_id: "s", type: "sale", amount: 25473.51, realized_gain: 460.43, date: "2026-10-05", quantity: 15.65 }];
+  const valuations = [
+    { investment_id: "s", date: "2026-10-02", value: 27979.85 },
+    { investment_id: "s", date: "2026-10-06", value: 0 },
+  ];
+  const result = performance(position, valuations, trades, "all", "2026-10-05");
+  assert.equal(result.gain, 460.43);
+  assert.equal(result.realizedGain, 460.43);
+  assert.equal(result.last.date, "2026-10-05");
+});
+test("renda fixa separa custo ativo de resgate e mantém o ganho realizado", () => {
+  const assets = [
+    { id: "sold", type: "fixed_income", quote_mode: "treasury", purchase_date: "2025-11-08", initial_amount: 25013.08 },
+    { id: "held", type: "fixed_income", quote_mode: "treasury", purchase_date: "2025-11-08", initial_amount: 10000 },
+  ];
+  const valuations = [
+    { investment_id: "sold", date: "2026-10-05", value: 0 },
+    { investment_id: "held", date: "2026-10-02", value: 11000 },
+  ];
+  const trades = [{ investment_id: "sold", type: "sale", amount: 25473.51, cost_basis: 25013.08, realized_gain: 460.43, date: "2026-10-05" }];
+  const points = investmentGroupHistory(assets, valuations, trades, "fixed", "2026-10-05");
+  const last = points.at(-1);
+  assert.equal(last.current, 11000);
+  assert.equal(last.activeCost, 10000);
+  assert.equal(last.received, 25473.51);
+  assert.equal(last.realizedGain, 460.43);
+  assert.equal(last.gain, 1460.43);
 });
 test("gráfico da carteira reconcilia valores e mantém a data real do saldo manual", () => {
   const j = { id: "b", name: "Outro", purchase_date: "2025-01-01" };

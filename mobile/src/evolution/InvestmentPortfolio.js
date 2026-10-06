@@ -15,6 +15,9 @@ import {
   marketTicker,
   marketLineHTML,
   marketRange,
+  investmentGroupHistory,
+  investmentGroupNames,
+  periodStart,
 } from "../lib/investments";
 export function InvestmentPortfolio() {
   const { rows, setForm, rpc, refresh } = useData(),
@@ -22,6 +25,8 @@ export function InvestmentPortfolio() {
   const [selected, setSelected] = useState(null),
     [kind, setKind] = useState("comparison"),
     [period, setPeriod] = useState("all");
+  const [groupSelected, setGroupSelected] = useState(null);
+  const [groupPeriod, setGroupPeriod] = useState("all");
   const [marketHTML, setMarketHTML] = useState("<p>Consultando o mercado…</p>");
   useEffect(() => {
     let active = true;
@@ -74,6 +79,19 @@ export function InvestmentPortfolio() {
     "all",
     today(),
   );
+  const groups = Object.entries(investmentGroupNames)
+    .map(([key, name]) => ({ key, name, points: investmentGroupHistory(rows("investments"), rows("investment_valuations"), rows("investment_transactions"), key, today()) }))
+    .filter((group) => group.points.length);
+  const activeCost = groups.reduce((total, group) => total + group.points.at(-1).activeCost, 0);
+  const received = groups.reduce((total, group) => total + group.points.at(-1).received, 0);
+  const selectedGroup = groups.find((group) => group.key === groupSelected);
+  const groupPoints = selectedGroup?.points.filter((point) => point.date >= periodStart(groupPeriod, today())) || [];
+  const chartValues = groupPoints.map((point) => point.percent ?? 0);
+  const chartMin = Math.min(0, ...chartValues), chartMax = Math.max(0, ...chartValues), chartSpan = Math.max(1, chartMax - chartMin);
+  const chartX = (index) => 35 + (groupPoints.length === 1 ? 285 : index * 570 / (groupPoints.length - 1));
+  const chartY = (value) => 205 - (value - chartMin) / chartSpan * 165;
+  const chartPath = groupPoints.map((point, index) => `${index ? "L" : "M"}${chartX(index).toFixed(1)} ${chartY(point.percent ?? 0).toFixed(1)}`).join(" ");
+  const chartHTML = `<html><meta name="viewport" content="width=device-width, initial-scale=1"><body style="margin:0;background:#f7f8f4"><svg viewBox="0 0 640 240" style="width:100%;height:100%"><line x1="35" y1="${chartY(0)}" x2="605" y2="${chartY(0)}" stroke="#a7b5ab" stroke-dasharray="4 4"/><path d="${chartPath}" fill="none" stroke="#205b4e" stroke-width="3"/>${groupPoints.map((point, index) => `<circle cx="${chartX(index)}" cy="${chartY(point.percent ?? 0)}" r="5" fill="#205b4e"/>`).join("")}</svg></body></html>`;
   const pct = (n) =>
     n === null
       ? "—"
@@ -100,13 +118,13 @@ export function InvestmentPortfolio() {
           required: true,
         },
       ],
-      note: "Não movimenta contas. Datas antigas preservam o saldo mais recente.",
+      note: v ? "A correção altera esta avaliação, inclusive sua data, sem criar outro registro. Não movimenta contas." : "Não movimenta contas. Datas antigas preservam o saldo mais recente.",
       onSave: async (values) => {
         const value = parseMoney(values.value);
         if (!Number.isFinite(value) || value < 0)
           throw Error("Informe um saldo válido.");
-        await rpc("record_investment_valuation", {
-          p_investment: i.id,
+        await rpc(v ? "revise_investment_valuation" : "record_investment_valuation", {
+          [v ? "p_valuation" : "p_investment"]: v ? v.id : i.id,
           p_date: values.date,
           p_value: value,
           p_expected: i.current_value,
@@ -138,27 +156,33 @@ export function InvestmentPortfolio() {
   return (
     <>
       <Card title="Sua carteira">
-        <Text style={S.muted}>
-          Valor de compra:{" "}
-          {money(
-            rows("investments").reduce(
-              (n, i) => n + Number(i.initial_amount),
-              0,
-            ),
-          )}
-        </Text>
-        <Text style={S.value}>{money(p.value)}</Text>
+        <Text style={S.muted}>Capital ainda aplicado: {money(activeCost)}</Text>
+        <Text style={S.value}>Valor atual: {money(p.value)}</Text>
         <Text style={S.text}>
-          Ganho desde a compra: {money(p.gain)} · {pct(p.percent)}
+          Ganho acumulado: {money(p.gain)} · {pct(p.percent)}
         </Text>
-        <Text style={S.text}>Ganho realizado em vendas: {money(p.items.reduce((n, x) => n + (x.realizedGain || 0), 0))}</Text>
+        <Text style={S.text}>Já recebido: {money(received)} · ganho realizado em vendas: {money(p.items.reduce((n, x) => n + (x.realizedGain || 0), 0))}</Text>
+        <Text style={S.muted}>O capital ativo desconta o custo dos ativos vendidos. O ganho inclui os valores já recebidos.</Text>
       </Card>
+      <Text style={[S.text, { fontWeight: "700" }]}>Carteira por tipo</Text>
+      {groups.map((group) => { const last = group.points.at(-1); return (
+        <Card key={group.key} title={group.name}>
+          <Text style={S.value}>{money(last.current)}</Text>
+          <Text style={S.text}>Capital ativo: {money(last.activeCost)}</Text>
+          <Text style={S.text}>Ganho acumulado: {money(last.gain)} · {pct(last.percent)}</Text>
+          <Text style={S.muted}>Já recebido: {money(last.received)}</Text>
+          <Button secondary onPress={() => { setGroupSelected(group.key); setGroupPeriod("all"); }}>Ver evolução</Button>
+        </Card>
+      ); })}
       <Button onPress={() => a.investment()}>＋ Novo investimento</Button>
       <Button secondary onPress={updateQuotes}>
         Atualizar pela cotação
       </Button>
       {p.items.map((item) => {
         const x = rows("investments").find((i) => i.id === item.id);
+        const sales = rows("investment_transactions").filter((t) => t.investment_id === x.id && t.type === "sale");
+        const saleReceived = sales.reduce((total, sale) => total + Number(sale.amount || 0), 0);
+        const saleCost = sales.reduce((total, sale) => total + Number(sale.cost_basis || 0), 0);
         const mode = x.quote_mode || (x.type === "stocks" ? "stock" : "manual");
         const last = rows("investment_valuations").filter(v => v.investment_id === x.id).sort((a,b) => a.date.localeCompare(b.date)).at(-1);
         const source = last?.source === "quote" ? "Cotação de " + formatDate(last.date) : "Último saldo informado";
@@ -184,6 +208,7 @@ export function InvestmentPortfolio() {
               {pct(item.percent)}
             </Text>
             {item.realizedGain ? <Text style={S.muted}>Ganho realizado em vendas: {money(item.realizedGain)}</Text> : null}
+            {sales.length ? <Text style={S.muted}>Já recebido em vendas: {money(saleReceived)} · custo vendido: {money(saleCost)}</Text> : null}
             <View style={S.wrap}>
               <Button
                 onPress={() => {
@@ -292,13 +317,22 @@ export function InvestmentPortfolio() {
                       .filter((v) => v.investment_id === i.id)
                       .sort((a, b) => b.date.localeCompare(a.date))
                       .map((v) => (
-                        <Button
-                          secondary
-                          key={v.id}
-                          onPress={() => valueForm(i, v)}
-                        >
-                          {formatDate(v.date)} · {money(v.value)} · corrigir
-                        </Button>
+                        <View key={v.id} style={{ gap: 6 }}>
+                          <Text style={S.muted}>{formatDate(v.date)} · {money(v.value)} · {v.source === "manual" ? "informado" : "automático"}</Text>
+                          {v.source === "manual" && <>
+                            <Button secondary onPress={() => valueForm(i, v)}>Corrigir data ou valor</Button>
+                            <Button secondary onPress={() => Alert.alert(
+                              "Excluir avaliação?",
+                              "O saldo atual será recalculado pelo histórico restante.",
+                              [{ text: "Cancelar", style: "cancel" }, { text: "Excluir", style: "destructive", onPress: async () => {
+                                try {
+                                  await rpc("delete_investment_valuation", { p_valuation: v.id, p_expected: i.current_value });
+                                  await refresh();
+                                } catch (e) { Alert.alert("Não foi possível excluir", e.message); }
+                              } }],
+                            )}>Excluir avaliação</Button>
+                          </>}
+                        </View>
                       ))}
                     {rows("investment_transactions")
                       .filter((t) => t.investment_id === i.id)
@@ -370,6 +404,29 @@ export function InvestmentPortfolio() {
             </SafeAreaView>
           </View>
         )}
+      </Modal>
+      <Modal visible={!!selectedGroup} transparent animationType="slide" onRequestClose={() => setGroupSelected(null)}>
+        {selectedGroup && <View style={S.modalOverlay}>
+          <SafeAreaView edges={["bottom"]} style={[S.modal, { height: "88%" }]}>
+            <View style={S.modalHeader}>
+              <Text style={[S.text, { flex: 1, fontWeight: "700" }]}>Evolução · {selectedGroup.name}</Text>
+              <Button secondary onPress={() => setGroupSelected(null)}>Fechar</Button>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+              <Text style={S.text}>Valor atual: {money(selectedGroup.points.at(-1).current)} · ganho acumulado: {money(selectedGroup.points.at(-1).gain)}</Text>
+              <Picker selectedValue={groupPeriod} onValueChange={setGroupPeriod}>
+                {investmentPeriods.map(([value, label]) => <Picker.Item key={value} value={value} label={label} />)}
+              </Picker>
+              {groupPoints.length ? <>
+                <WebView source={{ html: chartHTML }} style={{ height: 240, borderRadius: 12 }} scrollEnabled={false} />
+                {groupPoints.slice(-8).reverse().map((point) => <Text key={point.date} style={S.text}>
+                  {formatDate(point.date)} · {pct(point.percent)} · {money(point.gain)} · saldo {money(point.current)}
+                </Text>)}
+              </> : <Text style={S.muted}>Sem avaliações ou movimentações neste período.</Text>}
+              <Text style={S.muted}>Datas conhecidas apenas. Entre atualizações, usa o último saldo informado ou cotado; vendas e resgates permanecem no ganho.</Text>
+            </ScrollView>
+          </SafeAreaView>
+        </View>}
       </Modal>
     </>
   );

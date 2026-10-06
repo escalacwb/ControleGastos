@@ -6,7 +6,10 @@ import {
   marketTicker,
   marketLineHTML,
   marketRange,
-} from "./investments.mjs?v=2.2.10";
+  investmentGroupHistory,
+  investmentGroupNames,
+  periodStart,
+} from "./investments.mjs?v=2.2.12";
 export function investmentUI({
   rows,
   esc,
@@ -31,6 +34,11 @@ export function investmentUI({
       "all",
       today(),
     );
+    const groups = Object.entries(investmentGroupNames)
+      .map(([key, name]) => ({ key, name, points: investmentGroupHistory(rows("investments"), rows("investment_valuations"), rows("investment_transactions"), key, today()) }))
+      .filter((group) => group.points.length);
+    const activeCost = groups.reduce((total, group) => total + group.points.at(-1).activeCost, 0);
+    const received = groups.reduce((total, group) => total + group.points.at(-1).received, 0);
     return (
       heading(
         "Investimentos",
@@ -39,13 +47,16 @@ export function investmentUI({
           button("Atualizar pela cotação", "investment-quotes", "", "small"),
       ) +
       `<div class="report-summary">${kpi(
-        "Valor de compra",
-        rows("investments").reduce((n, i) => n + Number(i.initial_amount), 0),
-        "Referência cadastrada",
+        "Capital ainda aplicado",
+        activeCost,
+        "Custo das posições que restam",
         "wallet",
-      )}${kpi("Valor atual", p.value, "Cotação ou último saldo informado", "wallet", true)}${kpi("Ganho acumulado", p.gain || 0, pct(p.percent), "chart")}${kpi("Ganho realizado", p.items.reduce((n, x) => n + (x.realizedGain || 0), 0), "Vendas registradas", "chart")}</div><div class="entity-grid">${p.items
+      )}${kpi("Valor atual", p.value, "Posições ainda na carteira", "wallet", true)}${kpi("Ganho acumulado", p.gain || 0, pct(p.percent), "chart")}${kpi("Já recebido", received, "Vendas, resgates e proventos", "wallet")}</div><div class="info-banner">Ganho acumulado = valor atual + valores recebidos − capital total aplicado. O capital ainda aplicado desconta o custo dos ativos vendidos; o histórico continua preservado.</div><section class="panel"><h3>Carteira por tipo</h3><p class="form-note">Acompanhe separadamente renda fixa, renda variável e fundos ou outros investimentos.</p><div class="entity-grid">${groups.map((group) => { const last = group.points.at(-1); return `<article class="entity-card"><h3>${esc(group.name)}</h3><div class="entity-amount">${money(last.current)}</div><p>Capital ativo: ${money(last.activeCost)}</p><p>Ganho acumulado: <strong>${money(last.gain)} · ${pct(last.percent)}</strong></p><p class="form-note">Já recebido: ${money(last.received)} · realizado em vendas: ${money(last.realizedGain)}</p>${button("Ver evolução", "investment-group-chart", group.key, "small")}</article>`; }).join("")}</div></section><div class="entity-grid">${p.items
         .map((item) => {
           const i = rows("investments").find((i) => i.id === item.id);
+          const sales = rows("investment_transactions").filter((t) => t.investment_id === i.id && t.type === "sale");
+          const saleReceived = sales.reduce((total, sale) => total + Number(sale.amount || 0), 0);
+          const saleCost = sales.reduce((total, sale) => total + Number(sale.cost_basis || 0), 0);
           const mode = i.quote_mode || (i.type === "stocks" ? "stock" : "manual");
           const last = rows("investment_valuations").filter((v) => v.investment_id === i.id).sort((a,b) => a.date.localeCompare(b.date)).at(-1);
           const source = last?.source === "quote" ? "Cotação de " + formatDate(last.date) : "Último saldo informado";
@@ -54,10 +65,27 @@ export function investmentUI({
             : mode === "treasury"
               ? (Number(i.quantity) > 0 && i.maturity_date && i.treasury_title ? i.quantity + " títulos · " + source : "Informe a quantidade e o vencimento exato para ativar o preço oficial")
               : "Atualização manual do saldo";
-          return `<article class="entity-card"><h3>${esc(i.name)}</h3><p>${esc(i.institution || "")} · ${esc(i.type)}</p><p>Compra em ${formatDate(i.purchase_date)} · ${money(i.initial_amount)}</p><div class="entity-amount">${money(i.current_value)}</div><p class="form-note">${esc(details)}</p><p style="color:${item.gain < 0 ? "#a83737" : "#205b4e"}"><strong>${item.gain < 0 ? "Perda" : "Ganho"}: ${money(item.gain)} · ${pct(item.percent)}</strong></p>${item.realizedGain ? `<p class="form-note">Ganho realizado em vendas: ${money(item.realizedGain)}</p>` : ""}<p class="form-note">Sobre o valor de compra, considerando as movimentações registradas.</p><div class="entity-actions">${button("Ver gráficos", "investment-chart", i.id, "primary small")}${button(mode === "manual" ? "Atualizar saldo" : "Corrigir saldo", "investment-value", i.id, "small")}${button("Histórico", "investment-history", i.id, "small")}${mode === "manual" ? "" : button(Number(i.quantity) === 0 && i.quantity != null ? "Comprar" : "Vender", Number(i.quantity) === 0 && i.quantity != null ? "investment-trade-buy" : "investment-trade-sale", i.id, "small")}${button("Editar", "edit-investment", i.id, "small")}</div></article>`;
+          return `<article class="entity-card"><h3>${esc(i.name)}</h3><p>${esc(i.institution || "")} · ${esc(i.type)}</p><p>Compra em ${formatDate(i.purchase_date)} · ${money(i.initial_amount)}</p><div class="entity-amount">${money(i.current_value)}</div><p class="form-note">${esc(details)}</p><p style="color:${item.gain < 0 ? "#a83737" : "#205b4e"}"><strong>${item.gain < 0 ? "Perda" : "Ganho"}: ${money(item.gain)} · ${pct(item.percent)}</strong></p>${sales.length ? `<p class="form-note">Já recebido em vendas: ${money(saleReceived)} · custo vendido: ${money(saleCost)}</p>` : ""}${item.realizedGain ? `<p class="form-note">Ganho realizado em vendas: ${money(item.realizedGain)}</p>` : ""}<p class="form-note">Sobre o valor de compra, considerando as movimentações registradas.</p><div class="entity-actions">${button("Ver gráficos", "investment-chart", i.id, "primary small")}${button(mode === "manual" ? "Atualizar saldo" : "Corrigir saldo", "investment-value", i.id, "small")}${button("Histórico", "investment-history", i.id, "small")}${mode === "manual" ? "" : button(Number(i.quantity) === 0 && i.quantity != null ? "Comprar" : "Vender", Number(i.quantity) === 0 && i.quantity != null ? "investment-trade-buy" : "investment-trade-sale", i.id, "small")}${button("Editar", "edit-investment", i.id, "small")}</div></article>`;
         })
         .join("")}</div>`
     );
+  }
+  function openGroup(group, period = "all") {
+    const name = investmentGroupNames[group];
+    if (!name) return;
+    const all = investmentGroupHistory(rows("investments"), rows("investment_valuations"), rows("investment_transactions"), group, today());
+    const points = all.filter((point) => point.date >= periodStart(period, today()));
+    const values = points.map((point) => point.percent ?? 0);
+    const min = Math.min(0, ...values), max = Math.max(0, ...values), span = Math.max(1, max - min);
+    const x = (index) => 40 + (points.length === 1 ? 280 : index * 560 / (points.length - 1));
+    const y = (value) => 210 - ((value - min) / span) * 170;
+    const path = points.map((point, index) => `${index ? "L" : "M"}${x(index).toFixed(1)} ${y(point.percent ?? 0).toFixed(1)}`).join(" ");
+    const last = all.at(-1);
+    openDialog(
+      `Evolução · ${name}`,
+      `${last ? `<div class="info-banner">Valor atual: ${money(last.current)} · capital ainda aplicado: ${money(last.activeCost)}<br>Ganho total: <strong>${money(last.gain)} · ${pct(last.percent)}</strong> · já recebido: ${money(last.received)}</div>` : ""}<label>Período<select id="investment-group-period">${investmentPeriods.map(([value, label]) => `<option value="${value}" ${period === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>${points.length ? `<svg viewBox="0 0 640 240" role="img" aria-label="Evolução do rendimento de ${esc(name)}" style="display:block;width:100%;max-height:300px;margin:18px 0;background:#f7f8f4;border-radius:14px"><line x1="40" y1="${y(0)}" x2="600" y2="${y(0)}" stroke="#9baaa3" stroke-dasharray="4 4"/><path d="${path}" fill="none" stroke="#205b4e" stroke-width="3" stroke-linejoin="round"/>${points.map((point, index) => `<circle cx="${x(index)}" cy="${y(point.percent ?? 0)}" r="5" fill="#205b4e"><title>${esc(formatDate(point.date))}: ${pct(point.percent)} · ${money(point.gain)}</title></circle>`).join("")}<text x="40" y="232" font-size="12" fill="#50655d">${formatDate(points[0].date)}</text><text x="600" y="232" text-anchor="end" font-size="12" fill="#50655d">${formatDate(points.at(-1).date)}</text></svg><div class="table-wrap"><table><thead><tr><th>Data</th><th>Rendimento</th><th>Ganho</th><th>Saldo</th></tr></thead><tbody>${points.slice(-8).reverse().map((point) => `<tr><td>${formatDate(point.date)}</td><td>${pct(point.percent)}</td><td>${money(point.gain)}</td><td>${money(point.current)}</td></tr>`).join("")}</tbody></table></div>` : "<p>Sem avaliações ou movimentações neste período.</p>"}<p class="form-note">Datas conhecidas apenas. Entre atualizações, usa o último saldo informado ou cotado; vendas e resgates permanecem no ganho acumulado.</p>`,
+    );
+    document.getElementById("investment-group-period").onchange = (event) => openGroup(group, event.target.value);
   }
   function open(id, kind = "comparison", period = "all") {
     const i = rows("investments").find((i) => i.id === id),
@@ -113,5 +141,5 @@ export function investmentUI({
         });
     }
   }
-  return { render, open };
+  return { render, open, openGroup };
 }

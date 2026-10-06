@@ -1,6 +1,6 @@
 import { allocatedCashRows, dnaBreakdown } from "./statements.mjs?v=2.2.10";
 import { openStatementEditor } from "./statement-ui.mjs?v=2.2.10";
-import { investmentUI } from "./investment-ui.mjs?v=2.2.10";
+import { investmentUI } from "./investment-ui.mjs?v=2.2.12";
 import {
   investmentPeriods,
   portfolioPerformance,
@@ -8,7 +8,7 @@ import {
   periodStart,
   refreshInvestmentQuotes,
   quoteRefreshDue,
-} from "./investments.mjs";
+} from "./investments.mjs?v=2.2.12";
 let investmentPeriod = "all";
 let investmentQuoteStatus = "";
 import {
@@ -682,14 +682,14 @@ function investmentValuationDialog(id, pointId) {
         value = parseMoney(fd.get("value"));
       if (!Number.isFinite(value) || value < 0)
         throw Error("Informe um saldo válido.");
-      await rpc("record_investment_valuation", {
-        p_investment: id,
+      await rpc(v ? "revise_investment_valuation" : "record_investment_valuation", {
+        [v ? "p_valuation" : "p_investment"]: v ? v.id : id,
         p_date: fd.get("date"),
         p_value: value,
         p_expected: i.current_value,
       });
     },
-    "Não movimenta contas. Uma avaliação na mesma data corrige o fechamento daquele dia. Datas antigas preservam o saldo mais recente.",
+    v ? "A correção altera esta avaliação, inclusive sua data, sem criar outro registro. Não movimenta contas." : "Não movimenta contas. Uma avaliação na mesma data corrige o fechamento daquele dia. Datas antigas preservam o saldo mais recente.",
   );
 }
 function investmentPoint(id) {
@@ -697,7 +697,7 @@ function investmentPoint(id) {
     i = byId("investments", v.investment_id);
   openDialog(
     i.name,
-    `<p>${formatDate(v.date)}</p><h2>${money(v.value)}</h2><p>${esc({ manual: "Saldo informado", baseline: "Início do histórico disponível", quote: "Cotação de mercado", balance: "Saldo após edição ou movimentação" }[v.source] || v.source)}</p>${v.price ? `<p>${esc(v.quantity)} cotas × ${money(v.price)}</p>` : ""}${button("Corrigir avaliação", "investment-correct", id, "primary")}`,
+    `<p>${formatDate(v.date)}</p><h2>${money(v.value)}</h2><p>${esc({ manual: "Saldo informado", baseline: "Início do histórico disponível", quote: "Cotação de mercado", balance: "Saldo após edição ou movimentação" }[v.source] || v.source)}</p>${v.price ? `<p>${esc(v.quantity)} cotas × ${money(v.price)}</p>` : ""}${v.source === "manual" ? button("Corrigir avaliação", "investment-correct", id, "primary") + button("Excluir avaliação", "investment-delete-valuation", id, "small") : '<p class="form-note">Registro automático. Para uma venda em data anterior, informe a data real da operação.</p>'}`,
   );
 }
 function renderPending() {
@@ -1250,7 +1250,7 @@ function investmentHistory(id) {
       .sort((a, b) => b.date.localeCompare(a.date))
       .map(
         (v) =>
-          `<p>${formatDate(v.date)} · ${money(v.value)} ${button("Detalhar / corrigir", "investment-point", v.id, "small")}</p>`,
+          `<p>${formatDate(v.date)} · ${money(v.value)} ${button(v.source === "manual" ? "Detalhar / corrigir" : "Detalhar", "investment-point", v.id, "small")}</p>`,
       )
       .join(
         "",
@@ -1618,6 +1618,9 @@ document.addEventListener("click", async (event) => {
       case "investment-chart":
         investmentScreens().open(id);
         break;
+      case "investment-group-chart":
+        investmentScreens().openGroup(id);
+        break;
       case "portfolio-point": {
         const point = portfolioHistory(
           rows("investments"),
@@ -1643,6 +1646,20 @@ document.addEventListener("click", async (event) => {
           id,
         );
         break;
+      case "investment-delete-valuation": {
+        const valuation = byId("investment_valuations", id);
+        if (!valuation || valuation.source !== "manual") break;
+        if (!confirm(`Excluir a avaliação de ${formatDate(valuation.date)}? O saldo atual será recalculado pelo histórico restante.`)) break;
+        const investment = byId("investments", valuation.investment_id);
+        await rpc("delete_investment_valuation", {
+          p_valuation: id,
+          p_expected: investment.current_value,
+        });
+        closeDialog();
+        await loadData();
+        toast("Avaliação excluída. Histórico e saldo atualizados.");
+        break;
+      }
       case "investment-quotes": {
         const result = await refreshInvestmentQuotes(client);
         await loadData();
