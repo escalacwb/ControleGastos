@@ -6,6 +6,7 @@ import {
   portfolioHistory,
   periodStart,
   investmentGroupHistory,
+  investmentChart,
 } from "../investments.mjs";
 const i = { id: "a", name: "Reserva", current_value: 12500, initial_amount:10000, purchase_date:'2025-12-31' };
 const values = [
@@ -129,6 +130,20 @@ test("renda fixa separa custo ativo de resgate e mantém o ganho realizado", () 
   assert.equal(last.received, 25473.51);
   assert.equal(last.realizedGain, 460.43);
   assert.equal(last.gain, 1460.43);
+});
+
+test("cotação posterior à venda total não recria posição nem ganho", () => {
+  const asset = { id: "sold", name: "Tesouro IPCA+", type: "fixed_income", quote_mode: "treasury", purchase_date: "2025-11-08", initial_amount: 25013.08, current_value: 0, quantity: 0 };
+  const sale = { investment_id: "sold", type: "sale", date: "2025-11-20", quantity: 15.65, amount: 25473.51, cost_basis: 25013.08, realized_gain: 460.43 };
+  const valuations = [
+    { investment_id: "sold", date: "2025-11-19", value: 25200, source: "quote" },
+    { investment_id: "sold", date: "2026-10-02", value: 27979.85, source: "quote" },
+  ];
+  const points = investmentGroupHistory([asset], valuations, [sale], "fixed", "2026-10-06");
+  assert.equal(points.at(-1).date, "2025-11-20");
+  assert.equal(points.at(-1).current, 0);
+  assert.equal(points.at(-1).gain, 460.43);
+  assert.equal(investmentChart(asset, valuations, [sale], "balance", "all", "2026-10-06").at(-1).date, "2025-11-20");
 });
 test("gráfico da carteira reconcilia valores e mantém a data real do saldo manual", () => {
   const j = { id: "b", name: "Outro", purchase_date: "2025-01-01" };

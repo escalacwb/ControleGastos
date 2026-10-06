@@ -1,7 +1,7 @@
 import { allocatedCashRows, dnaBreakdown } from "./statements.mjs?v=2.2.10";
 import { openStatementEditor } from "./statement-ui.mjs?v=2.2.10";
-import { investmentUI } from "./investment-ui.mjs?v=2.2.14";
-import { estimateTreasuryTax } from "./treasury-tax.mjs?v=2.2.14";
+import { investmentUI } from "./investment-ui.mjs?v=2.2.15";
+import { estimateTreasuryTax } from "./treasury-tax.mjs?v=2.2.15";
 import {
   investmentPeriods,
   portfolioPerformance,
@@ -9,7 +9,7 @@ import {
   periodStart,
   refreshInvestmentQuotes,
   quoteRefreshDue,
-} from "./investments.mjs?v=2.2.14";
+} from "./investments.mjs?v=2.2.15";
 let investmentPeriod = "all";
 let investmentQuoteStatus = "";
 import {

@@ -8,6 +8,12 @@ export const investmentPeriods = [
   ["all", "Desde o início"],
 ];
 const round = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+function quantityAtDate(investment, movements, date) {
+  if (!['stock', 'treasury'].includes(investment.quote_mode) || investment.quantity == null) return null;
+  const trades = movements.filter((m) => m.investment_id === investment.id && ['buy', 'sale'].includes(m.type));
+  const initial = Number(investment.quantity) - trades.reduce((sum, m) => sum + (m.type === 'buy' ? 1 : -1) * Number(m.quantity || 0), 0);
+  return round(initial + trades.filter((m) => m.date <= date).reduce((sum, m) => sum + (m.type === 'buy' ? 1 : -1) * Number(m.quantity || 0), 0));
+}
 export function investmentGroup(investment) {
   if (investment.quote_mode === "treasury" || investment.type === "fixed_income") return "fixed";
   if (investment.quote_mode === "stock" || investment.type === "stocks" || investment.type === "variable") return "variable";
@@ -19,7 +25,7 @@ export function investmentGroupHistory(investments, valuations, movements, group
   const ids = new Set(assets.map((i) => i.id));
   const dates = [...new Set([
     ...assets.map((i) => i.purchase_date),
-    ...valuations.filter((v) => ids.has(v.investment_id)).map((v) => v.date),
+    ...valuations.filter((v) => ids.has(v.investment_id) && quantityAtDate(assets.find((a) => a.id === v.investment_id), movements, v.date) !== 0).map((v) => v.date),
     ...movements.filter((m) => ids.has(m.investment_id)).map((m) => m.date),
   ].filter((date) => date && date <= end))].sort();
   const snapshots = dates.map((date) => {
@@ -31,7 +37,7 @@ export function investmentGroupHistory(investments, valuations, movements, group
       const assetMovements = movements.filter((m) => m.investment_id === asset.id && m.date <= date);
       const principal = Number(asset.initial_amount || 0);
       const valuation = history.at(-1);
-      const assetCurrent = Number(valuation?.value ?? principal);
+      const assetCurrent = quantityAtDate(asset, movements, date) === 0 ? 0 : Number(valuation?.value ?? principal);
       let assetInvested = principal, assetCost = principal, assetReceived = 0, assetRealized = 0;
       for (const movement of assetMovements) {
         const amount = Number(movement.amount || 0);
@@ -334,12 +340,15 @@ export function marketTicker(i) {
 }
 export function investmentChart(i, valuations, movements, kind, period, end) {
   const lastRecorded=valuations.filter(v=>v.investment_id===i.id).sort((a,b)=>a.date.localeCompare(b.date)).at(-1);
-  const valueDate=lastRecorded&&Number(lastRecorded.value)===Number(i.current_value)?lastRecorded.date:String(i.updated_at||end).slice(0,10);
+  const finalSale=movements.filter(m=>m.investment_id===i.id && m.type==='sale' && quantityAtDate(i,movements,m.date)===0).sort((a,b)=>a.date.localeCompare(b.date)).at(-1);
+  const valueDate=finalSale?.date || (lastRecorded&&Number(lastRecorded.value)===Number(i.current_value)?lastRecorded.date:String(i.updated_at||end).slice(0,10));
   const source = [
     { date: i.purchase_date, value: Number(i.initial_amount), label: "Compra" },
     ...valuations
-      .filter((v) => v.investment_id === i.id)
+      .filter((v) => v.investment_id === i.id && quantityAtDate(i, movements, v.date) !== 0)
       .map((v) => ({ ...v, label: "Saldo registrado" })),
+    ...movements.filter((m) => m.investment_id === i.id && m.type === 'sale' && quantityAtDate(i, movements, m.date) === 0)
+      .map((m) => ({ date: m.date, value: 0, label: "Posição encerrada" })),
   ];
   if (
     !source.some(
