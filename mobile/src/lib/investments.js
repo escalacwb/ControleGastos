@@ -21,7 +21,7 @@ export function investmentGroup(investment) {
 }
 export const investmentGroupNames = { fixed: "Renda fixa", variable: "Renda variável", other: "Fundos e outros" };
 export function investmentGroupHistory(investments, valuations, movements, group, end) {
-  const assets = investments.filter((i) => investmentGroup(i) === group);
+  const assets = investments.filter((i) => group === "all" || investmentGroup(i) === group);
   const ids = new Set(assets.map((i) => i.id));
   const dates = [...new Set([
     ...assets.map((i) => i.purchase_date),
@@ -65,8 +65,17 @@ export function investmentGroupHistory(investments, valuations, movements, group
     const gain = round(current + received - invested);
     return { date, current: round(current), invested: round(invested), activeCost: round(Math.max(0, activeCost)), received: round(received), realizedGain: round(realizedGain), gain, percent: invested > 0 ? round(gain / invested * 100) : null, assets: assetsAtDate };
   });
+  let returnIndex = 100;
   return snapshots.map((point, index) => {
     const previous = snapshots[index - 1];
+    const newCapital = assets.filter((asset) => asset.purchase_date === point.date && previous)
+      .reduce((sum, asset) => sum + Number(asset.initial_amount || 0), 0)
+      + movements.filter((movement) => ids.has(movement.investment_id) && movement.date === point.date && ["buy", "contribution"].includes(movement.type))
+        .reduce((sum, movement) => sum + Number(movement.amount || 0), 0);
+    const capitalAtRisk = Number(previous?.current || 0) + newCapital;
+    const dayGain = previous ? round(point.gain - previous.gain) : 0;
+    const dailyReturn = previous && capitalAtRisk > 0 ? dayGain / capitalAtRisk : null;
+    if (dailyReturn !== null) returnIndex *= 1 + dailyReturn;
     const oldAssets = new Map((previous?.assets || []).map((asset) => [asset.id, asset]));
     const changes = point.assets.map((asset) => ({ name: asset.name, amount: round(asset.gain - (oldAssets.get(asset.id)?.gain || 0)) }))
       .filter((change) => Math.abs(change.amount) >= 0.01)
@@ -82,7 +91,11 @@ export function investmentGroupHistory(investments, valuations, movements, group
       });
     const carried = point.assets.filter((asset) => asset.current > 0 && asset.valuationDate < point.date)
       .map((asset) => ({ name: asset.name, date: asset.valuationDate }));
-    return { ...point, change: previous ? round(point.gain - previous.gain) : null, changes, events, carried };
+    return { ...point, change: previous ? dayGain : null, changes, events, carried,
+      returnIndex: Math.round(returnIndex * 10000) / 10000,
+      returnPercent: round((returnIndex / 100 - 1) * 100),
+      dailyReturn: dailyReturn === null ? null : round(dailyReturn * 100),
+    };
   });
 }
 export function periodStart(period, end) {

@@ -8,9 +8,10 @@ import {
   investmentGroupNames,
   investmentGroup,
   periodStart,
-} from "./investments.mjs?v=2.2.16";
-import { recordedInvestmentChartHTML } from "./mobile/src/lib/recorded-investment-chart.js?v=2.2.16";
-import { marketChartHTML, marketPeriods, marketRange } from "./mobile/src/lib/market-chart.js?v=2.2.16";
+} from "./investments.mjs?v=2.2.17";
+import { recordedInvestmentChartHTML } from "./mobile/src/lib/recorded-investment-chart.js?v=2.2.17";
+import { groupReturnChartHTML } from "./mobile/src/lib/group-return-chart.js?v=2.2.17";
+import { marketChartHTML, marketPeriods, marketRange } from "./mobile/src/lib/market-chart.js?v=2.2.17";
 export function investmentUI({
   rows,
   esc,
@@ -35,11 +36,11 @@ export function investmentUI({
       "all",
       today(),
     );
-    const groups = Object.entries(investmentGroupNames)
+    const groups = [{ key: "all", name: "Carteira completa", points: investmentGroupHistory(rows("investments"), rows("investment_valuations"), rows("investment_transactions"), "all", today()) }, ...Object.entries(investmentGroupNames)
       .map(([key, name]) => ({ key, name, points: investmentGroupHistory(rows("investments"), rows("investment_valuations"), rows("investment_transactions"), key, today()) }))
-      .filter((group) => group.points.length);
-    const activeCost = groups.reduce((total, group) => total + group.points.at(-1).activeCost, 0);
-    const received = groups.reduce((total, group) => total + group.points.at(-1).received, 0);
+      .filter((group) => group.points.length)].filter((group) => group.points.length);
+    const activeCost = groups.filter((group) => group.key !== "all").reduce((total, group) => total + group.points.at(-1).activeCost, 0);
+    const received = groups.filter((group) => group.key !== "all").reduce((total, group) => total + group.points.at(-1).received, 0);
     return (
       heading(
         "Investimentos",
@@ -52,7 +53,7 @@ export function investmentUI({
         activeCost,
         "Custo das posições que restam",
         "wallet",
-      )}${kpi("Valor atual", p.value, "Posições ainda na carteira", "wallet", true)}${kpi("Ganho acumulado", p.gain || 0, pct(p.percent), "chart")}${kpi("Já recebido", received, "Vendas, resgates e proventos", "wallet")}</div><div class="info-banner">Ganho acumulado = valor atual + valores recebidos − capital total aplicado. O capital ainda aplicado desconta o custo dos ativos vendidos; o histórico continua preservado.</div><section class="panel"><h3>Carteira por tipo</h3><p class="form-note">Acompanhe separadamente renda fixa, renda variável e fundos ou outros investimentos.</p><div class="entity-grid">${groups.map((group) => { const last = group.points.at(-1); return `<article class="entity-card"><h3>${esc(group.name)}</h3><div class="entity-amount">${money(last.current)}</div><p>Capital ativo: ${money(last.activeCost)}</p><p>Ganho acumulado: <strong>${money(last.gain)} · ${pct(last.percent)}</strong></p><p class="form-note">Já recebido: ${money(last.received)} · realizado em vendas: ${money(last.realizedGain)}</p>${button("Ver evolução", "investment-group-chart", group.key, "small")}</article>`; }).join("")}</div></section><div class="entity-grid">${p.items
+      )}${kpi("Valor atual", p.value, "Posições ainda na carteira", "wallet", true)}${kpi("Ganho acumulado", p.gain || 0, pct(groups[0]?.points.at(-1).returnPercent ?? null), "chart")}${kpi("Já recebido", received, "Vendas, resgates e proventos", "wallet")}</div><div class="info-banner">Ganho acumulado = valor atual + valores recebidos − capital total aplicado. O capital ainda aplicado desconta o custo dos ativos vendidos; o histórico continua preservado.</div><section class="panel"><h3>Carteira completa e por tipo</h3><p class="form-note">Acompanhe a rentabilidade total e depois compare renda fixa, renda variável e outros investimentos.</p><div class="entity-grid">${groups.map((group) => { const last = group.points.at(-1); return `<article class="entity-card"><h3>${esc(group.name)}</h3><div class="entity-amount">${money(last.current)}</div><p>Capital ativo: ${money(last.activeCost)}</p><p>Rentabilidade acumulada: <strong>${pct(last.returnPercent)}</strong><br>Ganho acumulado: <strong>${money(last.gain)}</strong></p><p class="form-note">Já recebido: ${money(last.received)} · realizado em vendas: ${money(last.realizedGain)}</p>${button("Ver evolução", "investment-group-chart", group.key, "small")}</article>`; }).join("")}</div></section><div class="entity-grid">${p.items
         .sort((a, b) => Object.keys(investmentGroupNames).indexOf(investmentGroup(rows("investments").find((i) => i.id === a.id))) - Object.keys(investmentGroupNames).indexOf(investmentGroup(rows("investments").find((i) => i.id === b.id))))
         .map((item, index, sorted) => {
           const i = rows("investments").find((i) => i.id === item.id);
@@ -76,16 +77,17 @@ export function investmentUI({
     );
   }
   function openGroup(group, period = "30d") {
-    const name = investmentGroupNames[group];
+    const name = group === "all" ? "Carteira completa" : investmentGroupNames[group];
     if (!name) return;
     const all = investmentGroupHistory(rows("investments"), rows("investment_valuations"), rows("investment_transactions"), group, today());
     const points = all.filter((point) => point.date >= periodStart(period, today()));
     const last = all.at(-1);
+    const periodReturn = points.length > 1 ? (points.at(-1).returnIndex / points[0].returnIndex - 1) * 100 : 0;
     openDialog(
       `Evolução · ${name}`,
-      `${last ? `<div class="info-banner">Valor atual: ${money(last.current)} · capital ainda aplicado: ${money(last.activeCost)}<br>Ganho total: <strong>${money(last.gain)} · ${pct(last.percent)}</strong> · já recebido: ${money(last.received)}</div>` : ""}<label>Período<select id="investment-group-period">${investmentPeriods.map(([value, label]) => `<option value="${value}" ${period === value ? "selected" : ""}>${label}</option>`).join("")}</select></label><iframe id="investment-group-frame" title="Evolução detalhada de ${esc(name)}" style="width:100%;height:670px;border:0;border-radius:14px;margin-top:12px"></iframe><p class="form-note">Os pontos são datas registradas. Uma venda reduz o saldo da carteira, mas o dinheiro recebido permanece no ganho acumulado; saldos sem cotação nova são identificados no detalhe.</p>`,
+      `${last ? `<div class="info-banner">Valor atual: ${money(last.current)} · capital ainda aplicado: ${money(last.activeCost)}<br>Ganho acumulado: <strong>${money(last.gain)}</strong> · rentabilidade no período: <strong>${pct(periodReturn)}</strong> · já recebido: ${money(last.received)}</div>` : ""}<label>Período<select id="investment-group-period">${investmentPeriods.map(([value, label]) => `<option value="${value}" ${period === value ? "selected" : ""}>${label}</option>`).join("")}</select></label><iframe id="investment-group-frame" title="Evolução detalhada de ${esc(name)}" style="width:100%;height:670px;border:0;border-radius:14px;margin-top:12px"></iframe><p class="form-note">Os pontos são datas registradas. Uma venda reduz o saldo da carteira, mas o dinheiro recebido permanece no ganho acumulado; saldos sem cotação nova são identificados no detalhe.</p>`,
     );
-    document.getElementById("investment-group-frame").srcdoc = recordedInvestmentChartHTML(points, name, { group: true });
+    document.getElementById("investment-group-frame").srcdoc = groupReturnChartHTML(points, name);
     document.getElementById("investment-group-period").onchange = (event) => openGroup(group, event.target.value);
   }
   function open(id, kind = "auto", period = "all") {

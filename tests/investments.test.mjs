@@ -132,6 +132,30 @@ test("renda fixa separa custo ativo de resgate e mantém o ganho realizado", () 
   assert.equal(last.gain, 1460.43);
 });
 
+test("rentabilidade da carteira preserva lucro de venda e não confunde resgate com perda", () => {
+  const asset = { id: "bond", name: "Tesouro", type: "fixed_income", quote_mode: "treasury", purchase_date: "2025-11-08", initial_amount: 100, quantity: 0 };
+  const sale = { investment_id: "bond", type: "sale", date: "2025-11-20", quantity: 1, amount: 115, cost_basis: 100, realized_gain: 15 };
+  const values = [{ investment_id: "bond", date: "2025-11-19", value: 110, source: "quote" }];
+  const history = investmentGroupHistory([asset], values, [sale], "all", "2025-11-20");
+  assert.equal(history.at(-1).current, 0);
+  assert.equal(history.at(-1).gain, 15);
+  assert.equal(history.at(-1).realizedGain, 15);
+  assert.equal(history.at(-1).returnPercent, 15);
+  assert.ok(history.at(-1).returnIndex > history.at(-2).returnIndex);
+});
+
+test("novo aporte não reduz rentabilidade; queda frente à cotação anterior continua visível", () => {
+  const sold = { id: "bond", name: "Tesouro", type: "fixed_income", quote_mode: "treasury", purchase_date: "2025-11-08", initial_amount: 100, quantity: 0 };
+  const later = { id: "stock", name: "Ação", type: "stocks", quote_mode: "stock", purchase_date: "2025-11-21", initial_amount: 200, quantity: 1 };
+  const sale = { investment_id: "bond", type: "sale", date: "2025-11-20", quantity: 1, amount: 115, cost_basis: 100, realized_gain: 15 };
+  const values = [{ investment_id: "bond", date: "2025-11-19", value: 130, source: "quote" }];
+  const history = investmentGroupHistory([sold, later], values, [sale], "all", "2025-11-21");
+  assert.equal(history.at(-2).gain, 15);
+  assert.equal(history.at(-1).gain, 15);
+  assert.equal(history.at(-2).returnIndex, history.at(-1).returnIndex);
+  assert.ok(history.at(-2).returnIndex < history.at(-3).returnIndex);
+});
+
 test("cotação posterior à venda total não recria posição nem ganho", () => {
   const asset = { id: "sold", name: "Tesouro IPCA+", type: "fixed_income", quote_mode: "treasury", purchase_date: "2025-11-08", initial_amount: 25013.08, current_value: 0, quantity: 0 };
   const sale = { investment_id: "sold", type: "sale", date: "2025-11-20", quantity: 15.65, amount: 25473.51, cost_basis: 25013.08, realized_gain: 460.43 };

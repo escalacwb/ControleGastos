@@ -19,6 +19,7 @@ import {
   periodStart,
 } from "../lib/investments";
 import { recordedInvestmentChartHTML } from "../lib/recorded-investment-chart";
+import { groupReturnChartHTML } from "../lib/group-return-chart";
 import { marketChartHTML, marketPeriods, marketRange } from "../lib/market-chart";
 export function InvestmentPortfolio() {
   const { rows, setForm, rpc, refresh } = useData(),
@@ -82,14 +83,15 @@ export function InvestmentPortfolio() {
     "all",
     today(),
   );
-  const groups = Object.entries(investmentGroupNames)
+  const groups = [{ key: "all", name: "Carteira completa", points: investmentGroupHistory(rows("investments"), rows("investment_valuations"), rows("investment_transactions"), "all", today()) }, ...Object.entries(investmentGroupNames)
     .map(([key, name]) => ({ key, name, points: investmentGroupHistory(rows("investments"), rows("investment_valuations"), rows("investment_transactions"), key, today()) }))
-    .filter((group) => group.points.length);
-  const activeCost = groups.reduce((total, group) => total + group.points.at(-1).activeCost, 0);
-  const received = groups.reduce((total, group) => total + group.points.at(-1).received, 0);
+    .filter((group) => group.points.length)].filter((group) => group.points.length);
+  const activeCost = groups.filter((group) => group.key !== "all").reduce((total, group) => total + group.points.at(-1).activeCost, 0);
+  const received = groups.filter((group) => group.key !== "all").reduce((total, group) => total + group.points.at(-1).received, 0);
   const selectedGroup = groups.find((group) => group.key === groupSelected);
   const groupPoints = selectedGroup?.points.filter((point) => point.date >= periodStart(groupPeriod, today())) || [];
-  const chartHTML = recordedInvestmentChartHTML(groupPoints, selectedGroup?.name || "investimentos", { group: true });
+  const chartHTML = groupReturnChartHTML(groupPoints, selectedGroup?.name || "investimentos");
+  const groupReturn = groupPoints.length > 1 ? (groupPoints.at(-1).returnIndex / groupPoints[0].returnIndex - 1) * 100 : 0;
   const pct = (n) =>
     n === null
       ? "—"
@@ -157,17 +159,18 @@ export function InvestmentPortfolio() {
         <Text style={S.muted}>Capital ainda aplicado: {money(activeCost)}</Text>
         <Text style={S.value}>Valor atual: {money(p.value)}</Text>
         <Text style={S.text}>
-          Ganho acumulado: {money(p.gain)} · {pct(p.percent)}
+          Ganho acumulado: {money(p.gain)} · rentabilidade {pct(groups[0]?.points.at(-1).returnPercent ?? null)}
         </Text>
         <Text style={S.text}>Já recebido: {money(received)} · ganho realizado em vendas: {money(p.items.reduce((n, x) => n + (x.realizedGain || 0), 0))}</Text>
         <Text style={S.muted}>O capital ativo desconta o custo dos ativos vendidos. O ganho inclui os valores já recebidos.</Text>
       </Card>
-      <Text style={[S.text, { fontWeight: "700" }]}>Carteira por tipo</Text>
+      <Text style={[S.text, { fontWeight: "700" }]}>Carteira completa e por tipo</Text>
       {groups.map((group) => { const last = group.points.at(-1); return (
         <Card key={group.key} title={group.name}>
           <Text style={S.value}>{money(last.current)}</Text>
           <Text style={S.text}>Capital ativo: {money(last.activeCost)}</Text>
-          <Text style={S.text}>Ganho acumulado: {money(last.gain)} · {pct(last.percent)}</Text>
+          <Text style={S.text}>Rentabilidade acumulada: {pct(last.returnPercent)}</Text>
+          <Text style={S.text}>Ganho acumulado: {money(last.gain)}</Text>
           <Text style={S.muted}>Já recebido: {money(last.received)}</Text>
           <Button secondary onPress={() => { setGroupSelected(group.key); setGroupPeriod("30d"); }}>Ver evolução</Button>
         </Card>
@@ -421,14 +424,15 @@ export function InvestmentPortfolio() {
               <Button secondary onPress={() => setGroupSelected(null)}>Fechar</Button>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-              <Text style={S.text}>Valor atual: {money(selectedGroup.points.at(-1).current)} · ganho acumulado: {money(selectedGroup.points.at(-1).gain)}</Text>
+              <Text style={S.text}>Montante: {money(selectedGroup.points.at(-1).current)} · ganho acumulado: {money(selectedGroup.points.at(-1).gain)}</Text>
+              <Text style={S.text}>Rentabilidade no período: {pct(groupReturn)}</Text>
               <Picker selectedValue={groupPeriod} onValueChange={setGroupPeriod}>
                 {investmentPeriods.map(([value, label]) => <Picker.Item key={value} value={value} label={label} />)}
               </Picker>
               {groupPoints.length ? <>
                 <WebView source={{ html: chartHTML }} style={{ height: 680, borderRadius: 12 }} scrollEnabled={false} javaScriptEnabled />
                 {groupPoints.slice(-8).reverse().map((point) => <Text key={point.date} style={S.text}>
-                  {formatDate(point.date)} · {pct(point.percent)} · {money(point.gain)} · saldo {money(point.current)}
+                  {formatDate(point.date)} · rentabilidade acumulada {pct(point.returnPercent)} · ganho {money(point.gain)} · montante {money(point.current)}
                 </Text>)}
               </> : <Text style={S.muted}>Sem avaliações ou movimentações neste período.</Text>}
               <Text style={S.muted}>Datas conhecidas apenas. Entre atualizações, usa o último saldo informado ou cotado; vendas e resgates permanecem no ganho.</Text>
