@@ -2065,3 +2065,4 @@ dialog::backdrop {
 .report-category-button {display:block;width:100%;background:transparent;border:0;text-align:left;color:inherit;font:inherit;cursor:pointer;padding:10px 0;}
 .report-category-button:hover {background:#f1f5ef;}
 .report-category-button:focus-visible {outline:2px solid #205b4e;outline-offset:4px;}
+.investment-section-heading { grid-column: 1 / -1; margin: 20px 0 0; padding: 0 2px 8px; border-bottom: 1px solid #dbe3d9; color: #183e33; font-size: 1.15rem; }

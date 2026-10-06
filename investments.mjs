@@ -1,6 +1,8 @@
 export const investmentPeriods = [
   ["day", "Dia"],
   ["month", "Mês"],
+  ["30d", "30 dias"],
+  ["90d", "90 dias"],
   ["year", "Ano"],
   ["12m", "12 meses"],
   ["all", "Desde o início"],
@@ -8,7 +10,7 @@ export const investmentPeriods = [
 const round = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 export function investmentGroup(investment) {
   if (investment.quote_mode === "treasury" || investment.type === "fixed_income") return "fixed";
-  if (investment.quote_mode === "stock" || investment.type === "stocks") return "variable";
+  if (investment.quote_mode === "stock" || investment.type === "stocks" || investment.type === "variable") return "variable";
   return "other";
 }
 export const investmentGroupNames = { fixed: "Renda fixa", variable: "Renda variável", other: "Fundos e outros" };
@@ -20,35 +22,61 @@ export function investmentGroupHistory(investments, valuations, movements, group
     ...valuations.filter((v) => ids.has(v.investment_id)).map((v) => v.date),
     ...movements.filter((m) => ids.has(m.investment_id)).map((m) => m.date),
   ].filter((date) => date && date <= end))].sort();
-  return dates.map((date) => {
+  const snapshots = dates.map((date) => {
     let current = 0, invested = 0, activeCost = 0, received = 0, realizedGain = 0;
+    const assetsAtDate = [];
     for (const asset of assets.filter((i) => i.purchase_date <= date)) {
       const history = valuations.filter((v) => v.investment_id === asset.id && v.date <= date)
         .sort((a, b) => a.date.localeCompare(b.date));
       const assetMovements = movements.filter((m) => m.investment_id === asset.id && m.date <= date);
       const principal = Number(asset.initial_amount || 0);
-      current += Number(history.at(-1)?.value ?? principal);
-      invested += principal;
-      activeCost += principal;
+      const valuation = history.at(-1);
+      const assetCurrent = Number(valuation?.value ?? principal);
+      let assetInvested = principal, assetCost = principal, assetReceived = 0, assetRealized = 0;
       for (const movement of assetMovements) {
         const amount = Number(movement.amount || 0);
         if (movement.type === "buy" || movement.type === "contribution") {
-          invested += amount;
-          activeCost += amount;
+          assetInvested += amount;
+          assetCost += amount;
         } else if (movement.type === "sale") {
-          received += amount;
-          activeCost -= Number(movement.cost_basis || 0);
-          realizedGain += Number(movement.realized_gain || 0);
+          assetReceived += amount;
+          assetCost -= Number(movement.cost_basis || 0);
+          assetRealized += Number(movement.realized_gain || 0);
         } else if (movement.type === "withdrawal") {
-          received += amount;
-          activeCost -= amount;
+          assetReceived += amount;
+          assetCost -= amount;
         } else if (movement.type === "dividend") {
-          received += amount;
+          assetReceived += amount;
         }
       }
+      current += assetCurrent;
+      invested += assetInvested;
+      activeCost += assetCost;
+      received += assetReceived;
+      realizedGain += assetRealized;
+      assetsAtDate.push({ id: asset.id, name: asset.name, current: round(assetCurrent), invested: round(assetInvested), received: round(assetReceived), gain: round(assetCurrent + assetReceived - assetInvested), valuationDate: valuation?.date || asset.purchase_date, source: valuation?.source || "purchase" });
     }
     const gain = round(current + received - invested);
-    return { date, current: round(current), invested: round(invested), activeCost: round(Math.max(0, activeCost)), received: round(received), realizedGain: round(realizedGain), gain, percent: invested > 0 ? round(gain / invested * 100) : null };
+    return { date, current: round(current), invested: round(invested), activeCost: round(Math.max(0, activeCost)), received: round(received), realizedGain: round(realizedGain), gain, percent: invested > 0 ? round(gain / invested * 100) : null, assets: assetsAtDate };
+  });
+  return snapshots.map((point, index) => {
+    const previous = snapshots[index - 1];
+    const oldAssets = new Map((previous?.assets || []).map((asset) => [asset.id, asset]));
+    const changes = point.assets.map((asset) => ({ name: asset.name, amount: round(asset.gain - (oldAssets.get(asset.id)?.gain || 0)) }))
+      .filter((change) => Math.abs(change.amount) >= 0.01)
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+    const events = movements.filter((movement) => ids.has(movement.investment_id) && movement.date === point.date)
+      .map((movement) => {
+        const asset = assets.find((item) => item.id === movement.investment_id);
+        const priorQuote = valuations.filter((valuation) => valuation.investment_id === asset.id && valuation.source === "quote" && valuation.date < point.date)
+          .sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+        const expected = movement.type === "sale" && priorQuote?.price && movement.quantity
+          ? round(Number(priorQuote.price) * Number(movement.quantity)) : null;
+        return { name: asset.name, type: movement.type, amount: round(Number(movement.amount || 0)), quantity: movement.quantity == null ? null : Number(movement.quantity), realizedGain: movement.realized_gain == null ? null : round(Number(movement.realized_gain)), priorQuoteDate: expected == null ? null : priorQuote.date, priorQuoteValue: expected, differenceFromQuote: expected == null ? null : round(Number(movement.amount) - expected) };
+      });
+    const carried = point.assets.filter((asset) => asset.current > 0 && asset.valuationDate < point.date)
+      .map((asset) => ({ name: asset.name, date: asset.valuationDate }));
+    return { ...point, change: previous ? round(point.gain - previous.gain) : null, changes, events, carried };
   });
 }
 export function periodStart(period, end) {
@@ -56,6 +84,10 @@ export function periodStart(period, end) {
   if (period === "all") return "0000-01-01";
   if (period === "month") return end.slice(0, 7) + "-01";
   if (period === "year") return end.slice(0, 4) + "-01-01";
+  if (period === "30d" || period === "90d") {
+    d.setUTCDate(d.getUTCDate() - (period === "30d" ? 30 : 90));
+    return d.toISOString().slice(0, 10);
+  }
   if (period === "12m") {
     const day = d.getUTCDate();
     d.setUTCDate(1);

@@ -4,6 +4,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { useData } from "./context";
+import { estimateTreasuryTax } from "../lib/treasury-tax";
 import {
   parseMoney,
   today,
@@ -465,7 +466,7 @@ export function useActions() {
       initial: {
         name: i.name || "",
         quote_mode: i.quote_mode || (i.type === "stocks" ? "stock" : "manual"),
-        type: i.type || "Fundo de investimento",
+        type: ["fixed_income", "variable"].includes(i.type) ? i.type : "funds",
         institution: i.institution || "",
         ticker: i.ticker || (/^[A-Z]{4}\d{1,2}$/.test(i.name || "") ? i.name : ""),
         quantity: String(i.quantity ?? ""),
@@ -485,7 +486,7 @@ export function useActions() {
             option("treasury", "Tesouro Direto · preço oficial"),
             option("manual", "Fundo ou outro · saldo manual"),
           ]),
-          ...(mode === "manual" ? [field("type", "Tipo")] : []),
+          ...(mode === "manual" ? [select("type", "Classe da carteira", [option("fixed_income", "Renda fixa"), option("variable", "Renda variável"), option("funds", "Fundos e outros")])] : []),
           field("institution", "Instituição", "text", { required: false }),
           ...(mode === "stock" ? [
             field("ticker", "Código do papel na B3"),
@@ -583,15 +584,24 @@ export function useActions() {
   };
   const trade = (i, side) => {
     const request = Crypto.randomUUID();
+    const previousTrades = rows("investment_transactions").filter((t) => t.investment_id === i.id);
+    const additionalBuys = previousTrades.filter((t) => t.type === "buy").length;
+    const initialQuantity = Number(i.quantity || 0) + previousTrades.filter((t) => t.type === "sale").reduce((n, t) => n + Number(t.quantity || 0), 0) - previousTrades.filter((t) => t.type === "buy").reduce((n, t) => n + Number(t.quantity || 0), 0);
+    const estimate = (v) => estimateTreasuryTax({ purchaseDate: i.purchase_date, saleDate: v.date, quantity: parseMoney(v.quantity), unitPrice: parseMoney(v.unit_price), initialAmount: Number(i.initial_amount), initialQuantity, additionalBuys });
+    const taxOnChange = (next) => {
+      const tax = estimate(next);
+      return tax ? { ...next, fees: tax.total.toFixed(2) } : next;
+    };
     setForm({
       title: (side === "sale" ? "Vender" : "Comprar") + " · " + i.name,
       initial: { quantity: "", unit_price: "", fees: "0", date: today(), account: "", description: "" },
-      fields: () => [
+      fields: (v) => [
         ...(side === "sale" ? [field("_available_to_sell", `Posição total: ${i.quantity ?? "—"} · Disponível para venda: ${i.quantity ?? "—"}`, "note", { required: false })] : []),
-        field("quantity", side === "sale" ? "Quantidade a vender" : "Quantidade a comprar", "number"),
-        field("unit_price", "Preço por unidade (R$)", "money"),
-        field("fees", "Custos / taxas (R$)", "money"),
-        field("date", "Data da operação", "date"),
+        field("quantity", side === "sale" ? "Quantidade a vender" : "Quantidade a comprar", "number", { onChangeValues: side === "sale" && i.quote_mode === "treasury" ? taxOnChange : undefined }),
+        field("unit_price", side === "sale" && i.quote_mode === "treasury" ? "Preço bruto por título (antes do imposto)" : "Preço por unidade (R$)", "money", { onChangeValues: side === "sale" && i.quote_mode === "treasury" ? taxOnChange : undefined }),
+        field("fees", "Custos e impostos (R$, editável)", "money"),
+        field("date", "Data da operação", "date", { onChangeValues: side === "sale" && i.quote_mode === "treasury" ? taxOnChange : undefined }),
+        ...(side === "sale" && i.quote_mode === "treasury" ? [field("_tax_note", additionalBuys ? "Compras adicionais: confira o imposto de cada lote no extrato e informe os custos reais." : estimate(v) ? `Estimativa: IOF ${money(estimate(v).iof)} + IR ${money(estimate(v).incomeTax)} (${Math.round(estimate(v).rate * 1000) / 10}%). Ajuste os custos conforme o extrato.` : "Informe quantidade e preço bruto para calcular IR/IOF estimados.", "note", { required: false })] : []),
         select("account", "Lançar na conta", [option("", "Não, já registrei em outro lugar"), ...accounts.map((a) => option(a.id, a.name))]),
         field("description", "Observação", "text", { required: false }),
       ],

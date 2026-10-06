@@ -1,6 +1,7 @@
 import { allocatedCashRows, dnaBreakdown } from "./statements.mjs?v=2.2.10";
 import { openStatementEditor } from "./statement-ui.mjs?v=2.2.10";
-import { investmentUI } from "./investment-ui.mjs?v=2.2.12";
+import { investmentUI } from "./investment-ui.mjs?v=2.2.13";
+import { estimateTreasuryTax } from "./treasury-tax.mjs?v=2.2.13";
 import {
   investmentPeriods,
   portfolioPerformance,
@@ -8,7 +9,7 @@ import {
   periodStart,
   refreshInvestmentQuotes,
   quoteRefreshDue,
-} from "./investments.mjs?v=2.2.12";
+} from "./investments.mjs?v=2.2.13";
 let investmentPeriod = "all";
 let investmentQuoteStatus = "";
 import {
@@ -1153,7 +1154,7 @@ function investmentDialog(id) {
     id ? "Atualizar investimento" : "Novo investimento",
     inputField("Nome", "name", i.name, { full: true }) +
       `<label>Como atualizar o saldo?<select name="quote_mode" id="field-quote_mode"><option value="stock" ${initialMode === "stock" ? "selected" : ""}>Ação / papel da B3 · cotação automática</option><option value="treasury" ${initialMode === "treasury" ? "selected" : ""}>Tesouro Direto · preço oficial</option><option value="manual" ${initialMode === "manual" ? "selected" : ""}>Fundo ou outro · saldo manual</option></select></label>` +
-      inputField("Tipo (investimento manual)", "type", i.type || "Fundo de investimento", { required: false }) +
+      `<label>Classe do investimento manual<select name="type" id="field-type">${[["fixed_income", "Renda fixa"], ["variable", "Renda variável"], ["funds", "Fundos e outros"]].map(([value, label]) => `<option value="${value}" ${i.type === value || (value === "funds" && !["fixed_income", "variable"].includes(i.type)) ? "selected" : ""}>${label}</option>`).join("")}</select></label>` +
       inputField("Instituição", "institution", i.institution, { required: false }) +
       inputField("Código do papel na B3", "ticker", i.ticker || (/^[A-Z]{4}\d{1,2}$/.test(i.name || "") ? i.name : ""), { required: false }) +
       inputField("Quantidade atual de papéis ou títulos", "quantity", i.quantity ?? "", { required: false, extra: 'inputmode="decimal"' }) +
@@ -1260,13 +1261,17 @@ function investmentHistory(id) {
 function investmentTrade(id, side) {
   const i = byId("investments", id);
   if (!i || i.quote_mode === "manual") return;
+  const previousTrades = rows("investment_transactions").filter((t) => t.investment_id === id);
+  const additionalBuys = previousTrades.filter((t) => t.type === "buy").length;
+  const initialQuantity = Number(i.quantity || 0) + previousTrades.filter((t) => t.type === "sale").reduce((n, t) => n + Number(t.quantity || 0), 0) - previousTrades.filter((t) => t.type === "buy").reduce((n, t) => n + Number(t.quantity || 0), 0);
   simpleDialog(
     `${side === "sale" ? "Vender" : "Comprar"} · ${i.name}`,
     `<div class="info-banner">Posição total: ${esc(String(i.quantity ?? "—"))} unidades${side === "sale" ? ` · Disponível para venda: ${esc(String(i.quantity ?? "—"))}` : ""} · ${money(i.current_value)}</div>` +
       inputField(side === "sale" ? "Quantidade a vender" : "Quantidade a comprar", "quantity", "", { extra: 'inputmode="decimal"' }) +
-      inputField("Preço por unidade (R$)", "unit_price", "", { extra: 'inputmode="decimal"' }) +
-      inputField("Custos / taxas (R$)", "fees", 0, { extra: 'inputmode="decimal"' }) +
+      inputField(side === "sale" && i.quote_mode === "treasury" ? "Preço bruto por título (R$, antes do imposto)" : "Preço por unidade (R$)", "unit_price", "", { extra: 'inputmode="decimal"' }) +
+      inputField("Custos e impostos (R$, editável)", "fees", 0, { extra: 'inputmode="decimal"' }) +
       inputField("Data da operação", "date", today(), { type: "date" }) +
+      (side === "sale" && i.quote_mode === "treasury" ? '<p class="form-note full" id="treasury-tax-estimate">Informe quantidade e preço bruto para estimar IR e IOF. Confirme pelo extrato antes de salvar.</p>' : "") +
       `<label class="full">Lançar ${side === "sale" ? "entrada" : "saída"} na conta<select name="account"><option value="">Não, já registrei em outro lugar</option>${optionList(bankAccounts())}</select></label>` +
       inputField("Observação", "description", "", { full: true, required: false }),
     async (form) => {
@@ -1286,6 +1291,22 @@ function investmentTrade(id, side) {
     },
     "A operação muda a quantidade e preserva o histórico. Escolha uma conta só se a movimentação bancária ainda não foi lançada.",
   );
+  if (side === "sale" && i.quote_mode === "treasury") {
+    const form = document.getElementById("edit-form");
+    const note = document.getElementById("treasury-tax-estimate");
+    const updateTax = () => {
+      const value = (name) => form.elements.namedItem(name)?.value;
+      const estimate = estimateTreasuryTax({ purchaseDate: i.purchase_date, saleDate: value("date"), quantity: parseMoney(value("quantity")), unitPrice: parseMoney(value("unit_price")), initialAmount: Number(i.initial_amount), initialQuantity, additionalBuys });
+      if (!estimate) {
+        note.textContent = additionalBuys ? "Há compras adicionais deste título: cada lote tem prazo e imposto próprios. Informe os custos reais do extrato." : "Informe quantidade e preço bruto para estimar IR e IOF. Confirme pelo extrato antes de salvar.";
+        return;
+      }
+      form.elements.namedItem("fees").value = estimate.total.toFixed(2);
+      note.textContent = `Estimativa para ${estimate.days} dias: ganho bruto ${money(estimate.gain)} · IOF ${money(estimate.iof)} · IR ${money(estimate.incomeTax)} (${Math.round(estimate.rate * 1000) / 10}%). Custos preenchidos: ${money(estimate.total)}. Altere conforme o extrato; datas de liquidação podem mudar o prazo.`;
+    };
+    for (const name of ["quantity", "unit_price", "date"]) form.elements.namedItem(name)?.addEventListener("input", updateTax);
+    updateTax();
+  }
 }
 function investmentMovement(id) {
   simpleDialog(

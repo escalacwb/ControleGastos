@@ -17,8 +17,10 @@ import {
   marketRange,
   investmentGroupHistory,
   investmentGroupNames,
+  investmentGroup,
   periodStart,
 } from "../lib/investments";
+import { investmentGroupChartHTML, investmentSeriesChartHTML } from "../lib/investment-group-chart";
 export function InvestmentPortfolio() {
   const { rows, setForm, rpc, refresh } = useData(),
     a = useActions();
@@ -26,7 +28,7 @@ export function InvestmentPortfolio() {
     [kind, setKind] = useState("comparison"),
     [period, setPeriod] = useState("all");
   const [groupSelected, setGroupSelected] = useState(null);
-  const [groupPeriod, setGroupPeriod] = useState("all");
+  const [groupPeriod, setGroupPeriod] = useState("30d");
   const [marketHTML, setMarketHTML] = useState("<p>Consultando o mercado…</p>");
   useEffect(() => {
     let active = true;
@@ -86,12 +88,7 @@ export function InvestmentPortfolio() {
   const received = groups.reduce((total, group) => total + group.points.at(-1).received, 0);
   const selectedGroup = groups.find((group) => group.key === groupSelected);
   const groupPoints = selectedGroup?.points.filter((point) => point.date >= periodStart(groupPeriod, today())) || [];
-  const chartValues = groupPoints.map((point) => point.percent ?? 0);
-  const chartMin = Math.min(0, ...chartValues), chartMax = Math.max(0, ...chartValues), chartSpan = Math.max(1, chartMax - chartMin);
-  const chartX = (index) => 35 + (groupPoints.length === 1 ? 285 : index * 570 / (groupPoints.length - 1));
-  const chartY = (value) => 205 - (value - chartMin) / chartSpan * 165;
-  const chartPath = groupPoints.map((point, index) => `${index ? "L" : "M"}${chartX(index).toFixed(1)} ${chartY(point.percent ?? 0).toFixed(1)}`).join(" ");
-  const chartHTML = `<html><meta name="viewport" content="width=device-width, initial-scale=1"><body style="margin:0;background:#f7f8f4"><svg viewBox="0 0 640 240" style="width:100%;height:100%"><line x1="35" y1="${chartY(0)}" x2="605" y2="${chartY(0)}" stroke="#a7b5ab" stroke-dasharray="4 4"/><path d="${chartPath}" fill="none" stroke="#205b4e" stroke-width="3"/>${groupPoints.map((point, index) => `<circle cx="${chartX(index)}" cy="${chartY(point.percent ?? 0)}" r="5" fill="#205b4e"/>`).join("")}</svg></body></html>`;
+  const chartHTML = investmentGroupChartHTML(groupPoints, selectedGroup?.name || "investimentos");
   const pct = (n) =>
     n === null
       ? "—"
@@ -171,15 +168,17 @@ export function InvestmentPortfolio() {
           <Text style={S.text}>Capital ativo: {money(last.activeCost)}</Text>
           <Text style={S.text}>Ganho acumulado: {money(last.gain)} · {pct(last.percent)}</Text>
           <Text style={S.muted}>Já recebido: {money(last.received)}</Text>
-          <Button secondary onPress={() => { setGroupSelected(group.key); setGroupPeriod("all"); }}>Ver evolução</Button>
+          <Button secondary onPress={() => { setGroupSelected(group.key); setGroupPeriod("30d"); }}>Ver evolução</Button>
         </Card>
       ); })}
       <Button onPress={() => a.investment()}>＋ Novo investimento</Button>
       <Button secondary onPress={updateQuotes}>
         Atualizar pela cotação
       </Button>
-      {p.items.map((item) => {
+      {p.items.sort((a, b) => Object.keys(investmentGroupNames).indexOf(investmentGroup(rows("investments").find((i) => i.id === a.id))) - Object.keys(investmentGroupNames).indexOf(investmentGroup(rows("investments").find((i) => i.id === b.id)))).map((item, index, sorted) => {
         const x = rows("investments").find((i) => i.id === item.id);
+        const previous = sorted[index - 1] && rows("investments").find((entry) => entry.id === sorted[index - 1].id);
+        const group = investmentGroup(x);
         const sales = rows("investment_transactions").filter((t) => t.investment_id === x.id && t.type === "sale");
         const saleReceived = sales.reduce((total, sale) => total + Number(sale.amount || 0), 0);
         const saleCost = sales.reduce((total, sale) => total + Number(sale.cost_basis || 0), 0);
@@ -192,7 +191,9 @@ export function InvestmentPortfolio() {
             ? (Number(x.quantity) > 0 && x.maturity_date && x.treasury_title ? x.quantity + " títulos · " + source : "Informe quantidade e vencimento exato em Editar")
             : "Atualização manual do saldo";
         return (
-          <Card key={x.id} title={x.name}>
+          <View key={x.id}>
+          {(!previous || investmentGroup(previous) !== group) && <Text style={[S.text, { fontSize: 18, fontWeight: "700", marginTop: 20, marginBottom: 8 }]}>{investmentGroupNames[group]}</Text>}
+          <Card title={x.name}>
             <Text style={S.muted}>
               {x.institution} · {x.type}
             </Text>
@@ -237,6 +238,7 @@ export function InvestmentPortfolio() {
               </Button>
             </View>
           </Card>
+          </View>
         );
       })}
       <Modal
@@ -355,6 +357,8 @@ export function InvestmentPortfolio() {
                         </Text>
                       ))}
                   </>
+                ) : ["balance", "gain"].includes(kind) ? (
+                  <WebView source={{ html: investmentSeriesChartHTML(points, kind, i.name, rows("investment_transactions").filter((t) => t.investment_id === i.id)) }} style={{ height: 470, borderRadius: 12 }} scrollEnabled={false} javaScriptEnabled />
                 ) : (
                   <>
                     <ScrollView horizontal>
@@ -418,7 +422,7 @@ export function InvestmentPortfolio() {
                 {investmentPeriods.map(([value, label]) => <Picker.Item key={value} value={value} label={label} />)}
               </Picker>
               {groupPoints.length ? <>
-                <WebView source={{ html: chartHTML }} style={{ height: 240, borderRadius: 12 }} scrollEnabled={false} />
+                <WebView source={{ html: chartHTML }} style={{ height: 680, borderRadius: 12 }} scrollEnabled={false} javaScriptEnabled />
                 {groupPoints.slice(-8).reverse().map((point) => <Text key={point.date} style={S.text}>
                   {formatDate(point.date)} · {pct(point.percent)} · {money(point.gain)} · saldo {money(point.current)}
                 </Text>)}
