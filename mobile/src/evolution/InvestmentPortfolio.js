@@ -13,14 +13,13 @@ import {
   investmentChart,
   investmentPeriods,
   marketTicker,
-  marketLineHTML,
-  marketRange,
   investmentGroupHistory,
   investmentGroupNames,
   investmentGroup,
   periodStart,
 } from "../lib/investments";
-import { investmentGroupChartHTML, investmentSeriesChartHTML } from "../lib/investment-group-chart";
+import { recordedInvestmentChartHTML } from "../lib/recorded-investment-chart";
+import { marketChartHTML, marketPeriods, marketRange } from "../lib/market-chart";
 export function InvestmentPortfolio() {
   const { rows, setForm, rpc, refresh } = useData(),
     a = useActions();
@@ -41,9 +40,11 @@ export function InvestmentPortfolio() {
         .then((q) => {
           if (active)
             setMarketHTML(
-              marketLineHTML(
+              marketChartHTML(
                 q,
                 rows("investments").find((i) => i.id === selected),
+                period,
+                rows("investment_transactions").filter((t) => t.investment_id === selected),
               ),
             );
         })
@@ -88,7 +89,7 @@ export function InvestmentPortfolio() {
   const received = groups.reduce((total, group) => total + group.points.at(-1).received, 0);
   const selectedGroup = groups.find((group) => group.key === groupSelected);
   const groupPoints = selectedGroup?.points.filter((point) => point.date >= periodStart(groupPeriod, today())) || [];
-  const chartHTML = investmentGroupChartHTML(groupPoints, selectedGroup?.name || "investimentos");
+  const chartHTML = recordedInvestmentChartHTML(groupPoints, selectedGroup?.name || "investimentos", { group: true });
   const pct = (n) =>
     n === null
       ? "—"
@@ -213,8 +214,8 @@ export function InvestmentPortfolio() {
             <View style={S.wrap}>
               <Button
                 onPress={() => {
-                  setKind("comparison");
-                  setPeriod("all");
+                  setKind(x.quote_mode === "stock" ? "market" : "balance");
+                  setPeriod(x.quote_mode === "stock" ? "month" : "all");
                   setSelected(x.id);
                 }}
               >
@@ -270,7 +271,7 @@ export function InvestmentPortfolio() {
                   Ganho desde a compra: {money(r.gain)} · {pct(r.percent)}
                 </Text>
                 <Text style={S.muted}>Gráfico</Text>
-                <Picker selectedValue={kind} onValueChange={setKind}>
+                <Picker selectedValue={kind} onValueChange={(value) => { setKind(value); setPeriod(value === "market" ? "month" : "all"); }}>
                   {[
                     ["comparison", "Compra × valor atual"],
                     ["balance", "Evolução do saldo"],
@@ -281,13 +282,16 @@ export function InvestmentPortfolio() {
                     <Picker.Item key={v} label={l} value={v} />
                   ))}
                 </Picker>
-                {["balance", "gain", "market"].includes(kind) && (
+                {["balance", "gain"].includes(kind) && (
                   <Picker selectedValue={period} onValueChange={setPeriod}>
                     {investmentPeriods.map(([v, l]) => (
                       <Picker.Item key={v} value={v} label={l} />
                     ))}
                   </Picker>
                 )}
+                {kind === "market" && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+                  {marketPeriods.map(([value, label]) => <Button key={value} secondary={period !== value} onPress={() => setPeriod(value)}>{label}</Button>)}
+                </ScrollView>}
                 {kind === "market" ? (
                   marketTicker(i) ? (
                     <>
@@ -303,7 +307,7 @@ export function InvestmentPortfolio() {
                           baseUrl:
                             "https://escalacwb.github.io/ControleGastos/",
                         }}
-                        style={{ height: 440 }}
+                        style={{ height: 580 }}
                         javaScriptEnabled
                       />
                     </>
@@ -358,7 +362,7 @@ export function InvestmentPortfolio() {
                       ))}
                   </>
                 ) : ["balance", "gain"].includes(kind) ? (
-                  <WebView source={{ html: investmentSeriesChartHTML(points, kind, i.name, rows("investment_transactions").filter((t) => t.investment_id === i.id)) }} style={{ height: 470, borderRadius: 12 }} scrollEnabled={false} javaScriptEnabled />
+                  <WebView source={{ html: recordedInvestmentChartHTML(points, i.name, { metric: kind, movements: rows("investment_transactions").filter((t) => t.investment_id === i.id) }) }} style={{ height: 470, borderRadius: 12 }} scrollEnabled={false} javaScriptEnabled />
                 ) : (
                   <>
                     <ScrollView horizontal>

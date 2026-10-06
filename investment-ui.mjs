@@ -4,14 +4,13 @@ import {
   investmentChart,
   investmentPeriods,
   marketTicker,
-  marketLineHTML,
-  marketRange,
   investmentGroupHistory,
   investmentGroupNames,
   investmentGroup,
   periodStart,
-} from "./investments.mjs?v=2.2.15";
-import { investmentGroupChartHTML, investmentSeriesChartHTML } from "./mobile/src/lib/investment-group-chart.js?v=2.2.15";
+} from "./investments.mjs?v=2.2.16";
+import { recordedInvestmentChartHTML } from "./mobile/src/lib/recorded-investment-chart.js?v=2.2.16";
+import { marketChartHTML, marketPeriods, marketRange } from "./mobile/src/lib/market-chart.js?v=2.2.16";
 export function investmentUI({
   rows,
   esc,
@@ -86,12 +85,16 @@ export function investmentUI({
       `Evolução · ${name}`,
       `${last ? `<div class="info-banner">Valor atual: ${money(last.current)} · capital ainda aplicado: ${money(last.activeCost)}<br>Ganho total: <strong>${money(last.gain)} · ${pct(last.percent)}</strong> · já recebido: ${money(last.received)}</div>` : ""}<label>Período<select id="investment-group-period">${investmentPeriods.map(([value, label]) => `<option value="${value}" ${period === value ? "selected" : ""}>${label}</option>`).join("")}</select></label><iframe id="investment-group-frame" title="Evolução detalhada de ${esc(name)}" style="width:100%;height:670px;border:0;border-radius:14px;margin-top:12px"></iframe><p class="form-note">Os pontos são datas registradas. Uma venda reduz o saldo da carteira, mas o dinheiro recebido permanece no ganho acumulado; saldos sem cotação nova são identificados no detalhe.</p>`,
     );
-    document.getElementById("investment-group-frame").srcdoc = investmentGroupChartHTML(points, name);
+    document.getElementById("investment-group-frame").srcdoc = recordedInvestmentChartHTML(points, name, { group: true });
     document.getElementById("investment-group-period").onchange = (event) => openGroup(group, event.target.value);
   }
-  function open(id, kind = "comparison", period = "all") {
-    const i = rows("investments").find((i) => i.id === id),
-      ticker = i.quote_mode === "stock" ? marketTicker(i) : "",
+  function open(id, kind = "auto", period = "all") {
+    const i = rows("investments").find((i) => i.id === id);
+    if (kind === "auto") {
+      kind = i.quote_mode === "stock" ? "market" : "balance";
+      period = i.quote_mode === "stock" ? "month" : "all";
+    }
+    const ticker = i.quote_mode === "stock" ? marketTicker(i) : "",
       r = investmentPerformance(
         i,
         rows("investment_valuations"),
@@ -108,6 +111,7 @@ export function investmentUI({
         today(),
       ),
       max = Math.max(1, ...points.map((p) => Math.abs(p.value)));
+    const marketTabs = `<div role="group" aria-label="Período da cotação" style="display:flex;gap:6px;overflow-x:auto;padding:8px 0">${marketPeriods.map(([value, label]) => `<button type="button" data-market-period="${value}" aria-pressed="${period === value}" class="button small ${period === value ? "primary" : ""}" style="flex:none">${label}</button>`).join("")}</div>`;
     openDialog(
       "Gráficos · " + i.name,
       `<p>Compra: <strong>${money(i.initial_amount)}</strong> · Atual informado: <strong>${money(i.current_value)}</strong><br>Ganho desde a compra: <strong>${money(r.gain)} · ${pct(r.percent)}</strong></p><div class="form-grid"><label>Gráfico<select id="investment-chart-kind">${[
@@ -122,14 +126,17 @@ export function investmentUI({
         )
         .join(
           "",
-        )}</select></label>${["balance", "gain", "market"].includes(kind) ? `<label>Período<select id="investment-chart-period">${investmentPeriods.map(([v, l]) => `<option value="${v}" ${period === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}</div>${kind === "market" ? (ticker ? `<p class="form-note">Mercado: ${esc(ticker)}. O gráfico externo mostra a cotação do papel; o ganho acima usa o saldo cadastrado. A cotação pode ter atraso e não altera seu saldo automaticamente.</p><iframe id="investment-market-frame" title="Cotação de ${esc(ticker)}" style="width:100%;height:440px;border:0" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>` : `<p>Preencha o código do papel (ex.: PETR4) no cadastro para consultar o gráfico de mercado.</p>${button("Editar cadastro", "edit-investment", id, "small")}`) : ["balance", "gain"].includes(kind) ? `<iframe id="investment-series-frame" title="Evolução de ${esc(i.name)}" style="width:100%;height:500px;border:0;border-radius:14px"></iframe>` : `<div class="investment-bars" style="min-height:200px">${points.map((p) => `<button type="button" class="investment-bar" title="${esc(formatDate(p.date) + " · " + money(p.value))}"><strong>${money(p.value)}</strong><span style="height:${Math.max(3, (Math.abs(p.value) / max) * 140)}px;background:${p.value < 0 ? "#a83737" : "#205b4e"}"></span><small>${kind === "comparison" ? p.label : formatDate(p.date)}</small></button>`).join("") || "<p>Nenhum saldo registrado neste período.</p>"}</div><p class="form-note">${kind === "comparison" ? "Comparação dos valores de compra e atual já cadastrados." : "Mostra apenas datas conhecidas, sem inventar valores entre as atualizações."}</p>`}`,
+        )}</select></label>${["balance", "gain"].includes(kind) ? `<label>Período<select id="investment-chart-period">${investmentPeriods.map(([v, l]) => `<option value="${v}" ${period === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}</div>${kind === "market" ? marketTabs : ""}${kind === "market" ? (ticker ? `<p class="form-note">Mercado: ${esc(ticker)}. O gráfico externo mostra a cotação do papel; o ganho acima usa o saldo cadastrado. A cotação pode ter atraso e não altera seu saldo automaticamente.</p><iframe id="investment-market-frame" title="Cotação de ${esc(ticker)}" style="width:100%;height:580px;border:0;border-radius:14px" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>` : `<p>Preencha o código do papel (ex.: PETR4) no cadastro para consultar o gráfico de mercado.</p>${button("Editar cadastro", "edit-investment", id, "small")}`) : ["balance", "gain"].includes(kind) ? `<iframe id="investment-series-frame" title="Evolução de ${esc(i.name)}" style="width:100%;height:500px;border:0;border-radius:14px"></iframe>` : `<div class="investment-bars" style="min-height:200px">${points.map((p) => `<button type="button" class="investment-bar" title="${esc(formatDate(p.date) + " · " + money(p.value))}"><strong>${money(p.value)}</strong><span style="height:${Math.max(3, (Math.abs(p.value) / max) * 140)}px;background:${p.value < 0 ? "#a83737" : "#205b4e"}"></span><small>${kind === "comparison" ? p.label : formatDate(p.date)}</small></button>`).join("") || "<p>Nenhum saldo registrado neste período.</p>"}</div><p class="form-note">${kind === "comparison" ? "Comparação dos valores de compra e atual já cadastrados." : "Mostra apenas datas conhecidas, sem inventar valores entre as atualizações."}</p>`}`,
     );
     document.getElementById("investment-chart-kind").onchange = (e) =>
-      open(id, e.target.value, period);
+      open(id, e.target.value, e.target.value === "market" ? "month" : "all");
     const select = document.getElementById("investment-chart-period");
     if (select) select.onchange = (e) => open(id, kind, e.target.value);
+    document.querySelectorAll("[data-market-period]").forEach((item) => {
+      item.onclick = () => open(id, "market", item.dataset.marketPeriod);
+    });
     const seriesFrame = document.getElementById("investment-series-frame");
-    if (seriesFrame) seriesFrame.srcdoc = investmentSeriesChartHTML(points, kind, i.name, rows("investment_transactions").filter((t) => t.investment_id === id));
+    if (seriesFrame) seriesFrame.srcdoc = recordedInvestmentChartHTML(points, i.name, { metric: kind, movements: rows("investment_transactions").filter((t) => t.investment_id === id) });
     const frame = document.getElementById("investment-market-frame");
     if (frame) {
       frame.srcdoc = "<p>Consultando o histórico de mercado…</p>";
@@ -138,7 +145,7 @@ export function investmentUI({
         p_range: marketRange(period),
       })
         .then((q) => {
-          if (frame.isConnected) frame.srcdoc = marketLineHTML(q, i);
+          if (frame.isConnected) frame.srcdoc = marketChartHTML(q, i, period, rows("investment_transactions").filter((t) => t.investment_id === id));
         })
         .catch((e) => {
           if (frame.isConnected) frame.srcdoc = "<p>" + esc(e.message) + "</p>";
