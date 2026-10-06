@@ -490,6 +490,7 @@ export function useActions() {
           ...(mode === "stock" ? [
             field("ticker", "Código do papel na B3"),
             field("quantity", "Quantidade atual de papéis", "money"),
+            field("_available_to_sell", `Disponível para venda após salvar: ${String(values.quantity || "").trim() && Number.isFinite(parseMoney(values.quantity)) && parseMoney(values.quantity) >= 0 ? values.quantity + " papéis" : "informe a quantidade"}. Não há ordens reservadas.`, "note", { required: false }),
             field("average_price", "Preço médio por papel", "money", { required: false }),
           ] : []),
           ...(mode === "treasury" ? [
@@ -499,6 +500,7 @@ export function useActions() {
             ]),
             field("maturity_date", "Vencimento exato do título", "date"),
             field("quantity", "Quantidade atual de títulos", "money"),
+            field("_available_to_sell", `Disponível para venda após salvar: ${String(values.quantity || "").trim() && Number.isFinite(parseMoney(values.quantity)) && parseMoney(values.quantity) >= 0 ? values.quantity + " títulos" : "informe a quantidade"}. Não há ordens reservadas.`, "note", { required: false }),
           ] : []),
           field("initial_amount", "Valor total aplicado na compra", "money"),
           ...(mode === "manual" ? [field("current_value", "Saldo atual informado", "money")] : []),
@@ -585,7 +587,8 @@ export function useActions() {
       title: (side === "sale" ? "Vender" : "Comprar") + " · " + i.name,
       initial: { quantity: "", unit_price: "", fees: "0", date: today(), account: "", description: "" },
       fields: () => [
-        field("quantity", "Quantidade", "number"),
+        ...(side === "sale" ? [field("_available_to_sell", `Posição total: ${i.quantity ?? "—"} · Disponível para venda: ${i.quantity ?? "—"}`, "note", { required: false })] : []),
+        field("quantity", side === "sale" ? "Quantidade a vender" : "Quantidade a comprar", "number"),
         field("unit_price", "Preço por unidade (R$)", "money"),
         field("fees", "Custos / taxas (R$)", "money"),
         field("date", "Data da operação", "date"),

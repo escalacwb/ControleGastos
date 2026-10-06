@@ -1157,6 +1157,7 @@ function investmentDialog(id) {
       inputField("Instituição", "institution", i.institution, { required: false }) +
       inputField("Código do papel na B3", "ticker", i.ticker || (/^[A-Z]{4}\d{1,2}$/.test(i.name || "") ? i.name : ""), { required: false }) +
       inputField("Quantidade atual de papéis ou títulos", "quantity", i.quantity ?? "", { required: false, extra: 'inputmode="decimal"' }) +
+      `<label id="quantity-available-label">Disponível para venda<output class="quantity-available" id="quantity-available" aria-live="polite"></output><small class="form-note">Igual à posição informada; não há ordens reservadas.</small></label>` +
       `<label>Título do Tesouro<select name="treasury_title" id="field-treasury_title"><option value="">Selecione</option>${["Tesouro Selic", "Tesouro IPCA+", "Tesouro Prefixado"].map((title) => `<option value="${title}" ${i.treasury_title === title ? "selected" : ""}>${title}</option>`).join("")}</select></label>` +
       inputField("Preço médio por papel (opcional)", "average_price", i.average_price ?? "", { required: false, extra: 'inputmode="decimal"' }) +
       inputField("Valor total aplicado na compra", "initial_amount", i.initial_amount || 0, { extra: 'inputmode="decimal"' }) +
@@ -1206,6 +1207,15 @@ function investmentDialog(id) {
     "Ações e Tesouro usam quantidade × cotação. Fundos e outros investimentos mantêm o saldo manual. Nenhuma atualização movimenta contas.",
   );
   const modeField = document.getElementById("field-quote_mode");
+  const quantityField = document.getElementById("field-quantity");
+  const availableField = document.getElementById("quantity-available");
+  const syncAvailable = () => {
+    const raw = quantityField.value.trim();
+    const value = raw ? parseMoney(raw) : null;
+    availableField.textContent = value !== null && Number.isFinite(value) && value >= 0
+      ? `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 8 }).format(value)} ${modeField.value === "treasury" ? "títulos" : "papéis"} após salvar`
+      : "Informe a quantidade";
+  };
   const syncFields = () => {
     const selected = modeField.value;
     for (const [name, visible] of Object.entries({
@@ -1219,8 +1229,11 @@ function investmentDialog(id) {
         field.required = visible && ["current_value", "ticker", "quantity", "treasury_title", "maturity_date"].includes(name);
       }
     }
+    document.getElementById("quantity-available-label").style.display = selected === "manual" ? "none" : "";
+    syncAvailable();
   };
   modeField.addEventListener("change", syncFields);
+  quantityField.addEventListener("input", syncAvailable);
   syncFields();
 }
 function investmentHistory(id) {
@@ -1249,8 +1262,8 @@ function investmentTrade(id, side) {
   if (!i || i.quote_mode === "manual") return;
   simpleDialog(
     `${side === "sale" ? "Vender" : "Comprar"} · ${i.name}`,
-    `<div class="info-banner">Posição atual: ${esc(String(i.quantity ?? "—"))} unidades · ${money(i.current_value)}</div>` +
-      inputField("Quantidade", "quantity", "", { extra: 'inputmode="decimal"' }) +
+    `<div class="info-banner">Posição total: ${esc(String(i.quantity ?? "—"))} unidades${side === "sale" ? ` · Disponível para venda: ${esc(String(i.quantity ?? "—"))}` : ""} · ${money(i.current_value)}</div>` +
+      inputField(side === "sale" ? "Quantidade a vender" : "Quantidade a comprar", "quantity", "", { extra: 'inputmode="decimal"' }) +
       inputField("Preço por unidade (R$)", "unit_price", "", { extra: 'inputmode="decimal"' }) +
       inputField("Custos / taxas (R$)", "fees", 0, { extra: 'inputmode="decimal"' }) +
       inputField("Data da operação", "date", today(), { type: "date" }) +

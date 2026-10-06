@@ -1124,6 +1124,21 @@ label small {
 .form-grid .full {
   grid-column: 1/-1;
 }
+.quantity-available {
+  display: flex;
+  align-items: center;
+  min-height: 43px;
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface, #f7f8f4);
+  font-weight: 700;
+  color: var(--green, #174f42);
+}
+#quantity-available-label .form-note {
+  display: block;
+  margin-top: 5px;
+}
 .form-actions {
   display: flex;
   gap: 10px;
