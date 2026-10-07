@@ -16,8 +16,13 @@ function chartRuntime(points) {
   const clean = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   let mode = "return", selected = Math.max(0, points.length - 1);
   const initialIndex = Number(points[0]?.returnIndex) || 100;
+  const initialGain = Number(points[0]?.gain) || 0;
+  const initialRealized = Number(points[0]?.realizedGain) || 0;
+  const initialReceived = Number(points[0]?.received) || 0;
   const value = (p) => mode === "return" ? (Number(p.returnIndex || 100) / initialIndex - 1) * 100
-    : Number(mode === "gain" ? p.gain : mode === "realized" ? p.realizedGain : p.current) || 0;
+    : mode === "gain" ? (Number(p.gain) || 0) - initialGain
+      : mode === "realized" ? (Number(p.realizedGain) || 0) - initialRealized
+        : Number(p.current) || 0;
   const format = (n) => mode === "return" ? pct(n) : brl(n);
 
   function details(index) {
@@ -30,7 +35,7 @@ function chartRuntime(points) {
         ? `<small>Diferença frente à última cotação conhecida: ${brl(event.differenceFromQuote)}. Isso pode alterar o ganho desde a avaliação anterior, mesmo com lucro sobre a compra.</small>` : "";
       return `<div class="event"><strong>${clean(event.name)}</strong> · ${clean(type)} · ${brl(event.amount)}${event.realizedGain != null ? ` · ganho realizado ${brl(event.realizedGain)}` : ""}${difference}</div>`;
     }).join("");
-    detail.innerHTML = `<strong>${date(point.date)}</strong><div class="facts"><div>Saldo na carteira<b>${brl(point.current)}</b></div><div>Ganho acumulado<b>${brl(point.gain)}</b></div><div>Lucro realizado em vendas<b>${brl(point.realizedGain)}</b></div><div>Já recebido<b>${brl(point.received)}</b></div></div>${events}`;
+    detail.innerHTML = `<strong>${date(point.date)}</strong><div class="facts"><div>Saldo na carteira<b>${brl(point.current)}</b></div><div>Ganho no período<b>${brl((Number(point.gain) || 0) - initialGain)}</b></div><div>Ganho desde o início<b>${brl(point.gain)}</b></div><div>Lucro realizado no período<b>${brl((Number(point.realizedGain) || 0) - initialRealized)}</b></div><div>Recebido no período<b>${brl((Number(point.received) || 0) - initialReceived)}</b></div><div>Recebido desde o início<b>${brl(point.received)}</b></div></div>${events}`;
   }
 
   function draw() {
@@ -48,7 +53,7 @@ function chartRuntime(points) {
     const values = points.map(value), first = points[0], last = points[points.length - 1];
     const start = value(first), finish = value(last), change = finish - start;
     headline.textContent = format(finish);
-    delta.textContent = `${change >= 0 ? "↑ +" : "↓ −"}${format(Math.abs(change))} no período`;
+    delta.textContent = mode === "current" ? `${change >= 0 ? "↑ +" : "↓ −"}${format(Math.abs(change))} no período` : `Desde ${date(first.date)}`;
     delta.className = change < -0.0001 ? "change down" : "change up";
     subtitle.textContent = `${date(first.date)} a ${date(last.date)} · ${points.length} datas conhecidas`;
 
@@ -92,5 +97,5 @@ export function groupReturnChartHTML(points, title) {
   const data = JSON.stringify(points).replace(/</g, "\\u003c");
   return `<!doctype html><html lang="pt-BR"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
     *{box-sizing:border-box}body{margin:0;color:#203b32;background:#fff;font:14px system-ui,-apple-system,sans-serif}.wrap{padding:14px 9px}.title{font-size:18px;font-weight:700;padding:0 10px}.tabs{display:flex;gap:5px;overflow-x:auto;padding:12px 9px 8px}.tabs button{flex:none;border:0;border-radius:9px;background:#f1f4ef;color:#566d5f;padding:9px 11px;font:inherit;cursor:pointer}.tabs button.active{background:#dff0e4;color:#145a3e;font-weight:700}.figure{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:2px 10px}.figure strong{font-size:31px;font-weight:500;letter-spacing:-.04em}.change{font-size:12px;padding:5px 7px;border-radius:7px;font-weight:700}.up{background:#e7f4eb;color:#177046}.down{background:#f9ebe8;color:#ad4844}.sub{color:#728477;font-size:12px;padding:4px 10px 9px}.plot{position:relative}svg{display:block;width:100%;height:auto;touch-action:none}.axis{fill:#748578;font-size:11px}.grid{stroke:#e5ece6;stroke-width:1}.line{fill:none;stroke:#177951;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.line.negative{stroke:#b6504a}.cross{stroke:#7c8d80;stroke-dasharray:3 3}.dot{fill:#177951;stroke:white;stroke-width:2}.hit{fill:transparent}.tooltip{position:absolute;top:9px;padding:7px 9px;border:1px solid #dce6dc;border-radius:7px;background:white;box-shadow:0 3px 12px #17392b22;pointer-events:none;min-width:145px;font-size:12px}.tooltip strong{display:block;font-size:14px}.detail{border-top:1px solid #e3ebe3;padding:12px 10px;margin-top:5px}.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:9px}.facts div{padding:8px;border-radius:8px;background:#f4f7f3;color:#708174;font-size:11px}.facts b{display:block;margin-top:3px;color:#253d35;font-size:14px}.event{border-top:1px solid #e6ece6;margin-top:9px;padding-top:8px;line-height:1.4}.event small{display:block;color:#6e8072}.note{font-size:11px;color:#708174;line-height:1.45;padding:10px}
-    </style><div class="wrap"><div class="title">${escapeHTML(title)}</div><div class="tabs" role="group" aria-label="Métrica do gráfico"><button data-mode="return">Rentabilidade</button><button data-mode="gain">Ganho acumulado</button><button data-mode="current">Montante</button><button data-mode="realized">Lucro realizado</button></div><div class="figure"><strong id="headline"></strong><span id="delta" class="change"></span></div><div id="subtitle" class="sub"></div><div class="plot"><svg id="chart" viewBox="0 0 750 292" role="img" aria-label="Evolução de ${escapeHTML(title)}"></svg><div id="tooltip" class="tooltip" hidden></div></div><div id="detail" class="detail"></div><div class="note">Rentabilidade ajustada a aportes e resgates, encadeada entre avaliações conhecidas. Montante é o que ainda está investido; ganho acumulado inclui valores recebidos. Uma venda abaixo da última avaliação pode reduzir a rentabilidade mesmo quando o lucro desde a compra é positivo.</div></div><script>(${chartRuntime.toString()})(${data});</script></html>`;
+    </style><div class="wrap"><div class="title">${escapeHTML(title)}</div><div class="tabs" role="group" aria-label="Métrica do gráfico"><button data-mode="return">Rentabilidade</button><button data-mode="gain">Ganho no período</button><button data-mode="current">Montante</button><button data-mode="realized">Lucro realizado no período</button></div><div class="figure"><strong id="headline"></strong><span id="delta" class="change"></span></div><div id="subtitle" class="sub"></div><div class="plot"><svg id="chart" viewBox="0 0 750 292" role="img" aria-label="Evolução de ${escapeHTML(title)}"></svg><div id="tooltip" class="tooltip" hidden></div></div><div id="detail" class="detail"></div><div class="note">Rentabilidade ajustada a aportes e resgates, encadeada entre avaliações conhecidas. Ganho no período é a variação do ganho em reais entre as datas mostradas; não é o percentual multiplicado pelo saldo final. Montante é o que ainda está investido. Uma venda abaixo da última avaliação pode reduzir a rentabilidade mesmo com lucro desde a compra.</div></div><script>(${chartRuntime.toString()})(${data});</script></html>`;
 }

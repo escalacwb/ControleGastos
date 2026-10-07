@@ -2,7 +2,7 @@
   "expo": {
     "name": "Em Casa",
     "slug": "app",
-    "version": "2.2.17",
+    "version": "2.2.18",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.awfinance.app",
-      "versionCode": 28,
+      "versionCode": 29,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#174f42"

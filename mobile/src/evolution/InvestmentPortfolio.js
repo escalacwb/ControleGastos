@@ -14,6 +14,7 @@ import {
   investmentPeriods,
   marketTicker,
   investmentGroupHistory,
+  investmentGroupPeriodSummary,
   investmentGroupNames,
   investmentGroup,
   periodStart,
@@ -91,7 +92,7 @@ export function InvestmentPortfolio() {
   const selectedGroup = groups.find((group) => group.key === groupSelected);
   const groupPoints = selectedGroup?.points.filter((point) => point.date >= periodStart(groupPeriod, today())) || [];
   const chartHTML = groupReturnChartHTML(groupPoints, selectedGroup?.name || "investimentos");
-  const groupReturn = groupPoints.length > 1 ? (groupPoints.at(-1).returnIndex / groupPoints[0].returnIndex - 1) * 100 : 0;
+  const groupSummary = investmentGroupPeriodSummary(groupPoints);
   const pct = (n) =>
     n === null
       ? "—"
@@ -424,15 +425,18 @@ export function InvestmentPortfolio() {
               <Button secondary onPress={() => setGroupSelected(null)}>Fechar</Button>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-              <Text style={S.text}>Montante: {money(selectedGroup.points.at(-1).current)} · ganho acumulado: {money(selectedGroup.points.at(-1).gain)}</Text>
-              <Text style={S.text}>Rentabilidade no período: {pct(groupReturn)}</Text>
+              {groupSummary && <>
+                <Text style={S.text}>De {formatDate(groupSummary.from)} a {formatDate(groupSummary.to)}: rentabilidade {pct(groupSummary.returnPercent)} · ganho no mesmo período {money(groupSummary.gain)}</Text>
+                <Text style={S.text}>Desde o início: ganho {money(groupSummary.lifetimeGain)} · recebido {money(groupSummary.lifetimeReceived)}</Text>
+                <Text style={S.text}>Saldo atual: {money(groupSummary.current)} · capital ainda aplicado: {money(groupSummary.activeCost)}</Text>
+              </>}
               <Picker selectedValue={groupPeriod} onValueChange={setGroupPeriod}>
                 {investmentPeriods.map(([value, label]) => <Picker.Item key={value} value={value} label={label} />)}
               </Picker>
               {groupPoints.length ? <>
                 <WebView source={{ html: chartHTML }} style={{ height: 680, borderRadius: 12 }} scrollEnabled={false} javaScriptEnabled />
                 {groupPoints.slice(-8).reverse().map((point) => <Text key={point.date} style={S.text}>
-                  {formatDate(point.date)} · rentabilidade acumulada {pct(point.returnPercent)} · ganho {money(point.gain)} · montante {money(point.current)}
+                  {formatDate(point.date)} · ganho desde o início {money(point.gain)} · montante {money(point.current)}
                 </Text>)}
               </> : <Text style={S.muted}>Sem avaliações ou movimentações neste período.</Text>}
               <Text style={S.muted}>Datas conhecidas apenas. Entre atualizações, usa o último saldo informado ou cotado; vendas e resgates permanecem no ganho.</Text>

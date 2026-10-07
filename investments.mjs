@@ -20,6 +20,23 @@ export function investmentGroup(investment) {
   return "other";
 }
 export const investmentGroupNames = { fixed: "Renda fixa", variable: "Renda variável", other: "Fundos e outros" };
+export function investmentGroupPeriodSummary(points) {
+  if (!points.length) return null;
+  const first = points[0], last = points.at(-1);
+  return {
+    from: first.date,
+    to: last.date,
+    returnPercent: points.length > 1 && Number(first.returnIndex) > 0
+      ? (Number(last.returnIndex) / Number(first.returnIndex) - 1) * 100 : 0,
+    gain: round(Number(last.gain || 0) - Number(first.gain || 0)),
+    received: round(Number(last.received || 0) - Number(first.received || 0)),
+    realizedGain: round(Number(last.realizedGain || 0) - Number(first.realizedGain || 0)),
+    lifetimeGain: Number(last.gain || 0),
+    lifetimeReceived: Number(last.received || 0),
+    current: Number(last.current || 0),
+    activeCost: Number(last.activeCost || 0),
+  };
+}
 export function investmentGroupHistory(investments, valuations, movements, group, end) {
   const assets = investments.filter((i) => group === "all" || investmentGroup(i) === group);
   const ids = new Set(assets.map((i) => i.id));

@@ -5,13 +5,14 @@ import {
   investmentPeriods,
   marketTicker,
   investmentGroupHistory,
+  investmentGroupPeriodSummary,
   investmentGroupNames,
   investmentGroup,
   periodStart,
-} from "./investments.mjs?v=2.2.17";
-import { recordedInvestmentChartHTML } from "./mobile/src/lib/recorded-investment-chart.js?v=2.2.17";
-import { groupReturnChartHTML } from "./mobile/src/lib/group-return-chart.js?v=2.2.17";
-import { marketChartHTML, marketPeriods, marketRange } from "./mobile/src/lib/market-chart.js?v=2.2.17";
+} from "./investments.mjs?v=2.2.18";
+import { recordedInvestmentChartHTML } from "./mobile/src/lib/recorded-investment-chart.js?v=2.2.18";
+import { groupReturnChartHTML } from "./mobile/src/lib/group-return-chart.js?v=2.2.18";
+import { marketChartHTML, marketPeriods, marketRange } from "./mobile/src/lib/market-chart.js?v=2.2.18";
 export function investmentUI({
   rows,
   esc,
@@ -81,11 +82,10 @@ export function investmentUI({
     if (!name) return;
     const all = investmentGroupHistory(rows("investments"), rows("investment_valuations"), rows("investment_transactions"), group, today());
     const points = all.filter((point) => point.date >= periodStart(period, today()));
-    const last = all.at(-1);
-    const periodReturn = points.length > 1 ? (points.at(-1).returnIndex / points[0].returnIndex - 1) * 100 : 0;
+    const summary = investmentGroupPeriodSummary(points);
     openDialog(
       `Evolução · ${name}`,
-      `${last ? `<div class="info-banner">Valor atual: ${money(last.current)} · capital ainda aplicado: ${money(last.activeCost)}<br>Ganho acumulado: <strong>${money(last.gain)}</strong> · rentabilidade no período: <strong>${pct(periodReturn)}</strong> · já recebido: ${money(last.received)}</div>` : ""}<label>Período<select id="investment-group-period">${investmentPeriods.map(([value, label]) => `<option value="${value}" ${period === value ? "selected" : ""}>${label}</option>`).join("")}</select></label><iframe id="investment-group-frame" title="Evolução detalhada de ${esc(name)}" style="width:100%;height:670px;border:0;border-radius:14px;margin-top:12px"></iframe><p class="form-note">Os pontos são datas registradas. Uma venda reduz o saldo da carteira, mas o dinheiro recebido permanece no ganho acumulado; saldos sem cotação nova são identificados no detalhe.</p>`,
+      `${summary ? `<div class="info-banner">De ${formatDate(summary.from)} a ${formatDate(summary.to)}: rentabilidade <strong>${pct(summary.returnPercent)}</strong> · ganho no mesmo período <strong>${money(summary.gain)}</strong><br>Desde o início: ganho ${money(summary.lifetimeGain)} · recebido ${money(summary.lifetimeReceived)}<br>Saldo atual: ${money(summary.current)} · capital ainda aplicado: ${money(summary.activeCost)}</div>` : ""}<label>Período<select id="investment-group-period">${investmentPeriods.map(([value, label]) => `<option value="${value}" ${period === value ? "selected" : ""}>${label}</option>`).join("")}</select></label><iframe id="investment-group-frame" title="Evolução detalhada de ${esc(name)}" style="width:100%;height:670px;border:0;border-radius:14px;margin-top:12px"></iframe><p class="form-note">Os pontos são datas registradas. A rentabilidade considera o capital aplicado em cada trecho; por isso o percentual não é o ganho em reais dividido pelo saldo atual. Uma venda reduz o saldo, mas o valor recebido permanece no ganho histórico.</p>`,
     );
     document.getElementById("investment-group-frame").srcdoc = groupReturnChartHTML(points, name);
     document.getElementById("investment-group-period").onchange = (event) => openGroup(group, event.target.value);
